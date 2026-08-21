@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Briefcase, Route, Split, DollarSign, Weight, ChevronRight, Lock } from "lucide-react";
+import { Briefcase, Route, Split, DollarSign, Weight, ChevronRight, Lock, TriangleAlert } from "lucide-react";
 import type { TotalesPeriodo } from "@/app/(dashboard)/choferes/ranking/lib";
 import Sparkline from "./Sparkline";
 
@@ -18,11 +18,36 @@ function fmtNum(n: number): string {
   return n.toLocaleString("es-AR", { maximumFractionDigits: 0 });
 }
 
-/** Formato compacto de pesos para tarjetas ($ 1,2 M / $ 350 k / $ 980). */
+/** Formato compacto de pesos para el número grande ($ 1.466,9 M / $ 350 k). */
 function fmtMoneyCompact(n: number): string {
   if (n >= 1_000_000) return `$ ${(n / 1_000_000).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M`;
   if (n >= 1_000) return `$ ${(n / 1_000).toLocaleString("es-AR", { maximumFractionDigits: 0 })} k`;
   return `$ ${fmtNum(n)}`;
+}
+
+/**
+ * El $/km va con todos sus dígitos. Compactado decía "$ 2 k por km" para $1.688:
+ * el mismo dato que en Métricas se mira con dos decimales, redondeado a la mitad
+ * de un millar. Un número corto no sirve si deja de ser el número.
+ */
+function fmtPesos(n: number): string {
+  return `$ ${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+}
+
+/** "julio", "julio y agosto", "julio, agosto y 2 meses más". */
+const MESES_NOMBRE = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+function listarMeses(meses: string[]): string {
+  const nombres = meses.map((m) => {
+    const mes = m.split("-")[1];
+    return MESES_NOMBRE[Number(mes) - 1] ?? m;
+  });
+  if (nombres.length === 1) return nombres[0];
+  if (nombres.length === 2) return `${nombres[0]} y ${nombres[1]}`;
+  const resto = nombres.length - 2;
+  return `${nombres[0]}, ${nombres[1]} y ${resto} ${resto === 1 ? "mes" : "meses"} más`;
 }
 
 const TONOS = {
@@ -44,6 +69,18 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
   const pesosPorKm = kmTotal > 0 && totales.facturacion > 0 ? totales.facturacion / kmTotal : 0;
   const tnPorViaje = totales.viajes > 0 && totales.toneladas > 0 ? totales.toneladas / totales.viajes : 0;
   const s = totales.serie;
+  // Los meses del período con viajes pero sin un peso cargado. Sólo se avisa
+  // cuando el período abarca más de uno: en un mes suelto, el "$ 0" ya se ve.
+  // Un período de tres meses donde dos están en $0 mostraba el total de uno
+  // solo, rotulado como si fueran los tres. El aviso sólo tiene sentido para
+  // quien ve los montos, y sólo si algún mes SÍ tiene.
+  const sinFacturar =
+    mostrarFacturacion && totales.facturacion > 0 ? totales.mesesSinFacturacion : [];
+  const avisoFacturacion = sinFacturar.length
+    ? `La facturación sale de los meses que tienen montos cargados: ${listarMeses(sinFacturar)} ${
+        sinFacturar.length === 1 ? "todavía está" : "todavía están"
+      } en $ 0.`
+    : null;
 
   const cards = [
     {
@@ -81,7 +118,7 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
           id: "facturacion",
           label: "Facturación del período",
           value: fmtMoneyCompact(totales.facturacion),
-          sub: pesosPorKm > 0 ? `${fmtMoneyCompact(pesosPorKm)} por km` : "Sin facturación cargada",
+          sub: pesosPorKm > 0 ? `${fmtPesos(pesosPorKm)} por km` : "Sin facturación cargada",
           icon: DollarSign,
           tono: TONOS.violeta,
           // El candado avisa que este número no lo ve el resto del equipo. Antes
@@ -101,7 +138,7 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
           icon: Weight,
           tono: TONOS.violeta,
           privado: false,
-          serie: s.map((p) => p.toneladas),
+              serie: s.map((p) => p.toneladas),
         },
   ];
 
@@ -135,13 +172,8 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
                 <c.icon size={19} strokeWidth={2.4} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1 text-[10px] font-extrabold uppercase leading-none tracking-wider text-muted-foreground">
+                <p className="text-[10px] font-extrabold uppercase leading-none tracking-wider text-muted-foreground">
                   {c.label}
-                  {c.privado && (
-                    <Lock size={10} strokeWidth={2.6} className="shrink-0 text-muted-foreground/70">
-                      <title>Sólo lo ve la dirección</title>
-                    </Lock>
-                  )}
                 </p>
                 {/* El número no se corta nunca: si es largo baja un escalón de
                     tamaño en vez de salirse de la tarjeta. */}
@@ -160,15 +192,37 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
               />
             </div>
 
+            {/* En palabras y no en un ícono suelto: un candado chiquito arriba
+                del rótulo no lo registra nadie. */}
+            {c.privado && (
+              <p
+                className="mt-1.5 flex items-center gap-1.5 px-4 text-[11px] font-semibold text-muted-foreground sm:px-5"
+                title="El resto del equipo ve toneladas en esta tarjeta, y ningún importe en el resto del tablero."
+              >
+                <Lock size={11} strokeWidth={2.6} className="shrink-0 text-[#7C3AED]" />
+                Sólo la ve la dirección
+              </p>
+            )}
+
             <Sparkline
               values={c.serie}
               color={c.tono.linea}
               id={c.id}
-              className="mt-auto h-11 w-full transition-transform duration-500 group-hover:scale-y-110 origin-bottom sm:h-12"
+              className="mt-auto h-11 w-full pt-2 transition-transform duration-500 group-hover:scale-y-110 origin-bottom sm:h-12"
             />
           </Link>
         ))}
       </div>
+
+      {/* De dónde sale el número, cuando no sale de todo el período. Va acá y no
+          adentro de la tarjeta: es del período entero y, metido en una tarjeta,
+          estiraba la fila y dejaba a las otras tres con un hueco. */}
+      {avisoFacturacion && (
+        <p className="flex items-start gap-1.5 text-[11px] leading-snug text-[#B45309]">
+          <TriangleAlert size={12} strokeWidth={2.6} className="mt-[1px] shrink-0" />
+          {avisoFacturacion}
+        </p>
+      )}
     </section>
   );
 }

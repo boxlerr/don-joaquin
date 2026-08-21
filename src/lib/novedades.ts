@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "sabes-de-que-meses-sale-la-facturacion-del",
+    fecha: "2026-08-21",
+    tipo: "mejora",
+    ver: "dashboard_completo",
+    titulo: "Sabés de qué meses sale la facturación del dashboard",
+    detalle: "Si algún mes del período todavía no tiene montos cargados, la pantalla te lo avisa abajo de los números en vez de sumar como si estuviera todo. Y el $/km dejó de redondearse: donde decía \"$ 2 k por km\" ahora dice \"$ 1.688 por km\".",
+    href: "/dashboard",
+  },
+  {
     id: "la-facturacion-la-ves-en-el-dashboard-de",
     fecha: "2026-08-21",
     tipo: "mejora",

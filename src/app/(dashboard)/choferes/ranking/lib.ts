@@ -140,6 +140,15 @@ export type TotalesPeriodo = {
   facturacion: number;
   /** Evolución dentro del período, para los sparklines del dashboard. */
   serie: PuntoSerie[];
+  /**
+   * Meses del período que tienen viajes pero NINGÚN monto cargado ("2026-07").
+   *
+   * Sin esto, un período de tres meses donde sólo uno tiene la facturación
+   * cargada muestra el total de ese mes rotulado como si fueran los tres, y no
+   * hay forma de darse cuenta desde la pantalla. Pasó con jun–ago 2026: julio y
+   * agosto en $0 y el dashboard mostraba, en los hechos, junio.
+   */
+  mesesSinFacturacion: string[];
 };
 
 /** Cuántos tramos tiene la serie del período. 16 alcanza para que la curva se
@@ -206,6 +215,8 @@ export async function computeTotalesPeriodo(desde: string, hasta: string): Promi
   let toneladas = 0;
   let facturacion = 0;
   const choferes = new Set<string>();
+  // Facturación por mes, para poder avisar cuáles quedaron sin cargar.
+  const porMes = new Map<string, number>();
   // Misma pasada que los totales: la serie sale de las filas que ya trajimos,
   // sin una segunda consulta.
   const serie = tramosDelPeriodo(desde, hasta);
@@ -219,6 +230,10 @@ export async function computeTotalesPeriodo(desde: string, hasta: string): Promi
     kmVacios += kmV;
     toneladas += tn;
     facturacion += monto;
+    if (v.fecha_viaje) {
+      const mes = v.fecha_viaje.slice(0, 7);
+      porMes.set(mes, (porMes.get(mes) ?? 0) + monto);
+    }
     if (v.chofer_id) choferes.add(v.chofer_id);
     if (v.fecha_viaje) {
       const i = indiceDeTramo(v.fecha_viaje, desde, hasta, serie.length);
@@ -238,6 +253,13 @@ export async function computeTotalesPeriodo(desde: string, hasta: string): Promi
   const hoyISO = isoDeMs(Date.now());
   const serieHastaHoy = serie.filter((t) => t.desde <= hoyISO);
 
+  // Sólo se nombran los meses que TIENEN viajes: un mes sin ningún viaje
+  // cargado no es "sin facturación", es un mes que todavía no existe.
+  const mesesSinFacturacion = [...porMes.entries()]
+    .filter(([, monto]) => monto === 0)
+    .map(([mes]) => mes)
+    .sort();
+
   return {
     viajes: rows.length,
     choferesActivos: choferes.size,
@@ -245,6 +267,7 @@ export async function computeTotalesPeriodo(desde: string, hasta: string): Promi
     kmVacios,
     toneladas,
     facturacion,
+    mesesSinFacturacion,
     // Con un solo tramo no hay curva que dibujar; se deja la serie completa
     // antes que dejar la tarjeta sin sparkline.
     serie: serieHastaHoy.length >= 2 ? serieHastaHoy : serie,
