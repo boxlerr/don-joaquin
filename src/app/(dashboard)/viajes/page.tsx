@@ -166,7 +166,11 @@ export default async function ViajesPage({
         desdePeriodo={periodo.desde}
         hastaPeriodo={periodo.hasta}
       >
-        <DisponibilidadChoferes ausencias={ausenciasProximas} dias={DIAS_DISPONIBILIDAD} />
+        <DisponibilidadChoferes
+          ausencias={ausenciasProximas}
+          dias={DIAS_DISPONIBILIDAD}
+          puedeVerLegajos={hasSeccion(user, "choferes", "read")}
+        />
       </ViajesStatsPanel>
     </div>
   );

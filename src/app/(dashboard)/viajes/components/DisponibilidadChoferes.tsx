@@ -10,12 +10,18 @@ import type { AusenciaProxima } from "../actions";
 interface Props {
   ausencias: AusenciaProxima[];
   dias: number;
+  /**
+   * Con permiso de Personal cada ficha es un link al legajo. Sin él la ficha se
+   * ve igual pero queda quieta: acá entra cualquiera que tenga viajes, y el
+   * link mandaba a una pantalla que le rebota (mismo criterio que el tablero).
+   */
+  puedeVerLegajos: boolean;
 }
 
 // Sección de disponibilidad: quién NO está hoy y quién se va en los próximos
 // días. La distinción importa para asignar viajes: a alguien que se va el lunes
 // todavía se le puede dar un viaje hoy.
-export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
+export default function DisponibilidadChoferes({ ausencias, dias, puedeVerLegajos }: Props) {
   const ausentesHoy = new Set(ausencias.filter((a) => a.en_curso).map((a) => a.chofer_id)).size;
   const porSalir = new Set(
     ausencias.filter((a) => !a.en_curso).map((a) => a.chofer_id),
@@ -54,67 +60,72 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
           </p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {ausencias.map((a) => (
-              <Link
-                key={a.id}
-                href={`/choferes/${a.chofer_id}?tab=ausencias`}
-                className={`group flex items-start gap-3 rounded-lg border p-3 transition-all hover:border-primary/40 hover:bg-muted/30 hover:shadow-sm ${
-                  a.en_curso ? "border-amber-500/40" : "border-border"
-                }`}
-              >
-                <AvatarPersona name={a.chofer_nombre} rol="chofer" size={40} className="mt-0.5 shrink-0" />
+            {ausencias.map((a) => {
+              const Contenedor = puedeVerLegajos ? Link : "div";
+              return (
+                <Contenedor
+                  key={a.id}
+                  href={`/choferes/${a.chofer_id}?tab=ausencias`}
+                  className={`group flex items-start gap-3 rounded-lg border p-3 ${
+                    puedeVerLegajos ? "transition-all hover:border-primary/40 hover:bg-muted/30 hover:shadow-sm" : ""
+                  } ${a.en_curso ? "border-amber-500/40" : "border-border"}`}
+                >
+                  <AvatarPersona name={a.chofer_nombre} rol="chofer" size={40} className="mt-0.5 shrink-0" />
 
-                <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                    {a.chofer_nombre}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className={`block text-sm font-semibold text-foreground truncate ${
+                      puedeVerLegajos ? "transition-colors group-hover:text-primary" : ""
+                    }`}>
+                      {a.chofer_nombre}
+                    </span>
 
-                  {/* Lo primero es si está o no está HOY; el tipo de ausencia va después. */}
-                  {a.en_curso ? (
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-                      <span className="size-1.5 shrink-0 rounded-full bg-amber-500" />
-                      {estadoAusente(a.tipo, a.es_vacaciones)}
-                      <span className="font-normal text-muted-foreground">
-                        · vuelve el {formatFecha(a.fecha_regreso)}
-                      </span>
-                    </p>
-                  ) : (
-                    <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-semibold text-foreground/70">
-                      <span className="size-1.5 shrink-0 rounded-full border border-muted-foreground/40" />
-                      Disponible
-                      <span className="font-normal text-muted-foreground">
-                        · se va {cuandoSeVa(a.dias_hasta_inicio)}
-                      </span>
-                    </p>
-                  )}
-
-                  <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
-                    {/* El tipo solo se repite acá si arriba no se nombró (los que
-                        todavía están dicen "Disponible", no el motivo). */}
-                    {!a.en_curso && (
-                      <>
-                        <span className="capitalize">{a.tipo.toLowerCase()}</span>
-                        {" · "}
-                      </>
+                    {/* Lo primero es si está o no está HOY; el tipo de ausencia va después. */}
+                    {a.en_curso ? (
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                        <span className="size-1.5 shrink-0 rounded-full bg-amber-500" />
+                        {estadoAusente(a.tipo, a.es_vacaciones)}
+                        <span className="font-normal text-muted-foreground">
+                          · vuelve el {formatFecha(a.fecha_regreso)}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-semibold text-foreground/70">
+                        <span className="size-1.5 shrink-0 rounded-full border border-muted-foreground/40" />
+                        Disponible
+                        <span className="font-normal text-muted-foreground">
+                          · se va {cuandoSeVa(a.dias_hasta_inicio)}
+                        </span>
+                      </p>
                     )}
-                    {formatFecha(a.fecha_inicio)}
-                    {a.fecha_inicio !== a.fecha_fin && (
-                      <>
-                        <span className="mx-1 text-muted-foreground/50">→</span>
-                        {formatFecha(a.fecha_fin)}
-                      </>
-                    )}
-                  </p>
 
-                  {a.autorizado_por_nombre && (
-                    <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground/80">
-                      <ShieldCheck size={11} className="shrink-0 text-emerald-500" />
-                      <span className="truncate">{a.autorizado_por_nombre}</span>
+                    <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
+                      {/* El tipo solo se repite acá si arriba no se nombró (los que
+                          todavía están dicen "Disponible", no el motivo). */}
+                      {!a.en_curso && (
+                        <>
+                          <span className="capitalize">{a.tipo.toLowerCase()}</span>
+                          {" · "}
+                        </>
+                      )}
+                      {formatFecha(a.fecha_inicio)}
+                      {a.fecha_inicio !== a.fecha_fin && (
+                        <>
+                          <span className="mx-1 text-muted-foreground/50">→</span>
+                          {formatFecha(a.fecha_fin)}
+                        </>
+                      )}
                     </p>
-                  )}
-                </div>
-              </Link>
-            ))}
+
+                    {a.autorizado_por_nombre && (
+                      <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground/80">
+                        <ShieldCheck size={11} className="shrink-0 text-emerald-500" />
+                        <span className="truncate">{a.autorizado_por_nombre}</span>
+                      </p>
+                    )}
+                  </div>
+                </Contenedor>
+              );
+            })}
           </div>
         )}
       </div>
