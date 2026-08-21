@@ -24,8 +24,8 @@ interface ListProps {
   accent: "emerald" | "rose";
   emptyText: string;
   /**
-   * Mostrar el "· $X" facturado por chofer. Default false: en el dashboard
-   * general no van montos (los ve solo dirección en /dashboard/completo).
+   * Mostrar el "· $X" facturado por chofer. Default false: los montos los ve
+   * sólo la dirección.
    */
   mostrarFacturacion?: boolean;
   /** Numera del 1 al 5 (el podio). En "atención requerida" no tiene sentido. */

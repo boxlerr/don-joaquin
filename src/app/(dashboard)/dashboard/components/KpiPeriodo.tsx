@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Briefcase, Route, Split, DollarSign, Weight, ChevronRight } from "lucide-react";
+import { Briefcase, Route, Split, DollarSign, Weight, ChevronRight, Lock } from "lucide-react";
 import type { TotalesPeriodo } from "@/app/(dashboard)/choferes/ranking/lib";
 import Sparkline from "./Sparkline";
 
@@ -7,9 +7,9 @@ interface Props {
   totales: TotalesPeriodo;
   periodoLabel: string;
   /**
-   * Si es false (dashboard general) la cuarta tarjeta muestra toneladas en vez
-   * de facturación: pedido de Bárbara de que los montos no queden a la vista de
-   * todos. Los $ solo se ven en /dashboard/completo.
+   * Si es false, la cuarta tarjeta muestra toneladas en vez de facturación:
+   * pedido de Bárbara de que los montos no queden a la vista de todos. Los $
+   * los ve sólo quien tenga el permiso de facturación del dashboard.
    */
   mostrarFacturacion: boolean;
 }
@@ -53,6 +53,7 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
       sub: `${totales.choferesActivos} chofer${totales.choferesActivos === 1 ? "" : "es"} con actividad`,
       icon: Briefcase,
       tono: TONOS.brand,
+      privado: false,
       serie: s.map((p) => p.viajes),
     },
     {
@@ -62,6 +63,7 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
       sub: kmTotal > 0 ? `${pctVacios.toFixed(0)}% vacíos` : "Sin recorridos",
       icon: Route,
       tono: TONOS.ambar,
+      privado: false,
       serie: s.map((p) => p.kmConCarga + p.kmVacios),
     },
     {
@@ -71,6 +73,7 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
       sub: kmTotal > 0 ? `${pctVacios.toFixed(0)}% del total recorrido` : "Sin recorridos",
       icon: Split,
       tono: TONOS.verde,
+      privado: false,
       serie: s.map((p) => p.kmVacios),
     },
     mostrarFacturacion
@@ -81,6 +84,10 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
           sub: pesosPorKm > 0 ? `${fmtMoneyCompact(pesosPorKm)} por km` : "Sin facturación cargada",
           icon: DollarSign,
           tono: TONOS.violeta,
+          // El candado avisa que este número no lo ve el resto del equipo. Antes
+          // lo decía un cartel arriba de todo, cuando la plata vivía en una
+          // pantalla aparte.
+          privado: true,
           serie: s.map((p) => p.facturacion),
         }
       : {
@@ -93,6 +100,7 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
               : "Sin tonelaje cargado",
           icon: Weight,
           tono: TONOS.violeta,
+          privado: false,
           serie: s.map((p) => p.toneladas),
         },
   ];
@@ -127,8 +135,13 @@ export default function KpiPeriodo({ totales, periodoLabel, mostrarFacturacion }
                 <c.icon size={19} strokeWidth={2.4} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-extrabold uppercase leading-none tracking-wider text-muted-foreground">
+                <p className="flex items-center gap-1 text-[10px] font-extrabold uppercase leading-none tracking-wider text-muted-foreground">
                   {c.label}
+                  {c.privado && (
+                    <Lock size={10} strokeWidth={2.6} className="shrink-0 text-muted-foreground/70">
+                      <title>Sólo lo ve la dirección</title>
+                    </Lock>
+                  )}
                 </p>
                 {/* El número no se corta nunca: si es largo baja un escalón de
                     tamaño en vez de salirse de la tarjeta. */}

@@ -43,47 +43,36 @@ import { alertaHref, categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/
 interface Props {
   /** searchParams ya resueltos por la page (rango del período del resumen). */
   sp: { rango?: string; desde?: string; hasta?: string };
-  /**
-   * Con `false` (el /dashboard general) no se muestra NINGÚN monto de
-   * facturación ni $/km: Bárbara pidió que la plata no esté "servida en
-   * bandeja" al entrar. Con `true` (/dashboard/completo, solo dirección)
-   * se ven la facturación acumulada y los montos por chofer.
-   */
-  conFacturacion: boolean;
-  /** Rótulo chico del encabezado ("Dashboard" / "Dashboard completo"). */
+  /** Rótulo chico del encabezado. */
   titulo: string;
   subtitulo: string;
-  /** Acción propia de cada ruta (el botón de tutorial del dashboard general). */
+  /** Acción propia de la ruta (el botón de tutorial). */
   accionExtra?: ReactNode;
-  /** Cartel que va arriba de todo el cuerpo (el aviso de vista privada). */
-  aviso?: ReactNode;
 }
 
 /**
- * Cuerpo del dashboard, compartido entre /dashboard (sin facturación) y
- * /dashboard/completo (con facturación). Incluye su propio encabezado —el hero
- * con la foto de ruta y el saludo—, así que la page solo le pasa el rótulo y
- * las acciones que sean suyas.
+ * Cuerpo del dashboard. Es uno solo para todo el equipo: lo que cambia según
+ * quién mire son los importes (ver `conFacturacion` más abajo). Incluye su
+ * propio encabezado —el hero con la foto de ruta y el saludo—, así que la page
+ * solo le pasa el rótulo y las acciones.
  */
-export default async function DashboardView({
-  sp,
-  conFacturacion,
-  titulo,
-  subtitulo,
-  accionExtra,
-  aviso,
-}: Props) {
+export default async function DashboardView({ sp, titulo, subtitulo, accionExtra }: Props) {
   const supabase = createAdminClient();
   const rangoMes = resolverRango(sp);
 
-  // Quién no está hoy es dato de personal: lo ve quien tiene el legajo o el
-  // cronograma de vacaciones. Sin permiso ni siquiera se consulta.
+  // Quién no está lo ve TODO el equipo: saber con cuántos choferes se cuenta no
+  // es un dato reservado, y el que arma la operación no siempre tiene los
+  // legajos. Lo que sí depende del permiso es a dónde se puede ir desde ahí.
   // (`getCurrentUser` está memoizado por request — pedirlo antes del Promise.all
   //  no agrega una consulta, el layout ya lo pidió.)
   const currentUser = await getCurrentUser();
   const puedeVerCronograma = currentUser != null && hasSeccion(currentUser, "choferes_vacaciones", "read");
-  const puedeVerAusencias =
-    puedeVerCronograma || (currentUser != null && hasSeccion(currentUser, "choferes", "read"));
+  const puedeVerLegajos = currentUser != null && hasSeccion(currentUser, "choferes", "read");
+  // Los importes (facturación del período, $/km y montos por chofer) los ve
+  // sólo la dirección. Antes eso era una pantalla aparte —/dashboard/completo—
+  // y una entrada más en el menú para un solo número; ahora es el mismo
+  // dashboard, que muestra la plata a quien tenga el permiso.
+  const conFacturacion = currentUser != null && hasSeccion(currentUser, "dashboard_completo", "read");
   // Misma ventana que la tarjeta de disponibilidad de /viajes.
   const DIAS_DISPONIBILIDAD = 14;
 
@@ -141,7 +130,7 @@ export default async function DashboardView({
       .eq("estado", "activo"),
     supabase.from("camion_documentos").select("tipo_documento_id, fecha_vencimiento"),
     supabase.from("chofer_documentos").select("tipo_documento_id, fecha_vencimiento"),
-    puedeVerAusencias ? getAusenciasProximasAction(DIAS_DISPONIBILIDAD) : Promise.resolve([]),
+    getAusenciasProximasAction(DIAS_DISPONIBILIDAD),
   ]);
 
   // Estado leído/descartado POR USUARIO: las alertas de tabla que ESTE usuario ya
@@ -313,8 +302,6 @@ export default async function DashboardView({
       />
 
       <div className="space-y-5 px-4 pb-8 sm:space-y-6 sm:px-6 sm:pb-10 lg:px-8">
-        {aviso}
-
         <KpiPeriodo
           totales={totalesPeriodo}
           periodoLabel={rangoMes.label}
@@ -355,14 +342,13 @@ export default async function DashboardView({
         {/* La otra mitad de "con qué cuento hoy": arriba están las unidades en
             servicio, acá los choferes que no están. Va a lo ancho porque las
             personas se leen de a tres por fila y no entran en la columna de la
-            derecha. Sin permiso de personal, ni aparece. */}
-        {puedeVerAusencias && (
-          <QuienNoEsta
-            ausencias={ausenciasProximas}
-            dias={DIAS_DISPONIBILIDAD}
-            puedeVerCronograma={puedeVerCronograma}
-          />
-        )}
+            derecha. */}
+        <QuienNoEsta
+          ausencias={ausenciasProximas}
+          dias={DIAS_DISPONIBILIDAD}
+          puedeVerCronograma={puedeVerCronograma}
+          puedeVerLegajos={puedeVerLegajos}
+        />
 
         {/* Tres listas de alto parecido: lo que hay que atender, el podio del
             mes y los que vienen flojos. Antes acá convivían dos listas y un

@@ -33,7 +33,7 @@ afterEach(() => cleanup());
 
 describe("QuienNoEsta", () => {
   it("dice quién está de vacaciones hoy y cuándo vuelve", () => {
-    render(<QuienNoEsta ausencias={[ausencia()]} dias={14} puedeVerCronograma />);
+    render(<QuienNoEsta ausencias={[ausencia()]} dias={14} puedeVerCronograma puedeVerLegajos />);
 
     expect(screen.getByText("Schwindt, Jorge Fernando")).toBeTruthy();
     expect(screen.getByText(/En vacaciones/)).toBeTruthy();
@@ -46,6 +46,7 @@ describe("QuienNoEsta", () => {
       <QuienNoEsta
         dias={14}
         puedeVerCronograma
+        puedeVerLegajos
         ausencias={[
           ausencia(),
           ausencia({
@@ -79,7 +80,7 @@ describe("QuienNoEsta", () => {
         fecha_fin: "2026-09-03",
       }),
     );
-    render(<QuienNoEsta ausencias={[ausencia(), ...seVan]} dias={14} puedeVerCronograma />);
+    render(<QuienNoEsta ausencias={[ausencia(), ...seVan]} dias={14} puedeVerCronograma puedeVerLegajos />);
 
     // El que hoy no está entra siempre; del resto entran los que quedan hasta 6.
     expect(screen.getByText("Schwindt, Jorge Fernando")).toBeTruthy();
@@ -89,18 +90,33 @@ describe("QuienNoEsta", () => {
   });
 
   it("cuando no falta nadie lo dice, en vez de dejar el hueco", () => {
-    render(<QuienNoEsta ausencias={[]} dias={14} puedeVerCronograma />);
+    render(<QuienNoEsta ausencias={[]} dias={14} puedeVerCronograma puedeVerLegajos />);
     expect(screen.getByText(/Hoy no falta nadie/)).toBeTruthy();
   });
 
   it("avisa cuando la fecha de regreso todavía es estimada", () => {
-    render(<QuienNoEsta ausencias={[ausencia({ fecha_aproximada: true })]} dias={14} puedeVerCronograma />);
+    render(<QuienNoEsta ausencias={[ausencia({ fecha_aproximada: true })]} dias={14} puedeVerCronograma puedeVerLegajos />);
     expect(screen.getByText(/vuelve el lun 24 ago \(estimado\)/)).toBeTruthy();
   });
 
-  it("sin el cronograma de vacaciones, el link lleva al personal", () => {
-    render(<QuienNoEsta ausencias={[ausencia()]} dias={14} puedeVerCronograma={false} />);
-    const link = screen.getByRole("link", { name: /Ver personal/ });
-    expect(link.getAttribute("href")).toBe("/choferes");
+  it("sin permiso de vacaciones no dibuja el botón del cronograma", () => {
+    render(<QuienNoEsta ausencias={[ausencia()]} dias={14} puedeVerCronograma={false} puedeVerLegajos />);
+    // La tarjeta se sigue viendo entera: lo único que desaparece es el botón
+    // que llevaría a una pantalla que esa persona no puede abrir.
+    expect(screen.getByText("Schwindt, Jorge Fernando")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Ver vacaciones/ })).toBeNull();
+  });
+
+  it("sin permiso de legajos las fichas no son links", () => {
+    render(
+      <QuienNoEsta
+        ausencias={[ausencia()]}
+        dias={14}
+        puedeVerCronograma={false}
+        puedeVerLegajos={false}
+      />,
+    );
+    expect(screen.getByText("Schwindt, Jorge Fernando")).toBeTruthy();
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 });

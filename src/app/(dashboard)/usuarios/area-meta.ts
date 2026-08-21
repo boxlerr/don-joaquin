@@ -7,7 +7,7 @@ import type { AreaCodigo } from "@/lib/auth";
 export type AreaMeta = { titulo: string; paginas: string[] };
 
 export const AREA_META: Record<string, AreaMeta> = {
-  principal: { titulo: "Principal", paginas: ["Reportes", "Métricas (confidencial)", "Dashboard completo (confidencial)"] },
+  principal: { titulo: "Principal", paginas: ["Reportes", "Métricas (confidencial)", "Facturación en el dashboard (confidencial)"] },
   viajes: { titulo: "Viajes", paginas: ["Viajes", "Carga rápida", "Importar hoja de ruta", "Importar PDF de YPF"] },
   logistica: { titulo: "Personal", paginas: ["Legajos", "Ranking de choferes", "Rotación", "Vacaciones", "Sueldos choferes (confidencial)"] },
   flota: { titulo: "Camiones", paginas: ["Camiones"] },

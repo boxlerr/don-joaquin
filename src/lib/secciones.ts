@@ -114,10 +114,12 @@ export const SECCIONES: Seccion[] = [
   // Préstamos bancarios (planilla de la mamá): cuotas, avisos y carga semanal.
   // Confidencial como el resto de finanzas sensibles (audios Bárbara 02/07).
   { codigo: "prestamos", area: "finanzas", nombre: "Préstamos", orden: 14, confidencial: true },
-  // El dashboard general (/dashboard) queda sin facturación para todos; la
-  // facturación acumulada vive en /dashboard/completo, solo Bárbara + Nicolás
-  // (audios 30/06, tema 6 — opción B "dos dashboards").
-  { codigo: "dashboard_completo", area: "principal", nombre: "Dashboard completo", orden: 13, confidencial: true },
+  // Los importes del dashboard: facturación del período, $/km y montos por
+  // chofer (audios 30/06, tema 6 — la plata no "servida en bandeja" al entrar).
+  // Hasta el 21/08/2026 esto era una pantalla aparte, /dashboard/completo; ahora
+  // es el mismo dashboard, que muestra la plata a quien tenga esta sección. El
+  // código se mantiene para no tocar los permisos ya otorgados.
+  { codigo: "dashboard_completo", area: "principal", nombre: "Facturación en el dashboard", orden: 13, confidencial: true },
   // Métricas históricas (las 6 planillas del padre + comparativa interanual):
   // confidencial, por defecto solo administradores (8vo feedback, 08/07).
   { codigo: "metricas", area: "principal", nombre: "Métricas históricas", orden: 14, confidencial: true },

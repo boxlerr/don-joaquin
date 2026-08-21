@@ -4,7 +4,7 @@ import { CalendarDays, RefreshCw } from "lucide-react";
 interface Props {
   /** Nombre de pila del usuario logueado; si no hay, se saluda sin nombre. */
   nombre: string | null;
-  /** Rótulo chico arriba del saludo ("Dashboard" / "Dashboard completo"). */
+  /** Rótulo chico arriba del saludo ("Dashboard"). */
   titulo: string;
   subtitulo: string;
   /** Selector de período y accesos rápidos, a la derecha del saludo. */

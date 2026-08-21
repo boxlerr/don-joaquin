@@ -90,10 +90,21 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "la-facturacion-la-ves-en-el-dashboard-de",
+    fecha: "2026-08-21",
+    tipo: "mejora",
+    ver: "dashboard_completo",
+    titulo: "La facturación la ves en el dashboard de siempre",
+    detalle: "Se fue la pantalla \"Dashboard completo\": los mismos números —la facturación del período, el $/km y los montos por chofer— ahora están en el dashboard, con un candado que te recuerda que sólo los ve la dirección.",
+    href: "/dashboard",
+  },
+  {
     id: "ves-en-el-dashboard-quien-esta-de-vacaciones",
     fecha: "2026-08-21",
     tipo: "nuevo",
-    ver: "choferes",
+    // La tarjeta la ve todo el equipo (el botón al cronograma es lo único que
+    // pide permiso), así que la novedad también.
+    ver: "todos",
     titulo: "Ves en el dashboard quién está de vacaciones",
     detalle: "Abajo de los últimos viajes te dice quién no está hoy y el día en que vuelve, y quiénes se van en los próximos 14 días. Antes había que entrar a Viajes o al cronograma para saberlo.",
     href: "/dashboard",

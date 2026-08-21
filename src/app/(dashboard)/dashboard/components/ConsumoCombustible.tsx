@@ -4,7 +4,7 @@ import type { ConsumoPeriodo } from "@/app/(dashboard)/combustible/actions";
 
 interface Props {
   consumo: ConsumoPeriodo;
-  /** Los importes ($ del gasoil, $/L) solo en /dashboard/completo. */
+  /** Los importes ($ del gasoil, $/L) sólo para quien vea la facturación. */
   mostrarImportes: boolean;
 }
 

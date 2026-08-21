@@ -21,7 +21,6 @@ import {
   Landmark,
   Megaphone,
   PiggyBank,
-  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
@@ -57,8 +56,6 @@ export const NAV_GROUPS: NavGroup[] = [
     group: "PRINCIPAL",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      // Dashboard con facturación — confidencial, solo quien tenga la sección.
-      { label: "Dashboard completo", href: "/dashboard/completo", icon: TrendingUp, seccion: "dashboard_completo" },
       // Métricas históricas (planillas del padre) — confidencial, solo admins.
       { label: "Métricas", href: "/metricas", icon: BarChart3, seccion: "metricas" },
       { label: "Notificaciones", href: "/notificaciones", icon: Bell },

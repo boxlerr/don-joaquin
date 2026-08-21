@@ -15,7 +15,9 @@ export const SIDEBAR_ARBOL: ArbolGrupo[] = [
     label: "Principal",
     color: "#475569",
     paginas: [
-      { label: "Dashboard completo", seccion: "dashboard_completo" },
+      // No es una página aparte: es lo que destapa los importes DENTRO del
+      // dashboard (la facturación del período, el $/km y los montos por chofer).
+      { label: "Facturación en el dashboard", seccion: "dashboard_completo" },
       { label: "Métricas históricas", seccion: "metricas" },
       { label: "Reportes", seccion: "reportes" },
     ],

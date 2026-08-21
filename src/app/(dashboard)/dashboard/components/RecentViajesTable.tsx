@@ -28,7 +28,7 @@ interface Props {
   initialViajes: ViajeBasico[];
   /**
    * Mostrar el monto de flete en el detalle expandido. Default false: en el
-   * dashboard general no van montos (solo dirección los ve en /dashboard/completo).
+   * dashboard no van montos: los ve sólo la dirección.
    * El estado de facturación queda siempre — es un estado, no un importe.
    */
   mostrarFacturacion?: boolean;

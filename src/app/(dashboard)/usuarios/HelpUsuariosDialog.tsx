@@ -339,7 +339,7 @@ function MockConfTree() {
 }
 
 function MockConfEjemplos() {
-  const ej = ["Sueldos", "Caja (saldo y caja grande)", "Métricas históricas", "Impuestos", "Préstamos", "Dashboard completo"];
+  const ej = ["Sueldos", "Caja (saldo y caja grande)", "Métricas históricas", "Impuestos", "Préstamos", "Facturación en el dashboard"];
   return (
     <div className="space-y-1.5">
       <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Lo que conviene tener cerrado</div>

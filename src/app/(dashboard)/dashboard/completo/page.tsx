@@ -1,41 +1,16 @@
-import { Lock } from "lucide-react";
-import { requireSeccion } from "@/lib/auth";
-import DashboardView from "../DashboardView";
+import { redirect } from "next/navigation";
 
 /**
- * Dashboard completo (privado): el mismo dashboard general pero CON la
- * facturación acumulada del período y los montos por chofer. Bárbara pidió
- * poder verla junto a su padre sin que quede a la vista de todo el equipo,
- * por eso va detrás del permiso confidencial `dashboard_completo`.
+ * El "dashboard completo" ya no existe como pantalla aparte (21/08/2026).
+ *
+ * Era el mismo tablero con la facturación a la vista, y tener una entrada
+ * propia en el menú —más un cartel de "vista privada"— para eso solo era mucho
+ * ruido: ahora los importes se muestran en `/dashboard` a quien tenga el
+ * permiso `dashboard_completo` (hoy, la dirección).
+ *
+ * Queda la redirección porque la ruta anduvo un mes: hay favoritos, links en
+ * las novedades y correos que apuntan acá.
  */
-export default async function DashboardCompletoPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ rango?: string; desde?: string; hasta?: string }>;
-}) {
-  await requireSeccion("dashboard_completo", "read");
-
-  return (
-    <div className="w-full">
-      <DashboardView
-        sp={await searchParams}
-        conFacturacion
-        titulo="Dashboard completo"
-        subtitulo="Resumen con facturación — solo dirección"
-        aviso={
-          <div className="flex items-start gap-3 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3">
-            <Lock size={16} className="mt-0.5 shrink-0 text-amber-700" />
-            <div className="text-xs leading-relaxed text-amber-800">
-              <p className="font-semibold">Vista privada — solo dirección.</p>
-              <p className="mt-0.5">
-                Es el mismo dashboard general, pero con la <strong>facturación acumulada
-                del período</strong>, el <strong>$/km</strong> y los montos por chofer a la vista.
-                El resto del equipo entra por el dashboard común, que no muestra importes.
-              </p>
-            </div>
-          </div>
-        }
-      />
-    </div>
-  );
+export default function DashboardCompletoPage() {
+  redirect("/dashboard");
 }

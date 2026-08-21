@@ -15,11 +15,12 @@ interface Props {
   /** Ventana en días de la que salen los que "se van pronto". */
   dias: number;
   /**
-   * A dónde lleva "ver todo". El cronograma de vacaciones es una subsección
-   * aparte: a quien sólo tiene los legajos se lo mandamos al listado de
-   * personal, porque mostrarle un link que le rebota es peor que no mostrarlo.
+   * La tarjeta la ve todo el equipo, pero el cronograma de vacaciones y los
+   * legajos son secciones con permiso propio: a quien no las tiene no se le
+   * dibuja el link. Mostrarle un botón que le rebota es peor que no mostrarlo.
    */
   puedeVerCronograma: boolean;
+  puedeVerLegajos: boolean;
 }
 
 /** Cuántas personas entran antes de mandar al cronograma. Con la flota entera de
@@ -28,13 +29,17 @@ const MAX_VISIBLES = 6;
 
 /**
  * Una persona de la lista. Dos niveles: el nombre, y abajo en gris qué le pasa.
- * La fila entera es un link al legajo, que es donde se corrige la ausencia.
+ * Con permiso de legajos la fila entera es un link al legajo, que es donde se
+ * corrige la ausencia; sin permiso es la misma ficha, pero quieta.
  */
-function Ficha({ a }: { a: AusenciaProxima }) {
+function Ficha({ a, conLink }: { a: AusenciaProxima; conLink: boolean }) {
+  const Contenedor = conLink ? Link : "div";
   return (
-    <Link
+    <Contenedor
       href={`/choferes/${a.chofer_id}?tab=ausencias`}
-      className="group flex items-center gap-3 rounded-[8px] border border-border px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-muted/30"
+      className={`group flex items-center gap-3 rounded-[8px] border border-border px-3 py-2.5 ${
+        conLink ? "transition-colors hover:border-primary/40 hover:bg-muted/30" : ""
+      }`}
     >
       <AvatarPersona name={a.chofer_nombre} rol="chofer" size={34} className="shrink-0" />
 
@@ -73,11 +78,13 @@ function Ficha({ a }: { a: AusenciaProxima }) {
         )}
       </div>
 
-      <ChevronRight
-        size={14}
-        className="shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground"
-      />
-    </Link>
+      {conLink && (
+        <ChevronRight
+          size={14}
+          className="shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:text-muted-foreground"
+        />
+      )}
+    </Contenedor>
   );
 }
 
@@ -85,7 +92,15 @@ function Ficha({ a }: { a: AusenciaProxima }) {
  * Un grupo con su rótulo. Las columnas se achican a la cantidad de gente: con
  * una sola persona, tres columnas dejaban dos tercios de tarjeta en blanco.
  */
-function Grupo({ titulo, items }: { titulo: string; items: AusenciaProxima[] }) {
+function Grupo({
+  titulo,
+  items,
+  conLink,
+}: {
+  titulo: string;
+  items: AusenciaProxima[];
+  conLink: boolean;
+}) {
   if (items.length === 0) return null;
   const columnas =
     items.length === 1 ? "" : items.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3";
@@ -96,7 +111,7 @@ function Grupo({ titulo, items }: { titulo: string; items: AusenciaProxima[] }) 
       </p>
       <div className={`grid grid-cols-1 gap-2 ${columnas}`}>
         {items.map((a) => (
-          <Ficha key={a.id} a={a} />
+          <Ficha key={a.id} a={a} conLink={conLink} />
         ))}
       </div>
     </div>
@@ -113,8 +128,12 @@ function Grupo({ titulo, items }: { titulo: string; items: AusenciaProxima[] }) 
  * después los que se van en los próximos días, que todavía pueden salir a hacer
  * un viaje.
  */
-export default function QuienNoEsta({ ausencias, dias, puedeVerCronograma }: Props) {
-  const hrefVerTodo = puedeVerCronograma ? "/choferes/vacaciones" : "/choferes";
+export default function QuienNoEsta({
+  ausencias,
+  dias,
+  puedeVerCronograma,
+  puedeVerLegajos,
+}: Props) {
   const hoyNoEstan = ausencias.filter((a) => a.en_curso);
   const seVan = ausencias.filter((a) => !a.en_curso);
 
@@ -136,12 +155,14 @@ export default function QuienNoEsta({ ausencias, dias, puedeVerCronograma }: Pro
             </p>
           </div>
         </div>
-        <Link
-          href={hrefVerTodo}
-          className="inline-flex shrink-0 items-center max-md:h-9 text-xs font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
-        >
-          {puedeVerCronograma ? "Ver vacaciones →" : "Ver personal →"}
-        </Link>
+        {puedeVerCronograma && (
+          <Link
+            href="/choferes/vacaciones"
+            className="inline-flex shrink-0 items-center max-md:h-9 text-xs font-semibold text-primary transition-colors hover:text-primary/80 hover:underline"
+          >
+            Ver vacaciones →
+          </Link>
+        )}
       </div>
 
       {ausencias.length === 0 ? (
@@ -150,18 +171,23 @@ export default function QuienNoEsta({ ausencias, dias, puedeVerCronograma }: Pro
         </p>
       ) : (
         <div className="space-y-4 p-4 sm:p-5">
-          <Grupo titulo="Hoy no están" items={visiblesHoy} />
-          <Grupo titulo="Se van en los próximos días" items={visiblesSeVan} />
+          <Grupo titulo="Hoy no están" items={visiblesHoy} conLink={puedeVerLegajos} />
+          <Grupo titulo="Se van en los próximos días" items={visiblesSeVan} conLink={puedeVerLegajos} />
 
-          {ocultos > 0 && (
-            <Link
-              href={hrefVerTodo}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary/80"
-            >
-              Ver {ocultos} más{puedeVerCronograma && " en el cronograma"}
-              <ChevronRight size={14} />
-            </Link>
-          )}
+          {ocultos > 0 &&
+            (puedeVerCronograma ? (
+              <Link
+                href="/choferes/vacaciones"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary/80"
+              >
+                Ver {ocultos} más en el cronograma
+                <ChevronRight size={14} />
+              </Link>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Y {ocultos} más en los próximos {dias} días.
+              </p>
+            ))}
         </div>
       )}
     </div>
