@@ -10,7 +10,7 @@ import { coincideEnAlguno } from "@/lib/texto";
 import type { ViajeBasico, PaginatedResult, FaltaDato } from "./types";
 import { computeCierre } from "./flujo-logic";
 import { mezclarObservaciones } from "./mezclar-observaciones";
-import { requireArea } from "@/lib/auth";
+import { requireArea, requireUser } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
 import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
@@ -2578,7 +2578,15 @@ export async function getViajesMensualPorChoferAction(
 
 // ---------------------------------------------------------------------------
 // Disponibilidad: choferes ausentes en una ventana de días (default próximos 14).
-// Read protegida por la página padre (requireArea("viajes", "read")).
+//
+// La protege ella misma, no la página que la llama: una server action exportada
+// es un endpoint, y cualquiera con sesión puede invocarla sin pasar por /viajes.
+//
+// El piso es tener sesión, a propósito: quién está de vacaciones o pidió días no
+// es dato reservado a personal —lo necesita cualquiera para saber con quién
+// cuenta hoy— así que no se pide `choferes` ni `viajes`. Lo que sí queda
+// reservado es el resto del legajo y el cronograma completo, cada uno con su
+// permiso en su propia pantalla.
 // ---------------------------------------------------------------------------
 
 export type AusenciaProxima = {
@@ -2602,6 +2610,7 @@ export type AusenciaProxima = {
 };
 
 export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaProxima[]> {
+  await requireUser();
   const supabase = createAdminClient();
 
   // Hoy en Argentina, no en UTC: el server corre en UTC y a partir de las 21:00
