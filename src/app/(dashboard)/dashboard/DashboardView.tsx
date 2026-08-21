@@ -21,10 +21,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, hasSeccion } from "@/lib/auth";
 import { visiblePara } from "@/lib/alertas-visibilidad";
 import { getOcultasPorUsuario } from "@/lib/alertas-lecturas";
-import { getViajesAction } from "@/app/(dashboard)/viajes/actions";
+import { getViajesAction, getAusenciasProximasAction } from "@/app/(dashboard)/viajes/actions";
 import { getPremioDelMesAction, getConsumoPeriodoAction } from "@/app/(dashboard)/combustible/actions";
 import RecentViajesTable from "./components/RecentViajesTable";
 import ChoferList from "./components/ChoferList";
@@ -32,6 +32,7 @@ import TarjetaResumen from "./components/TarjetaResumen";
 import KpiPeriodo from "./components/KpiPeriodo";
 import DashboardHero from "./components/DashboardHero";
 import EstadoFlota from "./components/EstadoFlota";
+import QuienNoEsta from "./components/QuienNoEsta";
 import RendimientoFlota from "./components/RendimientoFlota";
 import ConsumoCombustible from "./components/ConsumoCombustible";
 import DiaPedidoQuickAction from "./DiaPedidoQuickAction";
@@ -75,6 +76,17 @@ export default async function DashboardView({
   const supabase = createAdminClient();
   const rangoMes = resolverRango(sp);
 
+  // Quién no está hoy es dato de personal: lo ve quien tiene el legajo o el
+  // cronograma de vacaciones. Sin permiso ni siquiera se consulta.
+  // (`getCurrentUser` está memoizado por request — pedirlo antes del Promise.all
+  //  no agrega una consulta, el layout ya lo pidió.)
+  const currentUser = await getCurrentUser();
+  const puedeVerCronograma = currentUser != null && hasSeccion(currentUser, "choferes_vacaciones", "read");
+  const puedeVerAusencias =
+    puedeVerCronograma || (currentUser != null && hasSeccion(currentUser, "choferes", "read"));
+  // Misma ventana que la tarjeta de disponibilidad de /viajes.
+  const DIAS_DISPONIBILIDAD = 14;
+
   const [
     viajesSinFacturar,
     saldoMovimientos,
@@ -92,6 +104,7 @@ export default async function DashboardView({
     tiposDocRes,
     camionDocsRes,
     choferDocsRes,
+    ausenciasProximas,
   ] = await Promise.all([
     // Misma definición que el filtro "Sin facturar" del panel de /viajes
     // (excluye vacíos y cancelados) para que el contador coincida con esa vista.
@@ -128,12 +141,12 @@ export default async function DashboardView({
       .eq("estado", "activo"),
     supabase.from("camion_documentos").select("tipo_documento_id, fecha_vencimiento"),
     supabase.from("chofer_documentos").select("tipo_documento_id, fecha_vencimiento"),
+    puedeVerAusencias ? getAusenciasProximasAction(DIAS_DISPONIBILIDAD) : Promise.resolve([]),
   ]);
 
   // Estado leído/descartado POR USUARIO: las alertas de tabla que ESTE usuario ya
   // marcó leídas/descartó no deben seguir contando como "activas" en el dashboard
   // (coherencia con la campana y /notificaciones, que son per-user).
-  const currentUser = await getCurrentUser();
   const ocultasUsuario = currentUser ? await getOcultasPorUsuario(currentUser.id) : new Set<string>();
   // Y las de secciones confidenciales sólo para quien las tenga: sin este filtro el
   // contador de críticas sumaba las cuotas de préstamo vencidas para cualquiera, y
@@ -338,6 +351,18 @@ export default async function DashboardView({
             />
           </div>
         </div>
+
+        {/* La otra mitad de "con qué cuento hoy": arriba están las unidades en
+            servicio, acá los choferes que no están. Va a lo ancho porque las
+            personas se leen de a tres por fila y no entran en la columna de la
+            derecha. Sin permiso de personal, ni aparece. */}
+        {puedeVerAusencias && (
+          <QuienNoEsta
+            ausencias={ausenciasProximas}
+            dias={DIAS_DISPONIBILIDAD}
+            puedeVerCronograma={puedeVerCronograma}
+          />
+        )}
 
         {/* Tres listas de alto parecido: lo que hay que atender, el podio del
             mes y los que vienen flojos. Antes acá convivían dos listas y un

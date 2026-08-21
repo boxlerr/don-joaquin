@@ -2,31 +2,14 @@ import Link from "next/link";
 import { CalendarOff, ShieldCheck } from "lucide-react";
 import { formatFecha } from "@/lib/utils";
 import AvatarPersona from "@/components/ui/AvatarPersona";
+// Los mismos textos que usa el dashboard: si "En vacaciones" se corrige, se
+// corrige en las dos pantallas a la vez.
+import { cuandoSeVa, estadoAusente } from "@/lib/ausencias-texto";
 import type { AusenciaProxima } from "../actions";
 
 interface Props {
   ausencias: AusenciaProxima[];
   dias: number;
-}
-
-/** "en 2 días" / "mañana" / "hoy", para decir cuándo se va sin hacer cuentas. */
-function cuando(dias: number): string {
-  if (dias <= 0) return "hoy";
-  if (dias === 1) return "mañana";
-  return `en ${dias} días`;
-}
-
-/**
- * Estado de quien hoy no está, nombrando el motivo: "En vacaciones" dice más
- * que "no está". `tipo` es texto libre en la base (hoy solo hay "vacaciones"),
- * así que la preposición se elige por el tipo y hay fallback genérico.
- */
-function estadoAusente(tipo: string): string {
-  const t = tipo.toLowerCase().trim();
-  if (t.startsWith("vacacion")) return "En vacaciones";
-  if (t.startsWith("licencia")) return `De ${t}`;
-  if (t.startsWith("permiso") || t.startsWith("franco")) return `De ${t}`;
-  return `No está hoy · ${t}`;
 }
 
 // Sección de disponibilidad: quién NO está hoy y quién se va en los próximos
@@ -90,7 +73,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
                   {a.en_curso ? (
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
                       <span className="size-1.5 shrink-0 rounded-full bg-amber-500" />
-                      {estadoAusente(a.tipo)}
+                      {estadoAusente(a.tipo, a.es_vacaciones)}
                       <span className="font-normal text-muted-foreground">
                         · vuelve el {formatFecha(a.fecha_regreso)}
                       </span>
@@ -100,7 +83,7 @@ export default function DisponibilidadChoferes({ ausencias, dias }: Props) {
                       <span className="size-1.5 shrink-0 rounded-full border border-muted-foreground/40" />
                       Disponible
                       <span className="font-normal text-muted-foreground">
-                        · se va {cuando(a.dias_hasta_inicio)}
+                        · se va {cuandoSeVa(a.dias_hasta_inicio)}
                       </span>
                     </p>
                   )}

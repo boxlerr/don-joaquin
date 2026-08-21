@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ves-en-el-dashboard-quien-esta-de-vacaciones",
+    fecha: "2026-08-21",
+    tipo: "nuevo",
+    ver: "choferes",
+    titulo: "Ves en el dashboard quién está de vacaciones",
+    detalle: "Abajo de los últimos viajes te dice quién no está hoy y el día en que vuelve, y quiénes se van en los próximos 14 días. Antes había que entrar a Viajes o al cronograma para saberlo.",
+    href: "/dashboard",
+  },
+  {
     id: "el-dashboard-se-ve-nuevo",
     fecha: "2026-08-20",
     tipo: "mejora",

@@ -12,6 +12,7 @@ import { computeCierre } from "./flujo-logic";
 import { mezclarObservaciones } from "./mezclar-observaciones";
 import { requireArea } from "@/lib/auth";
 import { getLegajoEstado } from "@/lib/chofer-validation";
+import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import { viajeEstaFacturado } from "@/domain/viajes/facturado";
 import { RUTA_VIA_VALUES } from "@/domain/viajes/ruta-via";
 import {
@@ -2585,6 +2586,10 @@ export type AusenciaProxima = {
   chofer_id: string;
   chofer_nombre: string;
   tipo: string;
+  /** Vacaciones o no, según cómo se cargó — no según cómo esté escrito el tipo. */
+  es_vacaciones: boolean;
+  /** La carga avisó que las fechas son estimadas (todavía no está confirmado). */
+  fecha_aproximada: boolean;
   fecha_inicio: string;
   fecha_fin: string;
   autorizado_por_nombre: string | null;
@@ -2599,19 +2604,22 @@ export type AusenciaProxima = {
 export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaProxima[]> {
   const supabase = createAdminClient();
 
-  const hoy = new Date();
-  const hoyStr = hoy.toISOString().split("T")[0]!;
-  const hasta = new Date(hoy);
-  hasta.setDate(hoy.getDate() + dias);
-  const hastaStr = hasta.toISOString().split("T")[0]!;
+  // Hoy en Argentina, no en UTC: el server corre en UTC y a partir de las 21:00
+  // "hoy" pasaba a ser el día siguiente — el que estaba de vacaciones hasta hoy
+  // figuraba de vuelta media jornada antes.
+  const hoyStr = hoyArgentina();
+  const hastaStr = sumarDiasISO(hoyStr, dias);
 
+  type Chofer = { nombre: string; apellido: string; estado: string | null; es_demo: boolean | null };
   type Row = {
     id: string;
     chofer_id: string;
     tipo: string;
+    es_vacaciones: boolean | null;
+    fecha_aproximada: boolean | null;
     fecha_inicio: string;
     fecha_fin: string;
-    choferes: { nombre: string; apellido: string } | { nombre: string; apellido: string }[] | null;
+    choferes: Chofer | Chofer[] | null;
     autorizado: { nombre: string; apellido: string | null } | { nombre: string; apellido: string | null }[] | null;
   };
 
@@ -2620,7 +2628,7 @@ export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaPro
   const res = await (supabase as any)
     .from("chofer_ausencias")
     .select(
-      "id, chofer_id, tipo, fecha_inicio, fecha_fin, choferes(nombre, apellido), autorizado:usuarios!autorizado_por(nombre, apellido)",
+      "id, chofer_id, tipo, es_vacaciones, fecha_aproximada, fecha_inicio, fecha_fin, choferes(nombre, apellido, estado, es_demo), autorizado:usuarios!autorizado_por(nombre, apellido)",
     )
     .eq("estado", "autorizada")
     .is("deleted_at", null)
@@ -2637,23 +2645,33 @@ export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaPro
   const diaSiguiente = (iso: string) =>
     new Date(Date.parse(`${iso}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
-  const mapeadas = rows.map((r) => {
-    const chofer = Array.isArray(r.choferes) ? r.choferes[0] : r.choferes;
-    const aut = Array.isArray(r.autorizado) ? r.autorizado[0] : r.autorizado;
-    const enCurso = r.fecha_inicio <= hoyStr && r.fecha_fin >= hoyStr;
-    return {
-      id: r.id,
-      chofer_id: r.chofer_id,
-      chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : "—",
-      tipo: r.tipo,
-      fecha_inicio: r.fecha_inicio,
-      fecha_fin: r.fecha_fin,
-      autorizado_por_nombre: aut ? `${aut.nombre}${aut.apellido ? " " + aut.apellido : ""}` : null,
-      en_curso: enCurso,
-      dias_hasta_inicio: enCurso ? 0 : Math.max(0, diasEntre(hoyStr, r.fecha_inicio)),
-      fecha_regreso: diaSiguiente(r.fecha_fin),
-    };
-  });
+  const mapeadas = rows
+    // Un egresado no es "un chofer que hoy no está": ya no está en la nómina, y
+    // sus vacaciones viejas seguían apareciendo como si hubiera que reemplazarlo.
+    // Los legajos de demo tampoco cuentan para la disponibilidad real.
+    .filter((r) => {
+      const c = Array.isArray(r.choferes) ? r.choferes[0] : r.choferes;
+      return c != null && c.estado !== "baja" && c.es_demo !== true;
+    })
+    .map((r) => {
+      const chofer = Array.isArray(r.choferes) ? r.choferes[0] : r.choferes;
+      const aut = Array.isArray(r.autorizado) ? r.autorizado[0] : r.autorizado;
+      const enCurso = r.fecha_inicio <= hoyStr && r.fecha_fin >= hoyStr;
+      return {
+        id: r.id,
+        chofer_id: r.chofer_id,
+        chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : "—",
+        tipo: r.tipo,
+        es_vacaciones: r.es_vacaciones === true,
+        fecha_aproximada: r.fecha_aproximada === true,
+        fecha_inicio: r.fecha_inicio,
+        fecha_fin: r.fecha_fin,
+        autorizado_por_nombre: aut ? `${aut.nombre}${aut.apellido ? " " + aut.apellido : ""}` : null,
+        en_curso: enCurso,
+        dias_hasta_inicio: enCurso ? 0 : Math.max(0, diasEntre(hoyStr, r.fecha_inicio)),
+        fecha_regreso: diaSiguiente(r.fecha_fin),
+      };
+    });
 
   // Primero los que hoy no están, después los que se van, por fecha de salida.
   return mapeadas.sort((a, b) =>
