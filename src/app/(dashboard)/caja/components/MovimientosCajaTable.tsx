@@ -21,7 +21,8 @@ import {
   SelectLabel,
 } from "@/components/ui/select";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
-import { Wallet, X, Loader2, EyeOff, Eye, ListFilter } from "lucide-react";
+import Link from "next/link";
+import { Wallet, X, Loader2, EyeOff, Eye, ListFilter, ArrowUpRight } from "lucide-react";
 import {
   getCajaMovimientosAction,
   setMovimientoPrivadoAction,
@@ -29,63 +30,13 @@ import {
   type CajaMovimientoRow,
   type CajaVista,
 } from "../actions";
+import { CATEGORIA_LABEL, MEDIO_LABEL, etiquetaTipo, formatARS } from "@/lib/caja-tipos";
+import { colorDeArea } from "@/lib/areas-ui";
 
-const CATEGORIA_LABEL: Record<string, string> = {
-  cobro_cliente: "Cobro a cliente",
-  pago_proveedor: "Pago a proveedor",
-  entrega_viatico: "Entrega de viático",
-  rendicion_vuelto: "Rendición / vuelto",
-  gasto_operativo: "Gasto operativo",
-  pago_chofer: "Pago a chofer",
-  transferencia_interna: "Transferencia interna",
-  ajuste: "Ajuste",
-  otro: "Otro",
-};
-
-const CATEGORIAS_FILTRO: { value: string; label: string }[] = [
-  { value: "cobro_cliente", label: "Cobro a cliente" },
-  { value: "pago_proveedor", label: "Pago a proveedor" },
-  { value: "entrega_viatico", label: "Entrega de viático" },
-  { value: "rendicion_vuelto", label: "Rendición / vuelto" },
-  { value: "gasto_operativo", label: "Gasto operativo" },
-  { value: "pago_chofer", label: "Pago a chofer" },
-  { value: "transferencia_interna", label: "Transferencia interna" },
-  { value: "ajuste", label: "Ajuste" },
-  { value: "otro", label: "Otro" },
-];
-
-/**
- * Color del chip de cada categoría: lo que entra tira a verde, lo que sale a
- * rojo/ámbar y lo que solo mueve plata de un lado al otro queda neutro. Es para
- * poder barrer la columna con la vista sin leer cada fila.
- */
-const CATEGORIA_CHIP: Record<string, string> = {
-  cobro_cliente: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
-  rendicion_vuelto: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
-  pago_proveedor: "bg-rose-50 text-rose-700 border-rose-200/70",
-  pago_chofer: "bg-rose-50 text-rose-700 border-rose-200/70",
-  gasto_operativo: "bg-amber-50 text-amber-700 border-amber-200/70",
-  entrega_viatico: "bg-sky-50 text-sky-700 border-sky-200/70",
-  transferencia_interna: "bg-violet-50 text-violet-700 border-violet-200/70",
-  ajuste: "bg-slate-100 text-slate-600 border-slate-200",
-  otro: "bg-slate-100 text-slate-600 border-slate-200",
-};
-
-const CHIP_NEUTRO = "bg-slate-100 text-slate-600 border-slate-200";
-
-const MEDIO_LABEL: Record<string, string> = {
-  efectivo: "Efectivo",
-  transferencia: "Transferencia",
-  cheque: "Cheque",
-  otro: "Otro",
-};
-
-function formatARS(n: number): string {
-  return n.toLocaleString("es-AR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+const CATEGORIAS_FILTRO = Object.entries(CATEGORIA_LABEL).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 function formatFecha(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
@@ -282,15 +233,48 @@ export default function MovimientosCajaTable({
 
   // Los pedazos que comparten la tabla (desktop) y las tarjetas (celular): el
   // mapeo de datos es uno solo, cambia nada más la presentación.
+  /**
+   * El tipo del movimiento. El punto se tiñe del color con el que el menú pinta
+   * la sección a la que lleva la fila (Mantenimiento indigo, Comercial violeta,
+   * Finanzas ámbar…): así la columna se barre de arriba abajo y se ve de qué es
+   * cada movimiento antes de leer una palabra. Gris = no lleva a ningún lado.
+   */
   const chipTipo = (m: CajaMovimientoRow) => (
-    <span
-      className={`inline-block rounded-full border px-2 py-0.5 text-xs font-medium ${
-        CATEGORIA_CHIP[m.categoria] ?? CHIP_NEUTRO
-      }`}
-    >
-      {m.tipo_gasto_nombre ?? CATEGORIA_LABEL[m.categoria] ?? m.categoria}
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-xs font-medium text-foreground">
+      <span
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ background: m.destino ? colorDeArea(m.destino.area) : "#94A3B8" }}
+        aria-hidden
+      />
+      <span className={m.destino ? "group-hover/fila:underline" : ""}>{etiquetaTipo(m)}</span>
+      {m.destino && (
+        <ArrowUpRight
+          size={12}
+          className="shrink-0 text-muted-foreground/60 transition-colors group-hover/fila:text-primary"
+          aria-hidden
+        />
+      )}
     </span>
   );
+
+  /**
+   * Toda la fila abre la sección de la que habla el movimiento: un pago de
+   * cubiertas abre Mantenimiento, un cobro abre Clientes. El link va estirado por
+   * debajo y los controles quedan en z-10, así cada clic hace lo que parece que
+   * hace (mismo patrón que la lista de vacaciones).
+   *
+   * Sólo se dibuja si el destino existe Y el que mira puede entrar: eso ya viene
+   * resuelto del servidor.
+   */
+  const linkFila = (m: CajaMovimientoRow) =>
+    m.destino ? (
+      <Link
+        href={m.destino.href}
+        aria-label={`Abrir en ${m.destino.seccion}: ${m.concepto}`}
+        title={`Abrir en ${m.destino.seccion}`}
+        className="absolute inset-0 z-0"
+      />
+    ) : null;
 
   const chipCaja = (m: CajaMovimientoRow) => (
     <span
@@ -534,8 +518,14 @@ export default function MovimientosCajaTable({
             <EmptyTableRow message="Sin movimientos registrados" />
           ) : (
             rows.map((m) => (
-              <TableRow key={m.id} className="border-border/60 hover:bg-muted/40">
+              <TableRow
+                key={m.id}
+                className={`group/fila relative isolate border-border/60 hover:bg-muted/40 ${
+                  m.destino ? "cursor-pointer" : ""
+                }`}
+              >
                 <TableCell className="text-sm tabular-nums text-muted-foreground">
+                  {linkFila(m)}
                   {formatFecha(m.fecha)}
                 </TableCell>
                 {mostrarColumnaCaja && <TableCell>{chipCaja(m)}</TableCell>}
@@ -552,7 +542,9 @@ export default function MovimientosCajaTable({
                 <TableCell className="text-right text-sm">{monto(m)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{m.usuario ?? "—"}</TableCell>
                 {puedeMarcarPrivado && (
-                  <TableCell>{botonPrivado(m, "px-1.5 py-1")}</TableCell>
+                  <TableCell className="relative z-10 w-px">
+                    {botonPrivado(m, "px-1.5 py-1")}
+                  </TableCell>
                 )}
               </TableRow>
             ))
@@ -575,7 +567,8 @@ export default function MovimientosCajaTable({
         ) : (
           <ul className="divide-y divide-border/60">
             {rows.map((m) => (
-              <li key={m.id} className="px-4 py-3">
+              <li key={m.id} className="group/fila relative isolate px-4 py-3">
+                {linkFila(m)}
                 <div className="flex items-start justify-between gap-3">
                   <p className="min-w-0 flex-1 text-sm font-medium text-foreground">
                     {m.concepto}
@@ -602,7 +595,7 @@ export default function MovimientosCajaTable({
                     {m.vinculado_a ? `${m.vinculado_a} · ` : ""}
                     {m.usuario ?? "—"}
                   </p>
-                  {puedeMarcarPrivado && botonPrivado(m, "size-9 shrink-0")}
+                  {puedeMarcarPrivado && botonPrivado(m, "relative z-10 size-9 shrink-0")}
                 </div>
               </li>
             ))}

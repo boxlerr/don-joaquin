@@ -3,6 +3,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import {
+  hasArea,
   hasSeccion,
   requireArea,
   requireSeccion,
@@ -14,7 +15,17 @@ import { clausulaVisibilidad } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
 import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import { avisarCambio } from "@/lib/avisos";
+import { avisarMovimientoCaja } from "@/lib/aviso-caja";
+import {
+  CATEGORIA_LABEL,
+  destinoDeMovimiento,
+  resolverCategoria,
+  type CajaCategoria,
+  type DestinoMovimiento,
+} from "@/lib/caja-tipos";
+import { choferSlug } from "@/lib/chofer-slug";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import * as XLSX from "xlsx";
 import { computeRendicion } from "../viajes/flujo-logic";
 
@@ -99,6 +110,8 @@ export type CajaMovimientoRow = {
   fecha: string;
   tipo: "ingreso" | "egreso";
   categoria: string;
+  /** Lo que se escribió a mano cuando no era ninguna categoría de la lista. */
+  categoria_libre: string | null;
   tipo_gasto_nombre: string | null;
   concepto: string;
   monto: number;
@@ -109,6 +122,15 @@ export type CajaMovimientoRow = {
   privado: boolean | null;
   /** De qué caja es. Se muestra en la vista general, que mezcla las dos. */
   caja: CajaId;
+  /**
+   * A qué pantalla lleva la fila, o null si no lleva a ninguna.
+   *
+   * Se resuelve acá y no en el navegador porque además del destino hay que
+   * mirar el PERMISO de quien está mirando: el que no puede abrir Mantenimiento
+   * no tiene que ver un link a Mantenimiento. Un atajo que rebota es peor que
+   * no tener atajo.
+   */
+  destino: DestinoMovimiento | null;
 };
 
 export type CajaResumen = {
@@ -345,6 +367,37 @@ const ESPERA_REINTENTO_MS = 60_000;
 let sinAcentosBloqueadoHasta = 0;
 const hayColumnaNormalizada = () => Date.now() >= sinAcentosBloqueadoHasta;
 
+// Mismo mecanismo para `categoria_libre` (migración 20260824_caja_categoria_libre):
+// mientras no esté aplicada, la caja funciona sin la categoría escrita a mano en
+// vez de romperse entera, y se recupera sola en cuanto la columna aparece.
+let sinCategoriaLibreHasta = 0;
+const hayCategoriaLibre = () => Date.now() >= sinCategoriaLibreHasta;
+function faltaCategoriaLibre(error: { code?: string; message?: string } | null): boolean {
+  return error?.code === "42703" && (error.message ?? "").includes("categoria_libre");
+}
+function anotarFaltaCategoriaLibre() {
+  sinCategoriaLibreHasta = Date.now() + ESPERA_REINTENTO_MS;
+  console.warn(
+    "Falta la columna categoria_libre (migración 20260824_caja_categoria_libre): la caja sigue sin categorías escritas a mano y se reintenta en 1 minuto.",
+  );
+}
+
+/**
+ * El destino, pero sólo si el que mira puede entrar. Sin esto, la caja chica de
+ * un operativo le ofrecería abrir Cheques o Mantenimiento y el click terminaría
+ * en la pantalla de "no tenés acceso".
+ */
+function permitido(
+  user: CurrentUser,
+  destino: DestinoMovimiento | null,
+): DestinoMovimiento | null {
+  if (!destino) return null;
+  if (destino.requiereSeccion) {
+    return hasSeccion(user, destino.requiereSeccion, "read") ? destino : null;
+  }
+  return hasArea(user, destino.area, "read") ? destino : null;
+}
+
 export type GetCajaMovimientosResult =
   | { data: CajaMovimientoRow[]; hasMore: boolean; count: number }
   | { error: string };
@@ -354,7 +407,7 @@ export async function getCajaMovimientosAction(
 ): Promise<GetCajaMovimientosResult> {
   const { hasta, tipoGastoId, categoria, search, page = 0 } = params;
   const vista = params.vista ?? "chica";
-  await requireVerCaja(vista);
+  const user = await requireVerCaja(vista);
   const supabase = createAdminClient();
   const caja: CajaFiltro = vista === "chica" ? "diaria" : params.caja ?? "todas";
   const visibilidad = await filtroVisibilidad(vista);
@@ -379,7 +432,8 @@ export async function getCajaMovimientosAction(
   let query = (supabase as any)
     .from("caja_movimientos")
     .select(
-      "id, fecha, tipo, categoria, concepto, monto, medio, cliente_id, chofer_id, viaje_id, gasto_id, created_by, privado, caja",
+      "id, fecha, tipo, categoria, concepto, monto, medio, cliente_id, chofer_id, viaje_id, gasto_id, cheque_id, mantenimiento_id, carga_combustible_id, siniestro_id, viatico_id, created_by, privado, caja" +
+        (hayCategoriaLibre() ? ", categoria_libre" : ""),
       { count: "exact" }
     )
     .order("fecha", { ascending: false })
@@ -406,6 +460,10 @@ export async function getCajaMovimientosAction(
   const { data, count, error } = await query;
 
   if (error) {
+    if (faltaCategoriaLibre(error) && hayCategoriaLibre()) {
+      anotarFaltaCategoriaLibre();
+      return getCajaMovimientosAction(params);
+    }
     // 42703 = la columna no existe todavía. Se deja de usar por un minuto y se
     // reintenta una vez con la columna original (en el reintento ya está
     // bloqueada, así que no hay recursión infinita).
@@ -428,10 +486,16 @@ export async function getCajaMovimientosAction(
     concepto: string;
     monto: number;
     medio: string;
+    categoria_libre?: string | null;
     cliente_id: string | null;
     chofer_id: string | null;
     viaje_id: string | null;
     gasto_id: string | null;
+    cheque_id: string | null;
+    mantenimiento_id: string | null;
+    carga_combustible_id: string | null;
+    siniestro_id: string | null;
+    viatico_id: string | null;
     created_by: string | null;
     privado: boolean | null;
     caja: CajaId | null;
@@ -465,8 +529,8 @@ export async function getCajaMovimientosAction(
     ...new Set((gastosRes.data ?? []).map((g) => g.tipo_gasto_id).filter(Boolean) as string[]),
   ];
   const tiposGastoRes = tipoGastoIds.length
-    ? await supabase.from("tipos_gasto").select("id, nombre").in("id", tipoGastoIds)
-    : { data: [] as { id: string; nombre: string }[] };
+    ? await supabase.from("tipos_gasto").select("id, nombre, categoria").in("id", tipoGastoIds)
+    : { data: [] as { id: string; nombre: string; categoria: string | null }[] };
 
   const clientesMap = new Map((clientesRes.data ?? []).map((c) => [c.id, c]));
   const choferesMap = new Map((choferesRes.data ?? []).map((c) => [c.id, c]));
@@ -493,18 +557,47 @@ export async function getCajaMovimientosAction(
     }
 
     let tipoGastoNombre: string | null = null;
+    let tipoGastoCategoria: string | null = null;
     if (m.gasto_id) {
       const gasto = gastosMap.get(m.gasto_id);
       if (gasto?.tipo_gasto_id) {
-        tipoGastoNombre = tiposGastoMap.get(gasto.tipo_gasto_id)?.nombre ?? null;
+        const tg = tiposGastoMap.get(gasto.tipo_gasto_id);
+        tipoGastoNombre = tg?.nombre ?? null;
+        tipoGastoCategoria = tg?.categoria ?? null;
       }
     }
+
+    // A dónde lleva la fila. El destino sale del movimiento; el permiso, de
+    // quien está mirando.
+    const chofer = m.chofer_id ? choferesMap.get(m.chofer_id) : null;
+    const destino = permitido(
+      user,
+      destinoDeMovimiento({
+        categoria: m.categoria,
+        concepto: m.concepto,
+        categoria_libre: m.categoria_libre ?? null,
+        tipo_gasto_nombre: tipoGastoNombre,
+        tipo_gasto_categoria: tipoGastoCategoria,
+        viaje_codigo: m.viaje_id ? viajesMap.get(m.viaje_id)?.codigo ?? null : null,
+        chofer_slug: chofer ? choferSlug(chofer) : null,
+        cliente_id: m.cliente_id,
+        viaje_id: m.viaje_id,
+        chofer_id: m.chofer_id,
+        cheque_id: m.cheque_id,
+        mantenimiento_id: m.mantenimiento_id,
+        carga_combustible_id: m.carga_combustible_id,
+        siniestro_id: m.siniestro_id,
+        viatico_id: m.viatico_id,
+        gasto_id: m.gasto_id,
+      }),
+    );
 
     return {
       id: m.id,
       fecha: m.fecha,
       tipo: m.tipo,
       categoria: m.categoria,
+      categoria_libre: m.categoria_libre ?? null,
       tipo_gasto_nombre: tipoGastoNombre,
       concepto: m.concepto,
       monto: Number(m.monto),
@@ -513,6 +606,7 @@ export async function getCajaMovimientosAction(
       usuario,
       privado: m.privado,
       caja: m.caja ?? "diaria",
+      destino,
     };
   });
 
@@ -565,11 +659,132 @@ export async function setMovimientoPrivadoAction(data: { id: string; privado: bo
   return { success: true };
 }
 
+/** Nombre y apellido de quien está cargando, para el correo del movimiento. */
+function nombreDe(user: CurrentUser): string | null {
+  return `${user.nombre ?? ""} ${user.apellido ?? ""}`.trim() || null;
+}
+
+/**
+ * Guarda el movimiento, con la categoría escrita a mano si la base ya la
+ * acepta.
+ *
+ * Mientras la migración 20260824 no esté aplicada, la fila entra igual (con la
+ * categoría "Otro") en vez de fallar: la caja se carga en el mostrador y perder
+ * el movimiento es peor que perder el rótulo. Queda avisado en el log y a partir
+ * del minuto siguiente se vuelve a intentar con la columna.
+ */
+async function insertarMovimiento(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  insertData: Record<string, unknown>,
+  categoriaLibre: string | null,
+): Promise<{ id: string | null } | { error: { code?: string; message?: string } }> {
+  const conLibre = Boolean(categoriaLibre) && hayCategoriaLibre();
+  const fila = conLibre ? { ...insertData, categoria_libre: categoriaLibre } : insertData;
+
+  const { data, error } = await supabase
+    .from("caja_movimientos")
+    .insert(fila)
+    .select("id")
+    .single();
+
+  if (!error) return { id: data?.id ?? null };
+  if (conLibre && faltaCategoriaLibre(error)) {
+    anotarFaltaCategoriaLibre();
+    return insertarMovimiento(supabase, insertData, null);
+  }
+  return { error };
+}
+
+/**
+ * Se acuerda de una categoría escrita a mano para ofrecerla la próxima vez.
+ *
+ * Nunca hace fallar el alta: el movimiento ya está guardado y esto es sólo la
+ * lista de sugerencias. El `try/catch` no es decorativo — el índice único de la
+ * tabla es exactamente la forma en que la carga rápida se quedó una vez en
+ * "Guardando…" para siempre.
+ */
+async function recordarCategoriaLibre(
+  supabase: ReturnType<typeof createAdminClient>,
+  nombre: string,
+  flujo: "ingreso" | "egreso",
+  userId: string,
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
+    const { data: ya } = await sb
+      .from("caja_categorias_libres")
+      .select("id")
+      .eq("flujo", flujo)
+      .ilike("nombre", nombre)
+      .limit(1);
+    if (ya && ya.length > 0) return;
+
+    const { error } = await sb
+      .from("caja_categorias_libres")
+      .insert({ nombre, flujo, created_by: userId });
+    // 23505 = ya estaba (dos altas a la vez). No es un problema.
+    if (error && error.code !== "23505") {
+      console.warn("[caja] no se pudo recordar la categoría escrita:", error.message);
+    }
+  } catch (e) {
+    console.warn("[caja] no se pudo recordar la categoría escrita:", e);
+  }
+}
+
+/** Las categorías escritas a mano que ya se usaron, para sugerirlas. */
+export async function getCategoriasLibresAction(): Promise<
+  { id: string; nombre: string; flujo: "ingreso" | "egreso" }[]
+> {
+  await requireArea("caja", "read");
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (createAdminClient() as any)
+      .from("caja_categorias_libres")
+      .select("id, nombre, flujo")
+      .order("nombre");
+    if (error) return [];
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saca una sugerencia de la lista. No toca ningún movimiento ya cargado: el
+ * movimiento guarda el TEXTO, no una referencia a esta tabla. Es la mitad que
+ * faltaba de "que se pueda escribir": si se guarda solo, se tiene que poder
+ * sacar cuando entra mal escrita.
+ */
+export async function borrarCategoriaLibreAction(
+  id: string,
+): Promise<{ success?: boolean; error?: string }> {
+  await requireArea("caja", "write");
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (createAdminClient() as any)
+      .from("caja_categorias_libres")
+      .delete()
+      .eq("id", id);
+    if (error) return { error: "No se pudo sacar la categoría de la lista." };
+    revalidatePath("/caja");
+    return { success: true };
+  } catch {
+    return { error: "No se pudo sacar la categoría de la lista." };
+  }
+}
+
 export async function addIngresoAction(data: {
   concepto: string;
   monto: number;
   medio: "efectivo" | "transferencia" | "cheque" | "otro";
-  categoria: "cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro";
+  /**
+   * Lo que se eligió O se escribió en "Categoría". Llega como texto y lo
+   * interpreta el servidor (`resolverCategoria`): si coincide con una de la
+   * lista se guarda como esa, y si no, tal cual, en `categoria_libre`.
+   */
+  categoria: string;
   fecha: string;
   caja?: CajaId;
   /** Solo dirección lo define: si no lo manda, el movimiento queda privado. */
@@ -582,12 +797,14 @@ export async function addIngresoAction(data: {
   if (caja === "grande") await requireSeccion("caja_grande", "write");
   const supabase = createAdminClient();
 
+  const { categoria, categoriaLibre } = resolverCategoria(data.categoria, "ingreso");
+
   const insertData = {
     tipo: "ingreso" as const,
     concepto: data.concepto,
     monto: data.monto,
     medio: data.medio,
-    categoria: data.categoria,
+    categoria,
     fecha: data.fecha,
     moneda: "ARS",
     caja,
@@ -595,25 +812,43 @@ export async function addIngresoAction(data: {
     created_by: user.id,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: inserted, error } = await (supabase as any)
-    .from("caja_movimientos")
-    .insert(insertData)
-    .select("id")
-    .single();
-
-  if (error) {
-    console.error("Error al registrar ingreso:", error);
+  const inserted = await insertarMovimiento(supabase, insertData, categoriaLibre);
+  if ("error" in inserted) {
+    console.error("Error al registrar ingreso:", inserted.error);
     return { error: "No se pudo registrar el ingreso en la caja." };
   }
 
-  if (inserted?.id) {
-    await logCajaAudit(supabase, inserted.id, "crear", null, insertData, user.id);
+  if (inserted.id) {
+    // La auditoría guarda lo que quedó en la fila, categoría escrita incluida.
+    await logCajaAudit(
+      supabase,
+      inserted.id,
+      "crear",
+      null,
+      { ...insertData, categoria_libre: categoriaLibre },
+      user.id,
+    );
   }
+  if (categoriaLibre) await recordarCategoriaLibre(supabase, categoriaLibre, "ingreso", user.id);
 
   revalidatePath("/caja");
   // Las cajas abiertas en otras pantallas se enteran solas.
   await avisarCambio("caja");
+  // Y las casillas también, pero recién después de contestar: ver aviso-caja.ts.
+  after(() =>
+    avisarMovimientoCaja({
+      tipo: "ingreso",
+      concepto: data.concepto,
+      monto: data.monto,
+      medio: data.medio,
+      fecha: data.fecha,
+      caja,
+      categoria,
+      categoria_libre: categoriaLibre,
+      privado: insertData.privado,
+      usuario: nombreDe(user),
+    }),
+  );
   return { success: true };
 }
 
@@ -621,7 +856,8 @@ export async function addEgresoAction(data: {
   concepto: string;
   monto: number;
   medio: "efectivo" | "transferencia" | "cheque" | "otro";
-  categoria: "pago_proveedor" | "gasto_operativo" | "pago_chofer" | "transferencia_interna" | "ajuste" | "otro";
+  /** Elegida o escrita a mano: ver `addIngresoAction`. */
+  categoria: string;
   tipo_gasto_id?: string | null;
   fecha: string;
   caja?: CajaId;
@@ -635,7 +871,12 @@ export async function addEgresoAction(data: {
   if (caja === "grande") await requireSeccion("caja_grande", "write");
   const supabase = createAdminClient();
 
+  const { categoria, categoriaLibre } = resolverCategoria(data.categoria, "egreso");
+
   let gastoId: string | null = null;
+  // Para el asunto del correo: "Egreso · Cubiertas · $ …" se lee mejor que
+  // "Egreso · Pago a proveedor · $ …".
+  let tipoGastoNombre: string | null = null;
 
   // Si el usuario eligió un tipo de gasto, creamos un registro real en `gastos`
   // y vinculamos el movimiento de caja a ese gasto (la FK apunta a gastos.id).
@@ -667,6 +908,13 @@ export async function addEgresoAction(data: {
       return { error: "No se pudo registrar el egreso en la caja." };
     }
     gastoId = gasto?.id ?? null;
+
+    const { data: tg } = await supabase
+      .from("tipos_gasto")
+      .select("nombre")
+      .eq("id", data.tipo_gasto_id)
+      .single();
+    tipoGastoNombre = tg?.nombre ?? null;
   }
 
   const insertData = {
@@ -674,7 +922,7 @@ export async function addEgresoAction(data: {
     concepto: data.concepto,
     monto: data.monto,
     medio: data.medio,
-    categoria: data.categoria,
+    categoria,
     gasto_id: gastoId,
     fecha: data.fecha,
     moneda: "ARS",
@@ -683,25 +931,44 @@ export async function addEgresoAction(data: {
     created_by: user.id,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: inserted, error } = await (supabase as any)
-    .from("caja_movimientos")
-    .insert(insertData)
-    .select("id")
-    .single();
-
-  if (error) {
-    console.error("Error al registrar egreso:", error);
+  const inserted = await insertarMovimiento(supabase, insertData, categoriaLibre);
+  if ("error" in inserted) {
+    console.error("Error al registrar egreso:", inserted.error);
     return { error: "No se pudo registrar el egreso en la caja." };
   }
 
-  if (inserted?.id) {
-    await logCajaAudit(supabase, inserted.id, "crear", null, insertData, user.id);
+  if (inserted.id) {
+    // La auditoría guarda lo que quedó en la fila, categoría escrita incluida.
+    await logCajaAudit(
+      supabase,
+      inserted.id,
+      "crear",
+      null,
+      { ...insertData, categoria_libre: categoriaLibre },
+      user.id,
+    );
   }
+  if (categoriaLibre) await recordarCategoriaLibre(supabase, categoriaLibre, "egreso", user.id);
 
   revalidatePath("/caja");
   // Las cajas abiertas en otras pantallas se enteran solas.
   await avisarCambio("caja");
+  // Y las casillas también, pero recién después de contestar: ver aviso-caja.ts.
+  after(() =>
+    avisarMovimientoCaja({
+      tipo: "egreso",
+      concepto: data.concepto,
+      monto: data.monto,
+      medio: data.medio,
+      fecha: data.fecha,
+      caja,
+      categoria,
+      categoria_libre: categoriaLibre,
+      tipo_gasto_nombre: tipoGastoNombre,
+      privado: insertData.privado,
+      usuario: nombreDe(user),
+    }),
+  );
   return { success: true };
 }
 
@@ -783,21 +1050,12 @@ export async function transferirEntreCajasAction(data: {
 
 const CAJA_TIPO_VALUES = ["ingreso", "egreso"] as const;
 const CAJA_MEDIO_VALUES = ["efectivo", "transferencia", "cheque", "otro"] as const;
-const CAJA_CATEGORIA_VALUES = [
-  "cobro_cliente",
-  "pago_proveedor",
-  "entrega_viatico",
-  "rendicion_vuelto",
-  "gasto_operativo",
-  "pago_chofer",
-  "transferencia_interna",
-  "ajuste",
-  "otro",
-] as const;
+// Los valores del enum salen del catálogo de rótulos, que es donde se llaman:
+// dos listas de nueve categorías es una que queda vieja.
+const CAJA_CATEGORIA_VALUES = Object.keys(CATEGORIA_LABEL) as CajaCategoria[];
 
 type CajaTipo = (typeof CAJA_TIPO_VALUES)[number];
 type CajaMedio = (typeof CAJA_MEDIO_VALUES)[number];
-type CajaCategoria = (typeof CAJA_CATEGORIA_VALUES)[number];
 
 export type ImportMovimientosState = {
   ok?: boolean;

@@ -82,9 +82,14 @@ export const ALERTAS = [
   },
   {
     key: "cambios_caja",
-    nombre: "Cambios en Caja",
-    descripcion: "Movimientos de caja relevantes",
-    cubre: ["Movimientos de caja marcados como relevantes"],
+    nombre: "Movimientos de Caja",
+    descripcion:
+      "Un correo por cada ingreso y cada egreso, apenas se carga. Trae montos y saldo: sección confidencial",
+    cubre: [
+      "Ingreso cargado en la caja chica o en la general",
+      "Egreso cargado en la caja chica o en la general",
+      "El asunto dice si entró o salió, de qué es y cuánto",
+    ],
   },
   {
     key: "nuevo_viaje",

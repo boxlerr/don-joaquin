@@ -90,6 +90,33 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "te-llega-un-mail-por-cada-movimiento-de-la",
+    fecha: "2026-08-24",
+    tipo: "nuevo",
+    ver: "caja_saldo",
+    titulo: "Te llega un mail por cada movimiento de la caja",
+    detalle: "Apenas alguien carga un ingreso o un egreso te llega el correo con el tipo, el monto y con cuánto quedó la caja. Si no lo querés, se apaga en Configuración → Notificaciones.",
+    href: "/caja",
+  },
+  {
+    id: "toca-un-movimiento-de-la-caja-y-te-lleva-a",
+    fecha: "2026-08-24",
+    tipo: "mejora",
+    ver: "caja",
+    titulo: "Tocá un movimiento de la caja y te lleva a donde está el detalle",
+    detalle: "Un egreso de repuestos abre Gastos con esa fila ya buscada, un cobro abre Clientes y un pago a un chofer su legajo.",
+    href: "/caja",
+  },
+  {
+    id: "en-la-caja-podes-escribir-la-categoria-que",
+    fecha: "2026-08-24",
+    tipo: "mejora",
+    ver: "caja",
+    titulo: "En la caja podés escribir la categoría que quieras",
+    detalle: "Ya no hace falta elegir \"Otro\": escribís la que sea y queda guardada para la próxima vez.",
+    href: "/caja",
+  },
+  {
     id: "sabes-de-que-meses-sale-la-facturacion-del",
     fecha: "2026-08-21",
     tipo: "mejora",

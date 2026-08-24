@@ -13,6 +13,7 @@ import HelpTutorialButton from "../help-tutorial-button";
 import CajaTabs from "../CajaTabs";
 import type { ViaticoPendiente } from "./RendirViaticoDialog";
 import type { CajaId } from "../actions";
+import type { CategoriaLibre } from "./CategoriaCajaField";
 
 /**
  * Ingreso y Egreso son las acciones del día: más grandes que el resto del
@@ -23,6 +24,8 @@ const BOTON_CARGA = "h-11 px-4 text-sm font-semibold max-sm:flex-1 sm:h-10";
 
 type Props = {
   tiposGasto: { id: string; nombre: string; categoria: string }[];
+  /** Categorías escritas a mano en altas anteriores, para volver a ofrecerlas. */
+  categoriasLibres: CategoriaLibre[];
   /** Meses con movimientos ("YYYY-MM"), ordenados descendente. */
   mesesConDatos: string[];
   /** Días con movimientos ("YYYY-MM-DD"), para marcarlos en el calendario. */
@@ -52,6 +55,7 @@ type Props = {
  */
 export default function CajaViewCompleta({
   tiposGasto,
+  categoriasLibres,
   mesesConDatos,
   fechasConDatos,
   viaticos,
@@ -83,13 +87,20 @@ export default function CajaViewCompleta({
               <>
                 {/* La importación masiva es de dirección: revisa el histórico. */}
                 {puedeMarcarPrivado && <ImportMovimientosDialog />}
-                <AddIngresoDialog puedeMarcarPrivado={puedeMarcarPrivado}>
+                <AddIngresoDialog
+                  categoriasLibres={categoriasLibres}
+                  puedeMarcarPrivado={puedeMarcarPrivado}
+                >
                   <Button variant="success" size="lg" className={BOTON_CARGA}>
                     <ArrowUpRight size={16} />
                     Ingreso
                   </Button>
                 </AddIngresoDialog>
-                <AddEgresoDialog tiposGasto={tiposGasto} puedeMarcarPrivado={puedeMarcarPrivado}>
+                <AddEgresoDialog
+                  tiposGasto={tiposGasto}
+                  categoriasLibres={categoriasLibres}
+                  puedeMarcarPrivado={puedeMarcarPrivado}
+                >
                   <Button variant="danger" size="lg" className={BOTON_CARGA}>
                     <ArrowDownRight size={16} />
                     Egreso
@@ -101,7 +112,11 @@ export default function CajaViewCompleta({
               <>
                 {/* Un solo pozo: el alta va a la caja operativa y el check decide
                     si se ve en la chica. Por defecto queda privado (solo general). */}
-                <AddIngresoDialog puedeMarcarPrivado={puedeMarcarPrivado} defaultPrivado>
+                <AddIngresoDialog
+                  categoriasLibres={categoriasLibres}
+                  puedeMarcarPrivado={puedeMarcarPrivado}
+                  defaultPrivado
+                >
                   <Button variant="success" size="lg" className={BOTON_CARGA}>
                     <ArrowUpRight size={16} />
                     Ingreso
@@ -109,6 +124,7 @@ export default function CajaViewCompleta({
                 </AddIngresoDialog>
                 <AddEgresoDialog
                   tiposGasto={tiposGasto}
+                  categoriasLibres={categoriasLibres}
                   puedeMarcarPrivado={puedeMarcarPrivado}
                   defaultPrivado
                 >

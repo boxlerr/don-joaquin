@@ -16,47 +16,35 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { addIngresoAction, type CajaId } from "../actions";
+import CategoriaCajaField, { type CategoriaLibre } from "./CategoriaCajaField";
+import { CATEGORIAS_POR_FLUJO, MEDIO_LABEL, textoCategoria } from "@/lib/caja-tipos";
 import { useBorrador } from "@/hooks/useBorrador";
 import { objetoCon } from "@/lib/borrador-local";
 import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+const CATEGORIA_INICIAL = CATEGORIAS_POR_FLUJO.ingreso[0]!.label;
 
 /** El ingreso en blanco, para completar contra él un borrador viejo. */
 const vacioIngreso = (privado: boolean) => ({
   concepto: "",
   monto: "",
   medio: "efectivo" as "efectivo" | "transferencia" | "cheque" | "otro",
-  categoria: "cobro_cliente" as
-    | "cobro_cliente"
-    | "rendicion_vuelto"
-    | "transferencia_interna"
-    | "ajuste"
-    | "otro",
+  // Texto, no un código: la categoría se puede escribir.
+  categoria: CATEGORIA_INICIAL,
   fecha: "",
   privado,
 });
 
-const CATEGORIA_LABEL: Record<string, string> = {
-  cobro_cliente: "Cobro a Cliente",
-  rendicion_vuelto: "Rendición / Vuelto",
-  transferencia_interna: "Transferencia Interna",
-  ajuste: "Ajuste Positivo",
-  otro: "Otro Ingreso",
-};
-
-const MEDIO_LABEL: Record<string, string> = {
-  efectivo: "Efectivo",
-  transferencia: "Transferencia",
-  cheque: "Cheque",
-  otro: "Otro",
-};
-
 export default function AddIngresoDialog({
   children,
+  categoriasLibres = [],
   caja = "diaria",
   puedeMarcarPrivado = false,
   defaultPrivado = false,
 }: {
   children: React.ReactNode;
+  /** Las categorías escritas a mano que ya se usaron, para ofrecerlas. */
+  categoriasLibres?: CategoriaLibre[];
   /** A qué caja va el ingreso: diaria (default) o grande (privada de dirección). */
   caja?: CajaId;
   /** Dirección (caja_saldo) decide si el movimiento se ve en la caja chica. */
@@ -72,7 +60,7 @@ export default function AddIngresoDialog({
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
   const [medio, setMedio] = useState<"efectivo" | "transferencia" | "cheque" | "otro">("efectivo");
-  const [categoria, setCategoria] = useState<"cobro_cliente" | "rendicion_vuelto" | "transferencia_interna" | "ajuste" | "otro">("cobro_cliente");
+  const [categoria, setCategoria] = useState(CATEGORIA_INICIAL);
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   // Visibilidad en la caja chica. El default depende de dónde se carga: en la
   // chica arranca visible; en la general, privado (solo dirección).
@@ -99,7 +87,10 @@ export default function AddIngresoDialog({
     setConcepto(b.concepto);
     setMonto(b.monto);
     setMedio(b.medio);
-    setCategoria(b.categoria);
+    // Un borrador viejo guardaba el código de la categoría ("cobro_cliente");
+    // ahora el campo es texto. `textoCategoria` traduce lo viejo y deja pasar
+    // lo nuevo tal cual.
+    setCategoria(textoCategoria(b.categoria, null, "ingreso"));
     setFecha(b.fecha);
     setPrivado(b.privado);
   };
@@ -125,6 +116,7 @@ export default function AddIngresoDialog({
         setOpen(false);
         setConcepto("");
         setMonto("");
+        setCategoria(CATEGORIA_INICIAL);
         setPrivado(defaultPrivado);
         // El ingreso ya entró: recién ahora el borrador sobra.
         borrador.limpiar();
@@ -205,23 +197,13 @@ export default function AddIngresoDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="ing-categoria" className="text-sm font-medium text-foreground">Categoría</Label>
-              <Select value={categoria} onValueChange={(v) => setCategoria(v as typeof categoria)}>
-                <SelectTrigger id="ing-categoria" className="w-full">
-                  <SelectValue placeholder="Categoría">
-                    {(value: unknown) => CATEGORIA_LABEL[value as string] ?? null}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cobro_cliente">Cobro a Cliente</SelectItem>
-                  <SelectItem value="rendicion_vuelto">Rendición / Vuelto</SelectItem>
-                  <SelectItem value="transferencia_interna">Transferencia Interna</SelectItem>
-                  <SelectItem value="ajuste">Ajuste Positivo</SelectItem>
-                  <SelectItem value="otro">Otro Ingreso</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <CategoriaCajaField
+              id="ing-categoria"
+              flujo="ingreso"
+              value={categoria}
+              onValueChange={setCategoria}
+              sugerencias={categoriasLibres}
+            />
             <div className="space-y-2">
               <Label htmlFor="ing-medio" className="text-sm font-medium text-foreground">Medio de cobro</Label>
               <Select value={medio} onValueChange={(v) => setMedio(v as typeof medio)}>

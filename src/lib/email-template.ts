@@ -525,3 +525,120 @@ export function renderEmail(opts: {
   </table>
 </body></html>`;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────── *
+ *  AVISO DE UN MOVIMIENTO DE CAJA
+ *
+ *  Es otro correo que el de alertas y por eso tiene su propia función: una
+ *  alerta avisa que algo VA A PASAR (y todo el layout está armado alrededor de
+ *  "cuándo vence"); esto cuenta algo que YA PASÓ hace diez segundos. Pedido de
+ *  Julián (24/08/2026): saber en el momento lo que entra y lo que sale, sin
+ *  tener que abrir la caja.
+ *
+ *  Lo que tiene que poder leerse sin abrir el correo está en el asunto (ver
+ *  `asuntoMovimiento` en lib/aviso-caja.ts). Acá adentro va el resto, y sobre
+ *  todo el SALDO que quedó: el movimiento suelto no dice cómo está la caja.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+export type MovimientoEmailView = {
+  tipo: "ingreso" | "egreso";
+  concepto: string;
+  /** Ya formateado (`10.000,00`): el que llama sabe de plata, la plantilla no. */
+  monto: string;
+  /** El tipo tal como se ve en la caja: "Multas", "Cobro a cliente"… */
+  categoria: string;
+  medio: string;
+  fecha: string;
+  caja: string;
+  usuario: string | null;
+  /** Saldo de esa caja después del movimiento, ya formateado. */
+  saldo: string | null;
+  /** Sólo en la caja general: el movimiento no se ve en la chica. */
+  privado?: boolean;
+};
+
+export function renderEmailMovimiento(opts: {
+  baseUrl: string;
+  movimiento: MovimientoEmailView;
+}): string {
+  const base = opts.baseUrl;
+  const m = opts.movimiento;
+  const entra = m.tipo === "ingreso";
+  // El verde y el rojo del sistema (design.md), los mismos de la tabla de caja.
+  const color = entra ? "#059669" : "#E11D48";
+  const est = CATEGORIA_ESTILO.cambios_caja!;
+
+  const datos: { label: string; valor: string }[] = [
+    { label: "Tipo", valor: m.categoria },
+    { label: "Medio", valor: m.medio },
+    { label: "Fecha", valor: m.fecha },
+    { label: "Caja", valor: m.caja },
+  ];
+  if (m.usuario) datos.push({ label: "Cargado por", valor: m.usuario });
+
+  const grilla = `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px;border:1px solid #E2E8F0;border-radius:8px;border-collapse:separate;">
+      ${datos
+        .map(
+          (d, i) => `<tr>
+            <td style="padding:11px 16px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}font-size:13px;color:#64748B;">${escapeHtml(d.label)}</td>
+            <td align="right" style="padding:11px 16px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}font-size:13.5px;font-weight:700;color:#0F172A;">${escapeHtml(d.valor)}</td>
+          </tr>`,
+        )
+        .join("")}
+    </table>`;
+
+  // El saldo va aparte y más grande: es el número por el que se abre el correo.
+  const saldo = m.saldo
+    ? `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:14px;border-collapse:separate;">
+         <tr><td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px 16px;">
+           <span style="font-size:13px;color:#64748B;">Saldo de la ${escapeHtml(m.caja.toLowerCase())} después de este movimiento</span>
+           <div style="font-size:22px;font-weight:800;color:#0F172A;margin-top:4px;">$ ${escapeHtml(m.saldo)}</div>
+         </td></tr>
+       </table>`
+    : "";
+
+  const privado = m.privado
+    ? `<div style="font-size:12.5px;color:#64748B;margin-top:12px;">No se ve en la caja chica: queda sólo en la general.</div>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(`${entra ? "Ingreso" : "Egreso"} de caja`)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Inter,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" bgcolor="#ffffff" style="background:#ffffff;">
+    <tr><td align="center" style="padding:28px 12px 36px 12px;">
+      <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px;background:#ffffff;">
+
+        <tr><td style="padding:0 4px 14px 4px;border-bottom:2px solid #0F172A;">
+          <img src="${base}/logo-horizontal.png" alt="Don Joaquín" width="180"
+               style="display:block;border:0;outline:none;text-decoration:none;height:auto;max-width:180px;">
+        </td></tr>
+
+        <tr><td style="padding:26px 4px 2px 4px;">
+          <div style="font-size:11px;font-weight:700;color:${est.color};letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px;">${est.icono}&nbsp; ${escapeHtml(est.label)}</div>
+          <div style="font-size:15px;font-weight:700;color:${color};letter-spacing:.02em;">${entra ? "Entró" : "Salió"} de la caja</div>
+          <div style="font-size:34px;font-weight:800;color:${color};line-height:1.1;letter-spacing:-.02em;margin-top:2px;">${entra ? "+" : "−"} $ ${escapeHtml(m.monto)}</div>
+          <div style="font-size:17px;font-weight:700;color:#0F172A;margin-top:12px;line-height:1.4;">${escapeHtml(m.concepto)}</div>
+          ${grilla}
+          ${saldo}
+          ${privado}
+        </td></tr>
+
+        <tr><td style="padding:26px 4px 0 4px;">
+          <a href="${base}/caja" style="display:inline-block;background:${est.color};color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 24px;border-radius:6px;">Ver la caja</a>
+        </td></tr>
+
+        <tr><td style="padding:26px 4px 0 4px;">
+          <div style="border-top:1px solid #E2E8F0;padding-top:14px;">
+            <div style="font-size:12px;font-weight:700;color:#0088D1;">Don Joaquín Hnos SRL</div>
+            <div style="font-size:11px;color:#94A3B8;margin-top:5px;line-height:1.6;">
+              Aviso automático del sistema de gestión. Para dejar de recibir estos correos,
+              ajustá tus avisos en <span style="color:#64748B;">Configuración → Notificaciones</span>.
+            </div>
+          </div>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}

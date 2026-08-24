@@ -4,6 +4,7 @@ import { enviarEmail, emailConfigurado, appUrl } from "@/lib/email";
 import { getDocAlertasLive, getChequeAlertasLive } from "@/lib/alertas-live";
 import { categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
 import {
+  alertaClave,
   alertaColumnaDe,
   caducaAlPasar,
   COLUMNAS_TODAS,
@@ -153,6 +154,59 @@ function renderEmail(opts: { titulo: string; intro: string; alertas: AlertaEmail
 }
 
 // --- API pública ---
+
+/**
+ * A qué casillas les corresponde una columna de avisos, ahora mismo.
+ *
+ * Las dos funciones de más abajo reparten una LISTA de alertas y por eso hacen
+ * el cruce adentro del loop. Esto es para el caso contrario: un solo hecho
+ * (hoy, un movimiento de caja) del que hay que avisar apenas pasa. Vive acá y no
+ * en el módulo que avisa, a propósito — las reglas de a quién le llega algo son
+ * tres y tienen que ser las mismas para todos los correos:
+ *
+ *   1. el canal Email tiene que estar prendido;
+ *   2. la categoría tiene que estar prendida (`tipoHabilitado`, falla abierto);
+ *   3. la persona la tiene que tener tildada en la matriz —o estar en la lista
+ *      vieja de destinatarios, que hereda todo— Y poder verla: si la columna es
+ *      confidencial, el permiso manda sobre la preferencia.
+ */
+export async function destinatariosDeColumna(
+  columna: string,
+): Promise<{ emails: string[]; motivo?: string }> {
+  if (!emailConfigurado()) return { emails: [], motivo: "smtp_no_configurado" };
+
+  const supabase = createAdminClient();
+  const params = await leerParametros(supabase);
+
+  if (params.get(CANAL_EMAIL_CLAVE) !== "true") {
+    return { emails: [], motivo: "canal_email_inactivo" };
+  }
+  if (params.get(alertaClave(columna)) === "false") {
+    return { emails: [], motivo: "categoria_apagada" };
+  }
+
+  const matriz = parseMatriz(params.get(MATRIZ_CLAVE));
+  const oldDest = new Set(parseIds(params.get(DESTINATARIOS_CLAVE)));
+  const permitidos = await usuariosPorColumna([columna]);
+
+  const { data: usuariosActivos } = await supabase
+    .from("usuarios")
+    .select("id, email")
+    .eq("estado", "activo");
+
+  const emails: string[] = [];
+  for (const u of usuariosActivos ?? []) {
+    if (!u.email) continue;
+    const keys = new Set(
+      normalizarColumnas(matriz[u.id] ?? (oldDest.has(u.id) ? COLUMNAS_TODAS : [])),
+    );
+    if (!keys.has(columna)) continue;
+    if (!puedeRecibir(u.id, columna, permitidos)) continue;
+    emails.push(u.email);
+  }
+
+  return emails.length > 0 ? { emails } : { emails: [], motivo: "sin_destinatarios" };
+}
 
 export type ResultadoCriticas =
   | { enviadas: number }

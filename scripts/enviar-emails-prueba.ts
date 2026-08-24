@@ -17,7 +17,9 @@ import nodemailer from "nodemailer";
 import {
   CATEGORIA_ESTILO,
   renderEmail,
+  renderEmailMovimiento,
   type AlertaEmailView,
+  type MovimientoEmailView,
   type SeveridadEmail,
 } from "../src/lib/email-template";
 
@@ -115,20 +117,6 @@ const MUESTRAS: Muestra[] = [
     ],
   },
   {
-    categoria: "cambios_caja",
-    asunto: "Movimientos de caja",
-    titulo: "Cambios relevantes en Caja",
-    intro: "Se registraron movimientos que conviene revisar.",
-    alertas: [
-      {
-        titulo: "Egreso de caja — $540.000",
-        mensaje: "Se registró un egreso de $540.000 en Caja General.",
-        severidad: "info",
-        vence: null,
-      },
-    ],
-  },
-  {
     categoria: "nuevo_viaje",
     asunto: "Viajes sin cerrar",
     titulo: "Viajes pendientes de cierre",
@@ -209,6 +197,45 @@ function vistasDe(m: Muestra): AlertaEmailView[] {
   }));
 }
 
+/**
+ * Los avisos de caja no son alertas: se mandan de a uno, apenas se carga el
+ * movimiento, y tienen plantilla propia (ver `renderEmailMovimiento`). Van con
+ * las mismas dos muestras que el resto para poder mirarlos con --dry.
+ */
+const MOVIMIENTOS: { nombre: string; asunto: string; mov: MovimientoEmailView }[] = [
+  {
+    nombre: "cambios_caja-ingreso",
+    asunto: "↗ Ingreso · Cobro a cliente · $ 150.000,00",
+    mov: {
+      tipo: "ingreso",
+      concepto: "Cobro flete granos — Factura 0001-00012345",
+      monto: "150.000,00",
+      categoria: "Cobro a cliente",
+      medio: "Transferencia",
+      fecha: "24/08/2026",
+      caja: "Caja chica",
+      usuario: "Bárbara Joaquín",
+      saldo: "802.722,00",
+    },
+  },
+  {
+    nombre: "cambios_caja-egreso",
+    asunto: "↘ Egreso · Cubiertas · $ 540.000,00 (Caja general)",
+    mov: {
+      tipo: "egreso",
+      concepto: "Dos cubiertas para el AG556LU",
+      monto: "540.000,00",
+      categoria: "Cubiertas",
+      medio: "Efectivo",
+      fecha: "24/08/2026",
+      caja: "Caja general",
+      usuario: "Bárbara Joaquín",
+      saldo: "1.260.000,00",
+      privado: true,
+    },
+  },
+];
+
 function construir(m: Muestra): string {
   return renderEmail({ baseUrl: BASE, titulo: m.titulo, intro: m.intro, alertas: vistasDe(m) });
 }
@@ -233,7 +260,9 @@ function construirDigest(): string {
 
 async function main() {
   const lista = solo ? MUESTRAS.filter((m) => m.categoria === solo) : MUESTRAS;
-  if (lista.length === 0) {
+  const movimientos =
+    solo && solo !== "cambios_caja" ? [] : MOVIMIENTOS;
+  if (lista.length === 0 && movimientos.length === 0) {
     console.error(`No hay muestra para "${solo}". Opciones: ${Object.keys(CATEGORIA_ESTILO).join(", ")}`);
     process.exit(1);
   }
@@ -250,7 +279,16 @@ async function main() {
       writeFileSync(`${dir}/${m.categoria}.html`, construir(m));
       console.log(`✓ ${dir}/${m.categoria}.html`);
     }
-    console.log(`\n${lista.length} archivo(s). Abrilos en el navegador para verlos.`);
+    for (const m of movimientos) {
+      writeFileSync(
+        `${dir}/${m.nombre}.html`,
+        renderEmailMovimiento({ baseUrl: BASE, movimiento: m.mov }),
+      );
+      console.log(`✓ ${dir}/${m.nombre}.html   ${m.asunto}`);
+    }
+    console.log(
+      `\n${lista.length + movimientos.length} archivo(s). Abrilos en el navegador para verlos.`,
+    );
     return;
   }
 
@@ -285,7 +323,20 @@ async function main() {
     return;
   }
 
-  console.log(`Enviando ${lista.length} email(s) a ${to}…\n`);
+  console.log(`Enviando ${lista.length + movimientos.length} email(s) a ${to}…\n`);
+  for (const m of movimientos) {
+    try {
+      await transporter.sendMail({
+        from: EMAIL_FROM ?? SMTP_USER,
+        to,
+        subject: m.asunto,
+        html: renderEmailMovimiento({ baseUrl: BASE, movimiento: m.mov }),
+      });
+      console.log(`  ✓ ${m.nombre} — "${m.asunto}"`);
+    } catch (e) {
+      console.log(`  ✗ ${m.nombre} — ${(e as Error).message}`);
+    }
+  }
   for (const m of lista) {
     const est = CATEGORIA_ESTILO[m.categoria];
     try {

@@ -22,7 +22,13 @@ function formatARS(n: number): string {
  * en el sidebar). Es un tipo de egreso de la caja, no un módulo aparte.
  * El permiso es el mismo de siempre: subsección "gastos".
  */
-export default async function CajaGastosPage() {
+export default async function CajaGastosPage({
+  searchParams,
+}: {
+  /** `?q=` llega desde la caja: el concepto del egreso que se tocó. */
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
   const user = await requireSeccion("gastos", "read");
   const canWrite = hasSeccion(user, "gastos", "write");
   // La solapa de Caja grande sólo aparece si tiene esa subsección confidencial.
@@ -135,6 +141,7 @@ export default async function CajaGastosPage() {
         tiposGasto={formData.tiposGasto}
         viajes={formData.viajes}
         camiones={formData.camiones}
+        busquedaInicial={q ?? ""}
       />
     </div>
   );

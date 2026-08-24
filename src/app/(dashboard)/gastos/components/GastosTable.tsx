@@ -53,9 +53,20 @@ interface Props {
   tiposGasto: TipoGastoOption[];
   viajes: ViajeOption[];
   camiones: CamionOption[];
+  /**
+   * Búsqueda con la que abre la lista. La manda la caja: al tocar un egreso se
+   * llega acá con ese gasto ya filtrado, en vez de caer en la lista entera y
+   * tener que buscarlo a mano. Es editable como cualquier filtro.
+   */
+  busquedaInicial?: string;
 }
 
-export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
+export default function GastosTable({
+  tiposGasto,
+  viajes,
+  camiones,
+  busquedaInicial = "",
+}: Props) {
   const [rows, setRows] = useState<GastoRow[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -69,8 +80,8 @@ export default function GastosTable({ tiposGasto, viajes, camiones }: Props) {
   const [viajeId, setViajeId] = useState("");
   const [camionId, setCamionId] = useState("");
   const [sinAsignar, setSinAsignar] = useState(false);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [search, setSearch] = useState(busquedaInicial);
+  const [debouncedSearch, setDebouncedSearch] = useState(busquedaInicial);
   const [refreshTick, setRefreshTick] = useState(0);
   // Son 8 controles: apilados en celular tapaban la pantalla entera antes del
   // primer gasto, así que abajo de sm van detrás del botón "Filtros".

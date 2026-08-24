@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea, hasSeccion } from "@/lib/auth";
 import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
 import CajaViewCompleta from "./components/CajaViewCompleta";
+import { getCategoriasLibresAction } from "./actions";
 import CajaTabs from "./CajaTabs";
 import { desdeVentanaCajaChica } from "./ventana";
 import { filtrarMovimientosVisibles } from "./visibilidad";
@@ -55,8 +56,13 @@ export default async function CajaPage({
 
   const supabase = createAdminClient();
 
-  const [{ data: tiposGasto }, { data: fechasMovs }, { data: viaticosRaw }, direccion] =
-    await Promise.all([
+  const [
+    { data: tiposGasto },
+    { data: fechasMovs },
+    { data: viaticosRaw },
+    direccion,
+    categoriasLibres,
+  ] = await Promise.all([
     supabase
       .from("tipos_gasto")
       .select("id, nombre, categoria")
@@ -78,6 +84,8 @@ export default async function CajaPage({
           .order("fecha_entrega", { ascending: true })
       : Promise.resolve({ data: [] }),
     esVistaChica ? getUsuariosConSeccion("caja_saldo", "read") : Promise.resolve(new Set<string>()),
+    // Las categorías que se escribieron alguna vez: se ofrecen al cargar.
+    getCategoriasLibresAction(),
   ]);
 
   type ChoferRef = { nombre: string | null; apellido: string | null };
@@ -118,6 +126,7 @@ export default async function CajaPage({
     <div className="p-4 sm:p-6 lg:p-8">
       <CajaViewCompleta
         tiposGasto={tiposGasto || []}
+        categoriasLibres={categoriasLibres}
         mesesConDatos={mesesConDatos}
         fechasConDatos={fechasConDatos}
         viaticos={viaticosPendientes}

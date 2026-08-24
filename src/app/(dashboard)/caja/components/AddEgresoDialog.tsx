@@ -15,53 +15,40 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { addEgresoAction, type CajaId } from "../actions";
+import CategoriaCajaField, { type CategoriaLibre } from "./CategoriaCajaField";
+import { CATEGORIAS_POR_FLUJO, CATEGORIA_GASTO_LABEL, MEDIO_LABEL, textoCategoria } from "@/lib/caja-tipos";
 import { useBorrador } from "@/hooks/useBorrador";
 import { objetoCon } from "@/lib/borrador-local";
 import AvisoBorrador from "@/components/borradores/AvisoBorrador";
+
+const CATEGORIA_INICIAL = CATEGORIAS_POR_FLUJO.egreso[0]!.label;
 
 /** El egreso en blanco, para completar contra él un borrador viejo. */
 const vacioEgreso = (privado: boolean) => ({
   concepto: "",
   monto: "",
   medio: "efectivo" as "efectivo" | "transferencia" | "cheque" | "otro",
-  categoria: "gasto_operativo" as
-    | "gasto_operativo"
-    | "pago_proveedor"
-    | "pago_chofer"
-    | "transferencia_interna"
-    | "ajuste"
-    | "otro",
+  // Texto, no un código: la categoría se puede escribir.
+  categoria: CATEGORIA_INICIAL,
   tipoGastoId: "",
   fecha: "",
   privado,
 });
 
-const CATEGORIA_LABEL: Record<string, string> = {
-  gasto_operativo: "Gasto Operativo",
-  pago_proveedor: "Pago a Proveedor",
-  pago_chofer: "Pago a Chofer",
-  transferencia_interna: "Transferencia Interna",
-  ajuste: "Ajuste Negativo",
-  otro: "Otro Egreso",
-};
-
-const MEDIO_LABEL: Record<string, string> = {
-  efectivo: "Efectivo",
-  transferencia: "Transferencia",
-  cheque: "Cheque",
-  otro: "Otro",
-};
-
 export default function AddEgresoDialog({
   children,
   tiposGasto,
+  categoriasLibres = [],
   caja = "diaria",
   puedeMarcarPrivado = false,
   defaultPrivado = false,
 }: {
   children: React.ReactNode;
   tiposGasto?: { id: string; nombre: string; categoria: string }[];
+  /** Las categorías escritas a mano que ya se usaron, para ofrecerlas. */
+  categoriasLibres?: CategoriaLibre[];
   /** De qué caja sale la plata: diaria (default) o grande (privada de dirección). */
   caja?: CajaId;
   /** Dirección (caja_saldo) decide si el movimiento se ve en la caja chica. */
@@ -77,7 +64,7 @@ export default function AddEgresoDialog({
   const [concepto, setConcepto] = useState("");
   const [monto, setMonto] = useState("");
   const [medio, setMedio] = useState<"efectivo" | "transferencia" | "cheque" | "otro">("efectivo");
-  const [categoria, setCategoria] = useState<"gasto_operativo" | "pago_proveedor" | "pago_chofer" | "transferencia_interna" | "ajuste" | "otro">("gasto_operativo");
+  const [categoria, setCategoria] = useState(CATEGORIA_INICIAL);
   const [tipoGastoId, setTipoGastoId] = useState<string>("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   // Visibilidad en la caja chica. El default depende de dónde se carga: en la
@@ -107,7 +94,10 @@ export default function AddEgresoDialog({
     setConcepto(b.concepto);
     setMonto(b.monto);
     setMedio(b.medio);
-    setCategoria(b.categoria);
+    // Un borrador viejo guardaba el código de la categoría ("cobro_cliente");
+    // ahora el campo es texto. `textoCategoria` traduce lo viejo y deja pasar
+    // lo nuevo tal cual.
+    setCategoria(textoCategoria(b.categoria, null, "egreso"));
     setTipoGastoId(b.tipoGastoId);
     setFecha(b.fecha);
     setPrivado(b.privado);
@@ -135,6 +125,7 @@ export default function AddEgresoDialog({
         setOpen(false);
         setConcepto("");
         setMonto("");
+        setCategoria(CATEGORIA_INICIAL);
         setTipoGastoId("");
         setPrivado(defaultPrivado);
         // El egreso ya entró: recién ahora el borrador sobra.
@@ -216,24 +207,13 @@ export default function AddEgresoDialog({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="egr-categoria" className="text-sm font-medium text-foreground">Categoría</Label>
-              <Select value={categoria} onValueChange={(v) => setCategoria(v as typeof categoria)}>
-                <SelectTrigger id="egr-categoria" className="w-full">
-                  <SelectValue placeholder="Categoría">
-                    {(value: unknown) => CATEGORIA_LABEL[value as string] ?? null}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gasto_operativo">Gasto Operativo</SelectItem>
-                  <SelectItem value="pago_proveedor">Pago a Proveedor</SelectItem>
-                  <SelectItem value="pago_chofer">Pago a Chofer</SelectItem>
-                  <SelectItem value="transferencia_interna">Transferencia Interna</SelectItem>
-                  <SelectItem value="ajuste">Ajuste Negativo</SelectItem>
-                  <SelectItem value="otro">Otro Egreso</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <CategoriaCajaField
+              id="egr-categoria"
+              flujo="egreso"
+              value={categoria}
+              onValueChange={setCategoria}
+              sugerencias={categoriasLibres}
+            />
             <div className="space-y-2">
               <Label htmlFor="egr-medio" className="text-sm font-medium text-foreground">Medio de pago</Label>
               <Select value={medio} onValueChange={(v) => setMedio(v as typeof medio)}>
@@ -254,27 +234,27 @@ export default function AddEgresoDialog({
 
           {tiposGasto && tiposGasto.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="egr-tipogasto" className="text-sm font-medium text-foreground">Vincular a Tipo de Gasto (Opcional)</Label>
-              <Select value={tipoGastoId} onValueChange={(v) => setTipoGastoId(v ?? "")}>
-                <SelectTrigger id="egr-tipogasto" className="w-full">
-                  <SelectValue placeholder="Ninguno / No asociar">
-                    {(value: unknown) => {
-                      if (!value) return null;
-                      const t = tiposGasto?.find((t) => t.id === value);
-                      if (!t) return null;
-                      return `${t.categoria ? `${t.categoria.toUpperCase()} - ` : ""}${t.nombre}`;
-                    }}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Ninguno / No asociar</SelectItem>
-                  {tiposGasto.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.categoria ? `${t.categoria.toUpperCase()} - ` : ""}{t.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="egr-tipogasto" className="text-sm font-medium text-foreground">
+                Tipo de gasto (opcional)
+              </Label>
+              {/* Buscable y con el rubro a la derecha en vez de pegado adelante
+                  en mayúsculas ("OPERATIVO_VIAJE - Alimentación"): con doce
+                  opciones, escribir "cub" tiene que alcanzar. Elegir uno además
+                  registra el gasto, que es lo que hace que el movimiento después
+                  lleve a Mantenimiento o a Combustible. */}
+              <Combobox
+                id="egr-tipogasto"
+                value={tipoGastoId}
+                onValueChange={(v) => setTipoGastoId(v ?? "")}
+                options={tiposGasto.map((t) => ({
+                  id: t.id,
+                  label: t.nombre,
+                  note: CATEGORIA_GASTO_LABEL[t.categoria] ?? t.categoria,
+                }))}
+                placeholder="Sin asociar a ningún gasto"
+                searchPlaceholder="Buscar tipo de gasto..."
+                clearable
+              />
             </div>
           )}
 

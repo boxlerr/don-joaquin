@@ -41,11 +41,18 @@ export interface PlaceComboboxProps {
   onRemoveOption?: (option: { id: string; label: string }) => void;
   /** Texto del tooltip de la X. */
   removeTitle?: string;
-  options: { id: string; label: string }[];
+  /**
+   * Las sugerencias. `removable: false` deja una opción sin la X: sirve para
+   * mezclar en una misma lista las fijas del sistema con las que se fueron
+   * escribiendo (sólo estas últimas se pueden sacar).
+   */
+  options: { id: string; label: string; removable?: boolean }[];
   icon?: React.ComponentType<{ size?: number | string; className?: string }>;
   error?: string;
   hint?: string;
   placeholder?: string;
+  /** Para que una etiqueta de afuera pueda apuntar al campo con `htmlFor`. */
+  inputId?: string;
 }
 
 export function PlaceCombobox({
@@ -61,9 +68,11 @@ export function PlaceCombobox({
   error,
   hint,
   placeholder = "Escribí o elegí un lugar...",
+  inputId,
 }: PlaceComboboxProps) {
   const items = React.useMemo(() => options.map((o) => o.label), [options]);
-  const fieldId = React.useId();
+  const autoId = React.useId();
+  const fieldId = inputId ?? autoId;
 
   return (
     <div className="space-y-1">
@@ -137,18 +146,21 @@ export function PlaceCombobox({
               </ComboboxPrimitive.Empty>
 
               <ComboboxPrimitive.List className="max-h-full overflow-y-auto overscroll-contain p-1">
-                {(item: string) => (
+                {(item: string) => {
+                  const opcion = options.find((o) => o.label === item);
+                  const borrable = !!onRemoveOption && opcion?.removable !== false;
+                  return (
                   <ComboboxPrimitive.Item
                     key={item}
                     value={item}
                     className={cn(
                       "relative flex cursor-pointer items-center gap-2 rounded-md py-2 pl-2.5 text-sm outline-none select-none",
-                      onRemoveOption ? "pr-2" : "pr-8",
+                      borrable ? "pr-2" : "pr-8",
                       "data-[highlighted]:bg-[#0088D1]/10 data-[highlighted]:text-foreground",
                     )}
                   >
                     <span className="flex-1 break-words">{item}</span>
-                    {onRemoveOption ? (
+                    {borrable ? (
                       <>
                         {/* Ancho fijo: sin esto la X se corre de fila en fila. */}
                         <span className="flex size-4 shrink-0 items-center justify-center">
@@ -168,8 +180,7 @@ export function PlaceCombobox({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            const opt = options.find((o) => o.label === item);
-                            if (opt) onRemoveOption(opt);
+                            if (opcion) onRemoveOption?.(opcion);
                           }}
                           className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-red-50 hover:text-red-600"
                         >
@@ -182,7 +193,8 @@ export function PlaceCombobox({
                       </ComboboxPrimitive.ItemIndicator>
                     )}
                   </ComboboxPrimitive.Item>
-                )}
+                  );
+                }}
               </ComboboxPrimitive.List>
             </ComboboxPrimitive.Popup>
           </ComboboxPrimitive.Positioner>

@@ -516,14 +516,26 @@ Audit trail del ciclo de vida.
 > **Regla de negocio:** si `viatico_id` no es null, `medio_pago` debería ser `efectivo_viatico`. Si fue pagado con viático, **NO** generar `caja_movimientos` (el dinero ya salió de caja al entregar el viático).
 
 #### `caja_movimientos`
-Caja general única (no múltiples cajas en MVP).
+Dos cajas físicas (`caja`: `diaria` = la chica · `grande` = la de dirección).
 | Columna | Notas |
 |---|---|
 | id, fecha, tipo (ingreso/egreso), concepto, categoria (enum), monto (>0), moneda, medio (enum) | |
-| viaje_id, cliente_id, chofer_id, viatico_id, gasto_id, cheque_id, factura_id, pago_cliente_id | Todos nullable; se llena el que aplique al origen |
+| categoria_libre | Categoría escrita a mano cuando no es ninguna del enum; ahí `categoria` queda en `otro`. El texto va **tal cual se escribió** y es lo que se muestra (20260824) |
+| viaje_id, cliente_id, chofer_id, viatico_id, gasto_id, cheque_id, factura_id, pago_cliente_id, mantenimiento_id, carga_combustible_id, siniestro_id | Todos nullable; se llena el que aplique al origen. De acá sale además **a qué pantalla lleva** cada movimiento en la tabla de caja (`destinoDeMovimiento`, src/lib/caja-tipos.ts) |
+| privado | true = no se ve en la caja chica. Sólo lo define dirección (`caja_saldo`) |
 
 > **El monto siempre es positivo.** El signo lo da `tipo`.
 > **No hay arqueos** en MVP.
+> **Cada alta manda un correo** (columna `cambios_caja` de la matriz de notificaciones, que exige `caja_saldo`): ver `src/lib/aviso-caja.ts`.
+
+#### `caja_categorias_libres`
+Catálogo de sugerencias de las categorías escritas a mano (20260824).
+| Columna | Notas |
+|---|---|
+| id, nombre, flujo (`ingreso`/`egreso`), created_at, created_by | Único por `(flujo, sin_acentos(nombre))` |
+
+> Es **tabla propia y no un `select distinct`** sobre los movimientos a propósito: así una sugerencia mal escrita se saca con la X del desplegable sin tocar ningún movimiento ya cargado (el movimiento guarda texto, no una FK).
+> RLS activada y **sin policies**: se llega sólo con service role, desde las acciones de `/caja`.
 
 ---
 
