@@ -1,84 +1,75 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { appUrl, enviarEmail } from "@/lib/email";
-import { renderEmailMovimiento } from "@/lib/email-template";
+import { renderEmailResumenCaja, type MovimientoResumenView } from "@/lib/email-template";
 import { destinatariosDeColumna } from "@/lib/notificaciones";
+import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
+import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import {
   CAJA_LABEL,
   MEDIO_LABEL,
   etiquetaTipo,
   formatARS,
-  type MovimientoTipoInput,
 } from "@/lib/caja-tipos";
+import {
+  movimientosParaDestinatario,
+  resumirDia,
+  type MovimientoDia,
+} from "@/lib/caja-resumen-dia";
 
 /**
- * El aviso por correo de CADA movimiento de caja.
+ * El correo de CIERRE DE CAJA: uno solo por día, cuando cierra el sistema, con
+ * todo lo que entró y salió.
  *
- * Pedido de Julián (24/08/2026): "que cada movimiento que haya en la caja le
- * llegue por email a los administradores, ingresos y egresos, con un asunto
- * simple que cambie según el tipo de movimiento y el monto, para tener más
- * control en tiempo real de la caja".
+ * Pedido de Julián (24/08/2026). La primera versión mandaba un mail por cada
+ * movimiento y él mismo la frenó el mismo día: *"cada email de cada movimiento
+ * llenaría la bandeja y sería súper molesto"*. Tenía razón — la caja se carga a
+ * lo largo de todo el día y lo que hace falta no es enterarse movimiento por
+ * movimiento, es ver cómo cerró.
  *
- * Dos decisiones que importan:
+ * Tres cosas que importan:
  *
- *  · A quién le llega NO se decide acá. Se usa la columna `cambios_caja` de la
- *    matriz de /configuracion/notificaciones, que existía desde el principio
- *    esperando justamente esto ("sin generador hoy, pero la columna es tildable:
- *    si mañana alguien emite un aviso de caja, nace tapado en vez de nacer
- *    abierto" — lib/alertas-routing.ts). Es confidencial y pide `caja_saldo`, o
- *    sea que sólo le puede llegar a quien ya puede ver el saldo. Así se apaga
- *    desde la pantalla de siempre y no hay una segunda lista de correos
- *    escondida en el código.
+ *  · **A quién le llega no se decide acá.** Usa la columna `cambios_caja` de
+ *    /configuracion/notificaciones, que es confidencial y exige `caja_saldo`.
+ *    Así se apaga desde la pantalla de siempre y no hay una segunda lista de
+ *    correos escondida en el código.
  *
- *  · No se manda ANTES de contestarle a quien cargó. El correo sale con
- *    `after()` (ver actions.ts), cuando el movimiento ya está guardado y el
- *    diálogo ya se cerró: la caja se carga a mano, de a un movimiento, y no
- *    puede quedarse esperando a un SMTP. Si el correo falla, se loguea; el
- *    movimiento ya entró, que es lo que importa.
+ *  · **Cada uno ve lo suyo.** El detalle se arma por destinatario: lo oculto es
+ *    sólo del administrador y la caja general sólo de quien tenga esa
+ *    subsección (`movimientosParaDestinatario`). Los TOTALES, en cambio, son los
+ *    reales para todos: contra ese número se arquea el cajón.
+ *
+ *  · **No se manda dos veces.** El día del último envío queda en
+ *    `parametros_sistema.caja_resumen_ultimo_envio`; si el cron se dispara de
+ *    nuevo, no repite.
  */
 
 /** La columna de la matriz de notificaciones a la que pertenece este aviso. */
 const COLUMNA = "cambios_caja";
 
-export type MovimientoAvisado = MovimientoTipoInput & {
-  tipo: "ingreso" | "egreso";
-  concepto: string;
-  monto: number;
-  medio: string;
-  /** ISO (`2026-08-24` o timestamp): se muestra dd/mm/aaaa. */
-  fecha: string;
-  caja: "diaria" | "grande";
-  /** true = no se ve en la caja chica. */
-  privado?: boolean | null;
-  /** Quién lo cargó, con nombre y apellido. */
-  usuario?: string | null;
-};
+/** Dónde se anota el último día enviado, para no repetir. */
+const CLAVE_ULTIMO_ENVIO = "caja_resumen_ultimo_envio";
 
-function formatFecha(iso: string): string {
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return d && m && y ? `${d}/${m}/${y}` : iso;
-}
+const TZ = "America/Argentina/Buenos_Aires";
 
-/**
- * El asunto: lo único que se lee sin abrir el correo.
- *
- * Tiene que decir las tres cosas por las que se abre la casilla — si entró o
- * salió, de qué es y cuánto — y nada más. Las flechas son las mismas que las de
- * las tarjetas de la caja, así el correo y la pantalla se leen igual.
- *
- *   ↗ Ingreso · Cobro a cliente · $ 150.000,00
- *   ↘ Egreso · Multas · $ 10.000,00 (Caja general)
- */
-export function asuntoMovimiento(m: MovimientoAvisado): string {
-  const entra = m.tipo === "ingreso";
-  const partes = [
-    `${entra ? "↗" : "↘"} ${entra ? "Ingreso" : "Egreso"}`,
-    etiquetaTipo(m),
-    `$ ${formatARS(m.monto)}`,
-  ];
-  // La caja chica es la de todos los días: sólo se aclara cuando NO es esa.
-  const sufijo = m.caja === "grande" ? ` (${CAJA_LABEL.grande})` : "";
-  return `${partes.join(" · ")}${sufijo}`;
+export type ResultadoResumenCaja =
+  | { enviado: true; fecha: string; movimientos: number; destinatarios: number }
+  | { enviado: false; motivo: string; fecha: string }
+  /** `simular`: se arma todo pero no se manda. Devuelve el correo del primero. */
+  | { enviado: false; motivo: "simulado"; fecha: string; html: string; asunto: string };
+
+/** "lunes 24 de agosto de 2026" — el día, en prosa. */
+function fechaLarga(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  // Mediodía UTC: así el día no se corre al pasarlo a hora argentina.
+  return new Date(Date.UTC(y, m - 1, d, 12)).toLocaleDateString("es-AR", {
+    timeZone: TZ,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 /**
@@ -113,47 +104,245 @@ async function saldoDeCaja(
   return saldo;
 }
 
-/**
- * Manda el aviso. NUNCA tira: lo peor que puede pasar es un correo de menos.
- *
- * Un correo por destinatario (y no todos en el mismo "Para"): son casillas
- * personales y no tienen por qué verse entre ellas.
- */
-export async function avisarMovimientoCaja(m: MovimientoAvisado): Promise<void> {
-  try {
-    const { emails, motivo } = await destinatariosDeColumna(COLUMNA);
-    if (emails.length === 0) {
-      console.warn(`[aviso-caja] sin envío (${motivo ?? "sin_destinatarios"})`);
-      return;
+/** Los movimientos de un día, con el tipo ya resuelto a texto. */
+async function movimientosDelDia(
+  supabase: ReturnType<typeof createAdminClient>,
+  fecha: string,
+): Promise<MovimientoDia[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("caja_movimientos")
+    .select(
+      "tipo, monto, caja, concepto, medio, categoria, categoria_libre, gasto_id, created_by, privado",
+    )
+    // `fecha` es timestamptz: se toma el día completo, igual que la tarjeta
+    // "HOY" de la caja (gte hoy / lt mañana).
+    .gte("fecha", fecha)
+    .lt("fecha", sumarDiasISO(fecha, 1))
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("[aviso-caja] no se pudieron leer los movimientos del día:", error.message);
+    return [];
+  }
+
+  type Fila = {
+    tipo: "ingreso" | "egreso";
+    monto: number | null;
+    caja: string | null;
+    concepto: string | null;
+    medio: string;
+    categoria: string;
+    categoria_libre: string | null;
+    gasto_id: string | null;
+    created_by: string | null;
+    privado: boolean | null;
+  };
+  const filas = (data ?? []) as Fila[];
+
+  // Quién cargó cada uno: es la columna "Usuario" de la tabla de la caja, y en
+  // un cierre del día es de lo primero que se pregunta.
+  const usuarioIds = [...new Set(filas.map((f) => f.created_by).filter(Boolean) as string[])];
+  const nombrePorUsuario = new Map<string, string>();
+  if (usuarioIds.length > 0) {
+    const { data: usuarios } = await supabase
+      .from("usuarios")
+      .select("id, nombre, apellido")
+      .in("id", usuarioIds);
+    for (const u of usuarios ?? []) {
+      const nombre = `${u.nombre ?? ""} ${u.apellido ?? ""}`.trim();
+      if (nombre) nombrePorUsuario.set(u.id, nombre);
     }
+  }
 
-    const supabase = createAdminClient();
-    const saldo = await saldoDeCaja(supabase, m.caja);
-
-    const html = renderEmailMovimiento({
-      baseUrl: appUrl(),
-      movimiento: {
-        tipo: m.tipo,
-        concepto: m.concepto?.trim() || etiquetaTipo(m),
-        monto: formatARS(m.monto),
-        categoria: etiquetaTipo(m),
-        medio: MEDIO_LABEL[m.medio] ?? m.medio,
-        fecha: formatFecha(m.fecha),
-        caja: CAJA_LABEL[m.caja] ?? m.caja,
-        usuario: m.usuario ?? null,
-        saldo: saldo === null ? null : formatARS(saldo),
-        privado: m.privado === true,
-      },
-    });
-
-    const asunto = asuntoMovimiento(m);
-    for (const email of emails) {
-      const res = await enviarEmail({ para: [email], asunto, html });
-      if (!res.ok && !res.skipped) {
-        console.error(`[aviso-caja] no se pudo avisar a ${email}:`, res.error);
+  // El nombre del tipo de gasto, para que la fila diga "Cubiertas" y no
+  // "Pago a proveedor".
+  const gastoIds = [...new Set(filas.map((f) => f.gasto_id).filter(Boolean) as string[])];
+  const tiposPorGasto = new Map<string, string>();
+  if (gastoIds.length > 0) {
+    const { data: gastos } = await supabase
+      .from("gastos")
+      .select("id, tipo_gasto_id")
+      .in("id", gastoIds);
+    const tipoIds = [
+      ...new Set((gastos ?? []).map((g) => g.tipo_gasto_id).filter(Boolean) as string[]),
+    ];
+    if (tipoIds.length > 0) {
+      const { data: tipos } = await supabase
+        .from("tipos_gasto")
+        .select("id, nombre")
+        .in("id", tipoIds);
+      const nombre = new Map((tipos ?? []).map((t) => [t.id, t.nombre]));
+      for (const g of gastos ?? []) {
+        if (g.tipo_gasto_id) tiposPorGasto.set(g.id, nombre.get(g.tipo_gasto_id) ?? "");
       }
     }
+  }
+
+  return filas.map((f) => ({
+    tipo: f.tipo,
+    monto: Number(f.monto || 0),
+    caja: f.caja ?? "diaria",
+    concepto: f.concepto?.trim() || "(sin concepto)",
+    tipoLabel: etiquetaTipo({
+      categoria: f.categoria,
+      categoria_libre: f.categoria_libre,
+      tipo_gasto_nombre: f.gasto_id ? tiposPorGasto.get(f.gasto_id) || null : null,
+    }),
+    medio: MEDIO_LABEL[f.medio] ?? f.medio,
+    usuario: f.created_by ? nombrePorUsuario.get(f.created_by) ?? null : null,
+    privado: f.privado,
+    created_by: f.created_by,
+  }));
+}
+
+/**
+ * El asunto: lo único que se lee sin abrir el correo. Los dos números del día y
+ * la fecha, que es lo que se busca cuando uno va para atrás en la bandeja.
+ *
+ *   Cierre de caja 24/08 · Entró $ 150.000,00 · Salió $ 10.000,00
+ */
+export function asuntoResumen(fecha: string, ingresos: number, egresos: number): string {
+  const [, m, d] = fecha.split("-");
+  return `Cierre de caja ${d}/${m} · Entró $ ${formatARS(ingresos)} · Salió $ ${formatARS(egresos)}`;
+}
+
+/**
+ * Manda el resumen del día. NUNCA tira: lo peor que puede pasar es un correo de
+ * menos.
+ *
+ * `forzar` saltea la marca de "ya se mandó hoy", para poder probarlo a mano.
+ */
+export async function enviarResumenCajaDelDia(
+  opts: { fecha?: string; forzar?: boolean; simular?: boolean } = {},
+): Promise<ResultadoResumenCaja> {
+  const fecha = opts.fecha ?? hoyArgentina();
+  try {
+    const supabase = createAdminClient();
+
+    if (!opts.forzar && !opts.simular) {
+      const { data: marca } = await supabase
+        .from("parametros_sistema")
+        .select("valor")
+        .eq("clave", CLAVE_ULTIMO_ENVIO)
+        .maybeSingle();
+      if (marca?.valor === fecha) {
+        return { enviado: false, motivo: "ya_enviado_hoy", fecha };
+      }
+    }
+
+    const { destinatarios, motivo } = await destinatariosDeColumna(COLUMNA);
+    if (destinatarios.length === 0) {
+      return { enviado: false, motivo: motivo ?? "sin_destinatarios", fecha };
+    }
+
+    const movimientos = await movimientosDelDia(supabase, fecha);
+    if (movimientos.length === 0) {
+      // Un correo que dice "no pasó nada" todos los días es exactamente el ruido
+      // que este cambio vino a sacar.
+      if (!opts.simular) await marcarEnviado(supabase, fecha);
+      return { enviado: false, motivo: "sin_movimientos", fecha };
+    }
+
+    const resumen = resumirDia(movimientos);
+    const [saldoDiaria, saldoGrande, conCajaGrande, direccion] = await Promise.all([
+      saldoDeCaja(supabase, "diaria"),
+      saldoDeCaja(supabase, "grande"),
+      getUsuariosConSeccion("caja_grande", "read"),
+      getUsuariosConSeccion("caja_saldo", "read"),
+    ]);
+
+    const base = appUrl();
+    const asunto = asuntoResumen(fecha, resumen.ingresos, resumen.egresos);
+    const dia = fechaLarga(fecha);
+    let enviados = 0;
+
+    for (const u of destinatarios) {
+      const veCajaGrande = conCajaGrande.has(u.id);
+      const suyos = movimientosParaDestinatario(movimientos, {
+        esAdmin: u.esAdmin,
+        veCajaGrande,
+        direccion,
+      });
+
+      const saldos: { label: string; monto: string }[] = [];
+      if (saldoDiaria !== null) {
+        saldos.push({ label: CAJA_LABEL.diaria!, monto: formatARS(saldoDiaria) });
+      }
+      if (veCajaGrande && saldoGrande !== null) {
+        saldos.push({ label: CAJA_LABEL.grande!, monto: formatARS(saldoGrande) });
+      }
+
+      const vistas: MovimientoResumenView[] = suyos.map((m) => ({
+        concepto: m.concepto,
+        tipo: m.tipoLabel,
+        medio: m.medio,
+        usuario: m.usuario,
+        monto: formatARS(m.monto),
+        esIngreso: m.tipo === "ingreso",
+        caja: CAJA_LABEL[m.caja] ?? m.caja,
+      }));
+
+      const html = renderEmailResumenCaja({
+        baseUrl: base,
+        resumen: {
+          fechaLarga: dia,
+          ingresos: formatARS(resumen.ingresos),
+          egresos: formatARS(resumen.egresos),
+          neto: formatARS(Math.abs(resumen.neto)),
+          netoPositivo: resumen.neto >= 0,
+          cantidad: resumen.movimientos,
+          saldos,
+          movimientos: vistas,
+          noListados: movimientos.length - suyos.length,
+          mostrarCaja: veCajaGrande,
+        },
+      });
+
+      // Simulación: se arma el correo del primer destinatario y no se manda
+      // nada. Es la forma de mirar cómo queda con los datos reales del día.
+      if (opts.simular) return { enviado: false, motivo: "simulado", fecha, html, asunto };
+
+      const res = await enviarEmail({ para: [u.email], asunto, html });
+      if (res.ok) enviados++;
+      else if (!res.skipped) {
+        console.error(`[aviso-caja] no se pudo mandar el cierre a ${u.email}:`, res.error);
+      }
+    }
+
+    if (enviados === 0) return { enviado: false, motivo: "error_envio", fecha };
+
+    await marcarEnviado(supabase, fecha);
+    return {
+      enviado: true,
+      fecha,
+      movimientos: resumen.movimientos,
+      destinatarios: enviados,
+    };
   } catch (e) {
-    console.error("[aviso-caja] falló el aviso del movimiento:", e);
+    console.error("[aviso-caja] falló el cierre de caja:", e);
+    return { enviado: false, motivo: "error", fecha };
+  }
+}
+
+/** Deja anotado el día, para que un segundo disparo no repita el correo. */
+async function marcarEnviado(
+  supabase: ReturnType<typeof createAdminClient>,
+  fecha: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("parametros_sistema")
+    .upsert(
+      {
+        clave: CLAVE_ULTIMO_ENVIO,
+        valor: fecha,
+        categoria: "notificaciones",
+        descripcion: "Último día del que salió el correo de cierre de caja.",
+      },
+      { onConflict: "clave" },
+    );
+  if (error) {
+    // No es fatal: en el peor caso el correo sale dos veces si el cron reintenta.
+    console.warn("[aviso-caja] no se pudo anotar el último envío:", error.message);
   }
 }

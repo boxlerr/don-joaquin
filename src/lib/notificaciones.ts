@@ -170,20 +170,24 @@ function renderEmail(opts: { titulo: string; intro: string; alertas: AlertaEmail
  *      vieja de destinatarios, que hereda todo— Y poder verla: si la columna es
  *      confidencial, el permiso manda sobre la preferencia.
  */
+export type DestinatarioAviso = {
+  id: string;
+  email: string;
+  /** Para armarle el contenido: hay cosas que sólo ve el administrador. */
+  esAdmin: boolean;
+};
+
 export async function destinatariosDeColumna(
   columna: string,
-): Promise<{ emails: string[]; motivo?: string }> {
-  if (!emailConfigurado()) return { emails: [], motivo: "smtp_no_configurado" };
+): Promise<{ destinatarios: DestinatarioAviso[]; motivo?: string }> {
+  const vacio = (motivo: string) => ({ destinatarios: [] as DestinatarioAviso[], motivo });
+  if (!emailConfigurado()) return vacio("smtp_no_configurado");
 
   const supabase = createAdminClient();
   const params = await leerParametros(supabase);
 
-  if (params.get(CANAL_EMAIL_CLAVE) !== "true") {
-    return { emails: [], motivo: "canal_email_inactivo" };
-  }
-  if (params.get(alertaClave(columna)) === "false") {
-    return { emails: [], motivo: "categoria_apagada" };
-  }
+  if (params.get(CANAL_EMAIL_CLAVE) !== "true") return vacio("canal_email_inactivo");
+  if (params.get(alertaClave(columna)) === "false") return vacio("categoria_apagada");
 
   const matriz = parseMatriz(params.get(MATRIZ_CLAVE));
   const oldDest = new Set(parseIds(params.get(DESTINATARIOS_CLAVE)));
@@ -191,10 +195,10 @@ export async function destinatariosDeColumna(
 
   const { data: usuariosActivos } = await supabase
     .from("usuarios")
-    .select("id, email")
+    .select("id, email, rol:roles!rol_id(codigo)")
     .eq("estado", "activo");
 
-  const emails: string[] = [];
+  const destinatarios: DestinatarioAviso[] = [];
   for (const u of usuariosActivos ?? []) {
     if (!u.email) continue;
     const keys = new Set(
@@ -202,10 +206,11 @@ export async function destinatariosDeColumna(
     );
     if (!keys.has(columna)) continue;
     if (!puedeRecibir(u.id, columna, permitidos)) continue;
-    emails.push(u.email);
+    const rol = (Array.isArray(u.rol) ? u.rol[0] : u.rol) as { codigo?: string } | null;
+    destinatarios.push({ id: u.id, email: u.email, esAdmin: rol?.codigo === "admin" });
   }
 
-  return emails.length > 0 ? { emails } : { emails: [], motivo: "sin_destinatarios" };
+  return destinatarios.length > 0 ? { destinatarios } : vacio("sin_destinatarios");
 }
 
 export type ResultadoCriticas =

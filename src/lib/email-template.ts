@@ -526,83 +526,146 @@ export function renderEmail(opts: {
 </body></html>`;
 }
 
+
 /* ─────────────────────────────────────────────────────────────────────────── *
- *  AVISO DE UN MOVIMIENTO DE CAJA
+ *  CIERRE DE CAJA DEL DÍA
  *
- *  Es otro correo que el de alertas y por eso tiene su propia función: una
- *  alerta avisa que algo VA A PASAR (y todo el layout está armado alrededor de
- *  "cuándo vence"); esto cuenta algo que YA PASÓ hace diez segundos. Pedido de
- *  Julián (24/08/2026): saber en el momento lo que entra y lo que sale, sin
- *  tener que abrir la caja.
+ *  Un solo correo, cuando cierra el sistema, con todo lo que entró y salió.
  *
- *  Lo que tiene que poder leerse sin abrir el correo está en el asunto (ver
- *  `asuntoMovimiento` en lib/aviso-caja.ts). Acá adentro va el resto, y sobre
- *  todo el SALDO que quedó: el movimiento suelto no dice cómo está la caja.
+ *  Nació como un aviso por CADA movimiento y duró unas horas: "cada email de
+ *  cada movimiento llenaría la bandeja y sería súper molesto" (Julián,
+ *  24/08/2026). Es la diferencia entre enterarse y ser notificado — de una caja
+ *  que se carga todo el día no hace falta enterarse movimiento por movimiento,
+ *  hace falta ver cómo cerró.
+ *
+ *  Por eso el orden: primero los tres números del día, después con cuánto quedó
+ *  cada caja, y recién al final el detalle. El que sólo quiere saber si cuadra
+ *  no baja del primer bloque.
  * ─────────────────────────────────────────────────────────────────────────── */
 
-export type MovimientoEmailView = {
-  tipo: "ingreso" | "egreso";
+export type MovimientoResumenView = {
   concepto: string;
-  /** Ya formateado (`10.000,00`): el que llama sabe de plata, la plantilla no. */
-  monto: string;
-  /** El tipo tal como se ve en la caja: "Multas", "Cobro a cliente"… */
-  categoria: string;
+  /** El tipo tal como se ve en la caja: "Cubiertas", "Cobro a cliente"… */
+  tipo: string;
   medio: string;
-  fecha: string;
-  caja: string;
+  /** Quién lo cargó. En un cierre del día es de lo primero que se pregunta. */
   usuario: string | null;
-  /** Saldo de esa caja después del movimiento, ya formateado. */
-  saldo: string | null;
-  /** Sólo en la caja general: el movimiento no se ve en la chica. */
-  privado?: boolean;
+  /** Ya formateado (`10.000,00`). */
+  monto: string;
+  esIngreso: boolean;
+  /** "Caja chica" / "Caja general". Sólo se muestra si el correo trae las dos. */
+  caja: string;
 };
 
-export function renderEmailMovimiento(opts: {
+export type ResumenCajaEmailView = {
+  /** El día en prosa: "lunes 24 de agosto". */
+  fechaLarga: string;
+  /** Todos formateados por el que llama. */
+  ingresos: string;
+  egresos: string;
+  neto: string;
+  netoPositivo: boolean;
+  /** Cuántos movimientos hubo en el día (todos, no sólo los listados). */
+  cantidad: number;
+  /** Con cuánto quedó cada caja: [{ label: "Caja chica", monto: "652.722,00" }]. */
+  saldos: { label: string; monto: string }[];
+  movimientos: MovimientoResumenView[];
+  /** Cuántos movimientos del día NO se listan para este destinatario. */
+  noListados: number;
+  /** true si el correo mezcla las dos cajas (entonces se muestra la columna). */
+  mostrarCaja: boolean;
+};
+
+function celdaNumero(
+  label: string,
+  valor: string,
+  color: string,
+  borde: boolean,
+  signo = "",
+): string {
+  return `<td width="33%" style="padding:14px 12px;${borde ? "border-left:1px solid #E2E8F0;" : ""}vertical-align:top;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748B;">${escapeHtml(label)}</div>
+      <div style="font-size:20px;font-weight:800;color:${color};margin-top:5px;white-space:nowrap;">${signo}$ ${escapeHtml(valor)}</div>
+    </td>`;
+}
+
+export function renderEmailResumenCaja(opts: {
   baseUrl: string;
-  movimiento: MovimientoEmailView;
+  resumen: ResumenCajaEmailView;
 }): string {
   const base = opts.baseUrl;
-  const m = opts.movimiento;
-  const entra = m.tipo === "ingreso";
-  // El verde y el rojo del sistema (design.md), los mismos de la tabla de caja.
-  const color = entra ? "#059669" : "#E11D48";
+  const r = opts.resumen;
   const est = CATEGORIA_ESTILO.cambios_caja!;
+  const VERDE = "#059669";
+  const ROJO = "#E11D48";
 
-  const datos: { label: string; valor: string }[] = [
-    { label: "Tipo", valor: m.categoria },
-    { label: "Medio", valor: m.medio },
-    { label: "Fecha", valor: m.fecha },
-    { label: "Caja", valor: m.caja },
-  ];
-  if (m.usuario) datos.push({ label: "Cargado por", valor: m.usuario });
-
-  const grilla = `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px;border:1px solid #E2E8F0;border-radius:8px;border-collapse:separate;">
-      ${datos
-        .map(
-          (d, i) => `<tr>
-            <td style="padding:11px 16px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}font-size:13px;color:#64748B;">${escapeHtml(d.label)}</td>
-            <td align="right" style="padding:11px 16px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}font-size:13.5px;font-weight:700;color:#0F172A;">${escapeHtml(d.valor)}</td>
-          </tr>`,
-        )
-        .join("")}
+  const numeros = `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:20px;border:1px solid #E2E8F0;border-radius:8px;border-collapse:separate;">
+      <tr>
+        ${celdaNumero("Entró", r.ingresos, VERDE, false)}
+        ${celdaNumero("Salió", r.egresos, ROJO, true)}
+        <!-- El neto lleva el signo escrito: si el color fuera lo único que
+             distingue "quedaron 412 mil" de "faltan 412 mil", el correo se lee
+             al revés en cualquier cliente que no respete los colores. -->
+        ${celdaNumero("Neto", r.neto, r.netoPositivo ? VERDE : ROJO, true, r.netoPositivo ? "+ " : "− ")}
+      </tr>
     </table>`;
 
-  // El saldo va aparte y más grande: es el número por el que se abre el correo.
-  const saldo = m.saldo
+  const saldos = r.saldos.length
     ? `<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-top:14px;border-collapse:separate;">
-         <tr><td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px 16px;">
-           <span style="font-size:13px;color:#64748B;">Saldo de la ${escapeHtml(m.caja.toLowerCase())} después de este movimiento</span>
-           <div style="font-size:22px;font-weight:800;color:#0F172A;margin-top:4px;">$ ${escapeHtml(m.saldo)}</div>
-         </td></tr>
+         ${r.saldos
+           .map(
+             (s) => `<tr><td style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 16px;">
+                 <span style="font-size:13px;color:#64748B;">Con cuánto quedó la ${escapeHtml(s.label.toLowerCase())}</span>
+                 <div style="font-size:20px;font-weight:800;color:#0F172A;margin-top:3px;">$ ${escapeHtml(s.monto)}</div>
+               </td></tr>
+               <tr><td style="height:8px;line-height:8px;">&nbsp;</td></tr>`,
+           )
+           .join("")}
        </table>`
     : "";
 
-  const privado = m.privado
-    ? `<div style="font-size:12.5px;color:#64748B;margin-top:12px;">No se ve en la caja chica: queda sólo en la general.</div>`
+  const filas = r.movimientos
+    .map(
+      (m, i) => `<tr>
+        <td style="padding:11px 14px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}">
+          <div style="font-size:14px;font-weight:700;color:#0F172A;line-height:1.35;">${escapeHtml(m.concepto)}</div>
+          <div style="font-size:12px;color:#64748B;margin-top:3px;">${[
+            m.tipo,
+            m.medio,
+            r.mostrarCaja ? m.caja : null,
+            m.usuario,
+          ]
+            .filter(Boolean)
+            .map((x) => escapeHtml(String(x)))
+            .join(" · ")}</div>
+        </td>
+        <td align="right" style="padding:11px 14px;${i > 0 ? "border-top:1px solid #F1F5F9;" : ""}white-space:nowrap;font-size:14px;font-weight:800;color:${m.esIngreso ? VERDE : ROJO};">
+          ${m.esIngreso ? "+" : "−"} $ ${escapeHtml(m.monto)}
+        </td>
+      </tr>`,
+    )
+    .join("");
+
+  const detalle = r.movimientos.length
+    ? `<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748B;margin:26px 0 8px 0;">
+         ${r.movimientos.length === 1 ? "El movimiento del día" : `Los ${r.movimientos.length} movimientos del día`}
+       </div>
+       <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border:1px solid #E2E8F0;border-radius:8px;border-collapse:separate;">
+         ${filas}
+       </table>`
     : "";
 
+  // Si al destinatario no le corresponden todos, se dice — así nadie intenta
+  // cuadrar la lista contra los totales y cree que faltan movimientos.
+  const aclaracion =
+    r.noListados > 0
+      ? `<div style="font-size:12px;color:#64748B;margin-top:10px;">
+           Los totales incluyen ${r.noListados === 1 ? "un movimiento que no se detalla" : `${r.noListados} movimientos que no se detallan`} acá.
+         </div>`
+      : "";
+
   return `<!DOCTYPE html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(`${entra ? "Ingreso" : "Egreso"} de caja`)}</title></head>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cierre de caja</title></head>
 <body style="margin:0;padding:0;background:#ffffff;font-family:Inter,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" bgcolor="#ffffff" style="background:#ffffff;">
     <tr><td align="center" style="padding:28px 12px 36px 12px;">
@@ -615,12 +678,14 @@ export function renderEmailMovimiento(opts: {
 
         <tr><td style="padding:26px 4px 2px 4px;">
           <div style="font-size:11px;font-weight:700;color:${est.color};letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px;">${est.icono}&nbsp; ${escapeHtml(est.label)}</div>
-          <div style="font-size:15px;font-weight:700;color:${color};letter-spacing:.02em;">${entra ? "Entró" : "Salió"} de la caja</div>
-          <div style="font-size:34px;font-weight:800;color:${color};line-height:1.1;letter-spacing:-.02em;margin-top:2px;">${entra ? "+" : "−"} $ ${escapeHtml(m.monto)}</div>
-          <div style="font-size:17px;font-weight:700;color:#0F172A;margin-top:12px;line-height:1.4;">${escapeHtml(m.concepto)}</div>
-          ${grilla}
-          ${saldo}
-          ${privado}
+          <div style="font-size:26px;font-weight:800;color:#0F172A;line-height:1.2;letter-spacing:-.02em;">Cierre de caja</div>
+          <div style="font-size:15px;color:#475569;margin-top:9px;line-height:1.6;">
+            ${escapeHtml(r.fechaLarga)} — ${r.cantidad === 1 ? "1 movimiento" : `${r.cantidad} movimientos`}.
+          </div>
+          ${numeros}
+          ${saldos}
+          ${detalle}
+          ${aclaracion}
         </td></tr>
 
         <tr><td style="padding:26px 4px 0 4px;">

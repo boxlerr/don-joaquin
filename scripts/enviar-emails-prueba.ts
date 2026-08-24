@@ -17,9 +17,9 @@ import nodemailer from "nodemailer";
 import {
   CATEGORIA_ESTILO,
   renderEmail,
-  renderEmailMovimiento,
+  renderEmailResumenCaja,
   type AlertaEmailView,
-  type MovimientoEmailView,
+  type ResumenCajaEmailView,
   type SeveridadEmail,
 } from "../src/lib/email-template";
 
@@ -198,40 +198,65 @@ function vistasDe(m: Muestra): AlertaEmailView[] {
 }
 
 /**
- * Los avisos de caja no son alertas: se mandan de a uno, apenas se carga el
- * movimiento, y tienen plantilla propia (ver `renderEmailMovimiento`). Van con
- * las mismas dos muestras que el resto para poder mirarlos con --dry.
+ * El cierre de caja no es una alerta: sale una vez por día, cuando cierra el
+ * sistema, y tiene plantilla propia (`renderEmailResumenCaja`). Va acá para
+ * poder mirarlo con --dry como el resto.
  */
-const MOVIMIENTOS: { nombre: string; asunto: string; mov: MovimientoEmailView }[] = [
+const MOVIMIENTOS: { nombre: string; asunto: string; resumen: ResumenCajaEmailView }[] = [
   {
-    nombre: "cambios_caja-ingreso",
-    asunto: "↗ Ingreso · Cobro a cliente · $ 150.000,00",
-    mov: {
-      tipo: "ingreso",
-      concepto: "Cobro flete granos — Factura 0001-00012345",
-      monto: "150.000,00",
-      categoria: "Cobro a cliente",
-      medio: "Transferencia",
-      fecha: "24/08/2026",
-      caja: "Caja chica",
-      usuario: "Bárbara Joaquín",
-      saldo: "802.722,00",
-    },
-  },
-  {
-    nombre: "cambios_caja-egreso",
-    asunto: "↘ Egreso · Cubiertas · $ 540.000,00 (Caja general)",
-    mov: {
-      tipo: "egreso",
-      concepto: "Dos cubiertas para el AG556LU",
-      monto: "540.000,00",
-      categoria: "Cubiertas",
-      medio: "Efectivo",
-      fecha: "24/08/2026",
-      caja: "Caja general",
-      usuario: "Bárbara Joaquín",
-      saldo: "1.260.000,00",
-      privado: true,
+    nombre: "cambios_caja-cierre",
+    asunto: "Cierre de caja 24/08 · Entró $ 150.000,00 · Salió $ 562.400,00",
+    resumen: {
+      fechaLarga: "lunes 24 de agosto de 2026",
+      ingresos: "150.000,00",
+      egresos: "562.400,00",
+      neto: "412.400,00",
+      netoPositivo: false,
+      cantidad: 4,
+      saldos: [
+        { label: "Caja chica", monto: "652.722,00" },
+        { label: "Caja general", monto: "1.260.000,00" },
+      ],
+      mostrarCaja: true,
+      noListados: 0,
+      movimientos: [
+        {
+          concepto: "Cobro flete granos — Factura 0001-00012345",
+          tipo: "Cobro a cliente",
+          medio: "Transferencia",
+          usuario: "Paula",
+          monto: "150.000,00",
+          esIngreso: true,
+          caja: "Caja chica",
+        },
+        {
+          concepto: "Dos cubiertas para el AG556LU",
+          tipo: "Cubiertas",
+          medio: "Efectivo",
+          usuario: "Bárbara",
+          monto: "540.000,00",
+          esIngreso: false,
+          caja: "Caja general",
+        },
+        {
+          concepto: "Peaje Ruta 5 — viaje a Olavarría",
+          tipo: "Peaje",
+          medio: "Efectivo",
+          usuario: "Paula",
+          monto: "12.400,00",
+          esIngreso: false,
+          caja: "Caja chica",
+        },
+        {
+          concepto: "Multa de tránsito AF123XY",
+          tipo: "Multas",
+          medio: "Efectivo",
+          usuario: "Bárbara",
+          monto: "10.000,00",
+          esIngreso: false,
+          caja: "Caja chica",
+        },
+      ],
     },
   },
 ];
@@ -282,7 +307,7 @@ async function main() {
     for (const m of movimientos) {
       writeFileSync(
         `${dir}/${m.nombre}.html`,
-        renderEmailMovimiento({ baseUrl: BASE, movimiento: m.mov }),
+        renderEmailResumenCaja({ baseUrl: BASE, resumen: m.resumen }),
       );
       console.log(`✓ ${dir}/${m.nombre}.html   ${m.asunto}`);
     }
@@ -330,7 +355,7 @@ async function main() {
         from: EMAIL_FROM ?? SMTP_USER,
         to,
         subject: m.asunto,
-        html: renderEmailMovimiento({ baseUrl: BASE, movimiento: m.mov }),
+        html: renderEmailResumenCaja({ baseUrl: BASE, resumen: m.resumen }),
       });
       console.log(`  ✓ ${m.nombre} — "${m.asunto}"`);
     } catch (e) {

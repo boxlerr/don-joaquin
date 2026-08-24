@@ -99,12 +99,12 @@ export const NOVEDADES: Novedad[] = [
     href: "/caja",
   },
   {
-    id: "te-llega-un-mail-por-cada-movimiento-de-la",
+    id: "te-llega-el-cierre-de-la-caja-por-mail",
     fecha: "2026-08-24",
     tipo: "nuevo",
     ver: "caja_saldo",
-    titulo: "Te llega un mail por cada movimiento de la caja",
-    detalle: "Apenas alguien carga un ingreso o un egreso te llega el correo con el tipo, el monto y con cuánto quedó la caja. Si no lo querés, se apaga en Configuración → Notificaciones.",
+    titulo: "Te llega el cierre de la caja por mail, todos los días",
+    detalle: "A las 18:00, cuando cierra el sistema, te llega un correo con lo que entró, lo que salió, el detalle de cada movimiento y con cuánto quedó la caja. Si no lo querés, se apaga en Configuración → Notificaciones.",
     href: "/caja",
   },
   {

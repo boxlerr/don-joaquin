@@ -16,7 +16,6 @@ import { clausulaVisibilidad, veLosOcultos } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
 import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import { avisarCambio } from "@/lib/avisos";
-import { avisarMovimientoCaja } from "@/lib/aviso-caja";
 import {
   CATEGORIA_LABEL,
   destinoDeMovimiento,
@@ -26,7 +25,6 @@ import {
 } from "@/lib/caja-tipos";
 import { choferSlug } from "@/lib/chofer-slug";
 import { revalidatePath } from "next/cache";
-import { after } from "next/server";
 import * as XLSX from "xlsx";
 import { computeRendicion } from "../viajes/flujo-logic";
 
@@ -680,11 +678,6 @@ export async function setMovimientoPrivadoAction(data: { id: string; privado: bo
   return { success: true };
 }
 
-/** Nombre y apellido de quien está cargando, para el correo del movimiento. */
-function nombreDe(user: CurrentUser): string | null {
-  return `${user.nombre ?? ""} ${user.apellido ?? ""}`.trim() || null;
-}
-
 /**
  * Guarda el movimiento, con la categoría escrita a mano si la base ya la
  * acepta.
@@ -855,21 +848,6 @@ export async function addIngresoAction(data: {
   revalidatePath("/caja");
   // Las cajas abiertas en otras pantallas se enteran solas.
   await avisarCambio("caja");
-  // Y las casillas también, pero recién después de contestar: ver aviso-caja.ts.
-  after(() =>
-    avisarMovimientoCaja({
-      tipo: "ingreso",
-      concepto: data.concepto,
-      monto: data.monto,
-      medio: data.medio,
-      fecha: data.fecha,
-      caja,
-      categoria,
-      categoria_libre: categoriaLibre,
-      privado: insertData.privado,
-      usuario: nombreDe(user),
-    }),
-  );
   return { success: true };
 }
 
@@ -895,9 +873,6 @@ export async function addEgresoAction(data: {
   const { categoria, categoriaLibre } = resolverCategoria(data.categoria, "egreso");
 
   let gastoId: string | null = null;
-  // Para el asunto del correo: "Egreso · Cubiertas · $ …" se lee mejor que
-  // "Egreso · Pago a proveedor · $ …".
-  let tipoGastoNombre: string | null = null;
 
   // Si el usuario eligió un tipo de gasto, creamos un registro real en `gastos`
   // y vinculamos el movimiento de caja a ese gasto (la FK apunta a gastos.id).
@@ -929,13 +904,6 @@ export async function addEgresoAction(data: {
       return { error: "No se pudo registrar el egreso en la caja." };
     }
     gastoId = gasto?.id ?? null;
-
-    const { data: tg } = await supabase
-      .from("tipos_gasto")
-      .select("nombre")
-      .eq("id", data.tipo_gasto_id)
-      .single();
-    tipoGastoNombre = tg?.nombre ?? null;
   }
 
   const insertData = {
@@ -974,22 +942,6 @@ export async function addEgresoAction(data: {
   revalidatePath("/caja");
   // Las cajas abiertas en otras pantallas se enteran solas.
   await avisarCambio("caja");
-  // Y las casillas también, pero recién después de contestar: ver aviso-caja.ts.
-  after(() =>
-    avisarMovimientoCaja({
-      tipo: "egreso",
-      concepto: data.concepto,
-      monto: data.monto,
-      medio: data.medio,
-      fecha: data.fecha,
-      caja,
-      categoria,
-      categoria_libre: categoriaLibre,
-      tipo_gasto_nombre: tipoGastoNombre,
-      privado: insertData.privado,
-      usuario: nombreDe(user),
-    }),
-  );
   return { success: true };
 }
 
