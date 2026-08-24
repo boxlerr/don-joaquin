@@ -39,7 +39,7 @@ type Props = {
   showGastos: boolean;
   /** Solapa activa, definida por la URL (?caja=grande). */
   caja: CajaId;
-  /** Dirección (caja_saldo): decide qué se muestra en la caja chica. */
+  /** Administrador: el único que puede ocultar y mostrar movimientos. */
   puedeMarcarPrivado?: boolean;
   /** Primer día visible ("YYYY-MM-DD") cuando la caja chica es una ventana. */
   ventanaDesde?: string;
@@ -48,8 +48,8 @@ type Props = {
 /**
  * Vista de la caja. La caja chica es la operativa: mismas cards, filtros y
  * movimientos para todos los roles —así dirección comprueba qué ve el personal—
- * acotada al último mes y sin los movimientos privados. Dirección (caja_saldo)
- * ve además el botón para ocultar/mostrar cada fila. La caja general (solapa
+ * acotada al último mes y sin los movimientos ocultos. El administrador ve
+ * además el botón para ocultar/mostrar cada fila, que es sólo suyo. La caja general (solapa
  * caja_grande) unifica el historial completo de las dos cajas, con lo privado
  * incluido y un selector para separarlas.
  */

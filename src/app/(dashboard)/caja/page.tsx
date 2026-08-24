@@ -21,8 +21,11 @@ export default async function CajaPage({
   // subsección confidencial que se otorga aparte. Admin tiene todo.
   const puedeOperar = hasArea(user, "caja", "write");
   const puedeVerSaldo = hasSeccion(user, "caja_saldo", "read");
-  // Marcar qué se muestra en la caja chica es potestad de dirección.
-  const puedeMarcarPrivado = puedeVerSaldo;
+  // Ocultar un movimiento —y ver los ocultos— es del ADMINISTRADOR y de nadie
+  // más (Julián, 24/08/2026). `caja_saldo` abre el saldo y el historial, pero no
+  // alcanza para tapar ni destapar: eso lo decide una sola persona.
+  const esAdmin = user.rol.codigo === "admin";
+  const puedeMarcarPrivado = esAdmin;
   const puedeVerGrande = hasSeccion(user, "caja_grande", "read");
   // Gastos ahora es una solapa de Caja (antes sección propia del sidebar). El
   // permiso sigue siendo el mismo de siempre: la subsección "gastos".
@@ -83,7 +86,11 @@ export default async function CajaPage({
           .eq("estado", "pendiente_rendicion")
           .order("fecha_entrega", { ascending: true })
       : Promise.resolve({ data: [] }),
-    esVistaChica ? getUsuariosConSeccion("caja_saldo", "read") : Promise.resolve(new Set<string>()),
+    // Hace falta para tapar por autor lo que nadie decidió: en la caja chica
+    // siempre, y en la general para todo el que no sea administrador.
+    esVistaChica || !esAdmin
+      ? getUsuariosConSeccion("caja_saldo", "read")
+      : Promise.resolve(new Set<string>()),
     // Las categorías que se escribieron alguna vez: se ofrecen al cargar.
     getCategoriasLibresAction(),
   ]);
@@ -101,14 +108,15 @@ export default async function CajaPage({
   });
 
   // Las marcas del calendario tienen que respetar lo mismo que la tabla: en la
-  // caja chica, solo los días con movimientos visibles de la propia caja.
+  // caja chica, solo los días con movimientos visibles de la propia caja; en la
+  // general, todo salvo lo oculto —que sólo ve el administrador—. Si no, un día
+  // quedaba marcado y al abrirlo no había ningún movimiento.
   type FechaMov = { fecha: string; caja: string | null; created_by: string | null };
-  const movsCalendario = esVistaChica
-    ? filtrarMovimientosVisibles(
-        ((fechasMovs ?? []) as FechaMov[]).filter((m) => (m.caja ?? "diaria") === "diaria"),
-        direccion,
-      )
-    : ((fechasMovs ?? []) as FechaMov[]);
+  const delaCaja = ((fechasMovs ?? []) as FechaMov[]).filter(
+    (m) => !esVistaChica || (m.caja ?? "diaria") === "diaria",
+  );
+  const movsCalendario =
+    esVistaChica || !esAdmin ? filtrarMovimientosVisibles(delaCaja, direccion) : delaCaja;
 
   // La caja chica es una ventana móvil: el historial largo vive en la general.
   const ventanaDesde = esVistaChica ? desdeVentanaCajaChica() : undefined;

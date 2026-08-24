@@ -57,7 +57,7 @@ interface Props {
   minDate?: string;
   /** En la vista general conviene ver de qué caja es cada movimiento. */
   mostrarColumnaCaja?: boolean;
-  /** Dirección: puede mostrar u ocultar un movimiento al personal operativo. */
+  /** Administrador: es el único que puede ocultar y mostrar un movimiento. */
   puedeMarcarPrivado?: boolean;
 }
 
@@ -299,7 +299,7 @@ export default function MovimientosCajaTable({
             ? "Oculto en la caja chica. Tocá para mostrarlo."
             : m.privado === false
               ? "Visible en la caja chica. Tocá para ocultarlo."
-              : "Se oculta si lo cargó dirección. Tocá para mostrarlo."
+              : "Se oculta si lo cargó alguien que ve el saldo. Tocá para mostrarlo."
       }
       className={`inline-flex items-center justify-center gap-1 rounded text-xs transition-colors disabled:opacity-50 ${
         !esVistaChica && m.privado !== true

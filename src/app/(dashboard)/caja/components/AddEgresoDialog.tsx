@@ -51,7 +51,7 @@ export default function AddEgresoDialog({
   categoriasLibres?: CategoriaLibre[];
   /** De qué caja sale la plata: diaria (default) o grande (privada de dirección). */
   caja?: CajaId;
-  /** Dirección (caja_saldo) decide si el movimiento se ve en la caja chica. */
+  /** Sólo el administrador decide si el movimiento se ve o queda oculto. */
   puedeMarcarPrivado?: boolean;
   /** Estado inicial del check: en la caja general arranca privado (solo general). */
   defaultPrivado?: boolean;
@@ -68,7 +68,7 @@ export default function AddEgresoDialog({
   const [tipoGastoId, setTipoGastoId] = useState<string>("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   // Visibilidad en la caja chica. El default depende de dónde se carga: en la
-  // chica arranca visible; en la general, privado (solo dirección).
+  // chica arranca visible; en la general, oculto (sólo lo ve el admin).
   const [privado, setPrivado] = useState(defaultPrivado);
 
   const valorBorrador = useMemo(
@@ -258,7 +258,7 @@ export default function AddEgresoDialog({
             </div>
           )}
 
-          {/* Solo dirección decide si el movimiento se ve en la caja chica. */}
+          {/* Sólo el administrador decide si el movimiento queda oculto. */}
           {puedeMarcarPrivado && (
             <label
               className={`flex items-start gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${

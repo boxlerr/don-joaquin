@@ -5,13 +5,14 @@ import { logAudit } from "@/lib/audit";
 import {
   hasArea,
   hasSeccion,
+  requireAdmin,
   requireArea,
   requireSeccion,
   type CurrentUser,
 } from "@/lib/auth";
 import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
 import { normalizarTexto } from "@/lib/texto";
-import { clausulaVisibilidad } from "./visibilidad";
+import { clausulaVisibilidad, veLosOcultos } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
 import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import { avisarCambio } from "@/lib/avisos";
@@ -48,9 +49,19 @@ export type CajaFiltro = CajaId | "todas";
  * · "chica"   → la operativa. Igual para todos, así dirección comprueba qué
  *   está viendo el personal: últimos 30 días y sin los movimientos ocultos.
  * · "general" → la de dirección (exige caja_grande). Historial completo de las
- *   dos cajas, con lo privado incluido.
+ *   dos cajas; lo oculto sólo aparece si además sos administrador.
  */
 export type CajaVista = "chica" | "general";
+
+/**
+ * Ocultar un movimiento y VER los ocultos es del administrador y de nadie más
+ * (Julián, 24/08/2026). Antes alcanzaba con `caja_saldo`, que es una subsección
+ * que se otorga a mano: Nicolás y Alejandro la tienen y podían tapar y destapar
+ * movimientos de la caja. Una sola persona decide qué se esconde.
+ */
+function esAdmin(user: CurrentUser): boolean {
+  return user.rol.codigo === "admin";
+}
 
 async function requireVerCaja(vista: CajaVista): Promise<CurrentUser> {
   if (vista === "general") return requireSeccion("caja_grande", "read");
@@ -65,11 +76,18 @@ function acotarDesde(desde: string | undefined, vista: CajaVista): string | unde
 }
 
 /**
- * Cláusula `or` que deja fuera de la caja chica lo privado. En la vista general
- * no se filtra nada: ahí se ve todo, incluido lo que la chica no muestra.
+ * Cláusula `or` que deja fuera lo privado.
+ *
+ * La caja chica nunca muestra lo oculto, para nadie. La general lo muestra
+ * SOLO al administrador: tener `caja_grande` abre el historial completo de las
+ * dos cajas, pero un movimiento que el admin decidió tapar queda tapado también
+ * ahí. Si no, "ocultar" no querría decir nada — bastaba con cambiar de solapa.
  */
-async function filtroVisibilidad(vista: CajaVista): Promise<string | null> {
-  if (vista === "general") return null;
+async function filtroVisibilidad(
+  vista: CajaVista,
+  user: CurrentUser,
+): Promise<string | null> {
+  if (veLosOcultos(vista, esAdmin(user))) return null;
   const direccion = await getUsuariosConSeccion("caja_saldo", "read");
   return clausulaVisibilidad(direccion);
 }
@@ -77,12 +95,15 @@ async function filtroVisibilidad(vista: CajaVista): Promise<string | null> {
 /**
  * Qué guardar en `privado` al cargar un movimiento.
  *
- * Solo dirección decide: si no marca nada, se guarda privado (así un descuido
- * no expone un retiro). Lo que carga el operativo queda sin decidir (null) —
- * es visible para todos por la regla por autor.
+ * Decide el administrador y nadie más: si no marca nada, se guarda privado (así
+ * un descuido no expone un retiro). Lo que carga cualquier otro queda SIN
+ * DECIDIR (null), que no es lo mismo que "a la vista": la regla por autor de
+ * `visibilidad.ts` igual lo saca de la caja chica si lo cargó alguien que ve el
+ * saldo. La diferencia importa — sin decidir, el admin lo puede destapar; en
+ * `true` sólo él lo puso ahí.
  */
 function resolverPrivado(user: CurrentUser, privado?: boolean): boolean | null {
-  if (!hasSeccion(user, "caja_saldo", "read")) return null;
+  if (!esAdmin(user)) return null;
   return privado ?? true;
 }
 
@@ -410,7 +431,7 @@ export async function getCajaMovimientosAction(
   const user = await requireVerCaja(vista);
   const supabase = createAdminClient();
   const caja: CajaFiltro = vista === "chica" ? "diaria" : params.caja ?? "todas";
-  const visibilidad = await filtroVisibilidad(vista);
+  const visibilidad = await filtroVisibilidad(vista, user);
   const desde = acotarDesde(params.desde, vista);
   const from = page * MOVIMIENTOS_PAGE_SIZE;
   const to = from + MOVIMIENTOS_PAGE_SIZE - 1;
@@ -618,12 +639,12 @@ export async function getCajaMovimientosAction(
 }
 
 /**
- * Cambia la privacidad de un movimiento ya cargado. Solo dirección: es quien
- * decide qué ve el personal operativo, y sirve para corregir una marca puesta
- * al apuro. Queda en auditoría como cualquier cambio sobre la caja.
+ * Cambia la privacidad de un movimiento ya cargado. Solo el administrador: es
+ * quien decide qué ve el resto, y sirve para corregir una marca puesta al
+ * apuro. Queda en auditoría como cualquier cambio sobre la caja.
  */
 export async function setMovimientoPrivadoAction(data: { id: string; privado: boolean }) {
-  const user = await requireSeccion("caja_saldo", "write");
+  const user = await requireAdmin();
   const supabase = createAdminClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -787,7 +808,7 @@ export async function addIngresoAction(data: {
   categoria: string;
   fecha: string;
   caja?: CajaId;
-  /** Solo dirección lo define: si no lo manda, el movimiento queda privado. */
+  /** Sólo el admin lo define: si no lo manda, el movimiento queda oculto. */
   privado?: boolean;
 }) {
 
@@ -861,7 +882,7 @@ export async function addEgresoAction(data: {
   tipo_gasto_id?: string | null;
   fecha: string;
   caja?: CajaId;
-  /** Solo dirección lo define: si no lo manda, el movimiento queda privado. */
+  /** Sólo el admin lo define: si no lo manda, el movimiento queda oculto. */
   privado?: boolean;
 }) {
 

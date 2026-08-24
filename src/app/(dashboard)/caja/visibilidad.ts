@@ -1,20 +1,33 @@
 /**
- * Qué movimientos aparecen en la CAJA CHICA.
+ * Qué movimientos se muestran.
  *
  * La caja chica es la vista operativa y es igual para todos: dirección la mira
  * para saber qué está viendo el personal (pedido 29/07). Por eso el filtro no
  * depende de quién consulta — un movimiento oculto desaparece de la caja chica
- * para cualquier rol, y se sigue viendo en la caja general.
+ * para cualquier rol. Y desde el 24/08 tampoco reaparece en la caja general:
+ * ahí lo ve sólo el ADMINISTRADOR, que es el único que puede taparlo.
  *
  * Dos capas:
- *  1. La marca `privado` que dirección pone al cargar o desde el ojito:
- *     true = fuera de la caja chica, false = a la vista.
+ *  1. La marca `privado` que el administrador pone al cargar o desde el ojito:
+ *     true = oculto, false = a la vista.
  *  2. Si nadie la decidió (null: movimientos viejos, importaciones, viáticos,
- *     transferencias), vale la regla por autor — lo que carga dirección no se
- *     muestra en la caja chica.
+ *     transferencias, o cargas de alguien que no es admin), vale la regla por
+ *     autor — lo que carga quien ve el saldo no se muestra en la caja chica.
  */
 
 type Movimiento = { created_by: string | null; privado?: boolean | null };
+
+/**
+ * ¿Esta persona ve los movimientos ocultos?
+ *
+ * Sólo el administrador, y sólo en la caja general. La caja chica no los muestra
+ * nunca —es la vista que dirección usa para comprobar qué ve el personal— y
+ * tener `caja_grande` abre el historial completo, no lo tapado: si cambiar de
+ * solapa alcanzara para destapar, "ocultar" no querría decir nada.
+ */
+export function veLosOcultos(vista: "chica" | "general", esAdmin: boolean): boolean {
+  return vista === "general" && esAdmin;
+}
 
 /** Filtro en memoria, para listas ya traídas. */
 export function filtrarMovimientosVisibles<T extends Movimiento>(

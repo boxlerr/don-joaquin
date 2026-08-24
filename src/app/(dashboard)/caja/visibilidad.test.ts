@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clausulaVisibilidad, filtrarMovimientosVisibles } from "./visibilidad";
+import { clausulaVisibilidad, filtrarMovimientosVisibles, veLosOcultos } from "./visibilidad";
 
 // Los mismos datos que siembra scripts/seed-caja-demo.ts.
 const BARBARA = "u-barbara"; // admin → dirección
@@ -83,5 +83,24 @@ describe("clausulaVisibilidad", () => {
 
   it("sin nadie a quien ocultarle por autor, solo respeta la marca", () => {
     expect(clausulaVisibilidad(new Set<string>())).toBe("privado.is.false,privado.is.null");
+  });
+});
+
+describe("veLosOcultos — quién ve lo que el admin tapó", () => {
+  it("sólo el administrador, y sólo en la caja general", () => {
+    expect(veLosOcultos("general", true)).toBe(true);
+  });
+
+  it("tener la caja general no alcanza si no sos admin", () => {
+    // Nicolás y Alejandro tienen `caja_grande`: entran a la general, pero lo
+    // tapado sigue tapado. Si no, ocultar sería cambiar de solapa.
+    expect(veLosOcultos("general", false)).toBe(false);
+  });
+
+  it("la caja chica no muestra lo oculto ni al administrador", () => {
+    // Es la vista con la que dirección comprueba qué está viendo el personal:
+    // si le mostrara de más, dejaría de servir para eso.
+    expect(veLosOcultos("chica", true)).toBe(false);
+    expect(veLosOcultos("chica", false)).toBe(false);
   });
 });

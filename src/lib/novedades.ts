@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ocultar-un-movimiento-de-la-caja-quedo-solo",
+    fecha: "2026-08-24",
+    tipo: "mejora",
+    ver: "caja_saldo",
+    titulo: "Ocultar un movimiento de la caja quedó sólo para el administrador",
+    detalle: "El ojito para tapar o destapar un movimiento, y los movimientos ya tapados, ahora los ve únicamente el administrador. El saldo, el historial y todo lo demás de la caja se ven igual que siempre.",
+    href: "/caja",
+  },
+  {
     id: "te-llega-un-mail-por-cada-movimiento-de-la",
     fecha: "2026-08-24",
     tipo: "nuevo",
