@@ -32,7 +32,21 @@ export function documentoRenovado(
   return vencActual > vencAlerta;
 }
 
-export type ClasePrestamo = "vencido" | "inminente" | "semana";
+export type ClasePrestamo = "vencido" | "gracia" | "inminente" | "semana";
+
+/**
+ * Días de gracia antes de reclamar una cuota como impaga.
+ *
+ * Sale de cómo trabajan de verdad (audio del 25/08/2026): *"pienso en tildarlos
+ * cuando ya los veo descontados en la página… mañana, cuando los veo en el
+ * banco que ingresó, ya les saco el tilde"*. El tilde va DESPUÉS del débito, no
+ * el día del vencimiento.
+ *
+ * Sin gracia, el aviso crítico "venció y no figura pagada" salía justo el día
+ * en que ella todavía no podía haberla tildado: un reclamo que no puede acertar
+ * nunca, y de esos ya sabemos qué pasa — se dejan de leer todos.
+ */
+export const DIAS_GRACIA_CUOTA = 2;
 export type DisparoPrestamo = {
   umbral: string;
   clase: ClasePrestamo;
@@ -53,7 +67,11 @@ export type DisparoPrestamo = {
  * era apagar el de la semana anterior (ver `semanalDeSemanaPasada`).
  */
 export function disparoPrestamo(dias: number, lunes: string): DisparoPrestamo | null {
-  if (dias < 0) return { umbral: "vencido", clase: "vencido", severidad: "critica" };
+  if (dias < -DIAS_GRACIA_CUOTA)
+    return { umbral: "vencido", clase: "vencido", severidad: "critica" };
+  // Recién vencida: el débito puede estar hecho y todavía no verse en el banco.
+  // Se avisa, pero como recordatorio de tildar, no como reclamo.
+  if (dias < 0) return { umbral: "gracia", clase: "gracia", severidad: "info" };
   if (dias <= 1) return { umbral: "T1", clase: "inminente", severidad: "advertencia" };
   if (dias <= 7) return { umbral: `S:${lunes}`, clase: "semana", severidad: "info" };
   return null;

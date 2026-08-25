@@ -46,15 +46,17 @@ describe("disparoPrestamo", () => {
       porClase.set(clase, [...(porClase.get(clase) ?? []), dias]);
     }
     expect(Object.fromEntries(porClase)).toEqual({
-      vencido: [-5, -4, -3, -2, -1],
+      vencido: [-5, -4, -3],
+      // Los dos días de gracia: el débito puede estar hecho y no verse todavía.
+      gracia: [-2, -1],
       inminente: [0, 1],
       semana: [2, 3, 4, 5, 6, 7],
       ninguno: [8, 9, 10],
     });
   });
 
-  it("vencida manda sobre todo lo demás", () => {
-    expect(disparoPrestamo(-1, LUNES)?.clase).toBe("vencido");
+  it("vencida manda sobre todo lo demás, pasada la gracia", () => {
+    expect(disparoPrestamo(-3, LUNES)?.clase).toBe("vencido");
     expect(disparoPrestamo(-74, LUNES)?.clase).toBe("vencido");
   });
 
@@ -113,5 +115,31 @@ describe("preavisoPrestamoPasado", () => {
   it("no toca avisos de otros módulos", () => {
     expect(preavisoPrestamoPasado("compliance:T5", "2026-08-08", HOY)).toBe(false);
     expect(preavisoPrestamoPasado("chofer_ausencia", "2026-08-08", HOY)).toBe(false);
+  });
+});
+
+describe("disparoPrestamo — la gracia antes de reclamar", () => {
+  const LUNES = "2026-08-24";
+
+  it("el día del vencimiento avisa que vence hoy, no que está impaga", () => {
+    expect(disparoPrestamo(0, LUNES)).toMatchObject({ clase: "inminente" });
+  });
+
+  it("EL CASO: al día siguiente NO reclama, porque el tilde va después del débito", () => {
+    // Tildan cuando ven el débito en el banco, un día después del vencimiento.
+    // Un reclamo el día 1 no puede acertar nunca.
+    expect(disparoPrestamo(-1, LUNES)).toMatchObject({ clase: "gracia", severidad: "info" });
+    expect(disparoPrestamo(-2, LUNES)).toMatchObject({ clase: "gracia", severidad: "info" });
+  });
+
+  it("pasada la gracia sí reclama, y en crítica", () => {
+    expect(disparoPrestamo(-3, LUNES)).toMatchObject({ clase: "vencido", severidad: "critica" });
+    expect(disparoPrestamo(-30, LUNES)).toMatchObject({ clase: "vencido", severidad: "critica" });
+  });
+
+  it("una cuota por venir sigue avisando como antes", () => {
+    expect(disparoPrestamo(1, LUNES)).toMatchObject({ clase: "inminente" });
+    expect(disparoPrestamo(5, LUNES)).toMatchObject({ clase: "semana" });
+    expect(disparoPrestamo(30, LUNES)).toBeNull();
   });
 });

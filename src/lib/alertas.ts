@@ -1127,6 +1127,8 @@ export async function generarAlertas() {
       const mensaje =
         d.clase === "vencido"
           ? `La ${cuotaLabel} de ${pr.banco} (${importeLabel}${tasaLabel}) venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura pagada.`
+          : d.clase === "gracia"
+            ? `Venció la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}. Si ya la viste debitada en el banco, marcala como pagada.`
           : d.clase === "inminente"
             ? dias === 0
               ? `Hoy vence la ${cuotaLabel} de ${pr.banco}: ${importeLabel}${tasaLabel}.`
@@ -1136,6 +1138,8 @@ export async function generarAlertas() {
       const tituloEstado =
         d.clase === "vencido"
           ? "cuota vencida"
+          : d.clase === "gracia"
+            ? "cuota a confirmar"
           : d.clase === "inminente"
             ? "cuota por vencer"
             : "cuota de esta semana";
