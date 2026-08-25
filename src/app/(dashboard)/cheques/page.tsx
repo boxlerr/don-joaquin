@@ -31,12 +31,13 @@ export default async function ChequesPage() {
     { data: bancos },
     { data: cheques },
     { data: libradores },
+    { data: historial },
   ] = await Promise.all([
     supabase.from("bancos").select("id, nombre").eq("estado", "activo").order("nombre"),
     supabase
       .from("cheques")
       .select(
-        "id, numero, tipo, origen, importe, fecha_emision, fecha_vencimiento, librador_nombre, librador_cuit, concepto, estado, entregado_a, sucursal_banco, cuenta_corriente, observaciones, banco:bancos(nombre), cliente:clientes(razon_social)",
+        "id, numero, tipo, origen, importe, fecha_emision, fecha_vencimiento, librador_nombre, librador_cuit, concepto, estado, entregado_a, sucursal_banco, cuenta_corriente, observaciones, created_at, banco:bancos(nombre), cliente:clientes(razon_social)",
         { count: "exact" }
       )
       .order("created_at", { ascending: false }),
@@ -44,6 +45,13 @@ export default async function ChequesPage() {
     // cheques: así lo que se escribe queda guardado y se puede sacar de la
     // lista sin tocar los cheques ya cargados.
     supabase.from("libradores").select("id, nombre, cuit").order("nombre"),
+    // El historial de estados es lo que permite saber cómo estaba la cartera al
+    // cierre de cada mes, y no sólo cómo está hoy.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("cheque_historial_estado")
+      .select("cheque_id, estado_nuevo, fecha")
+      .order("fecha", { ascending: true }),
   ]);
 
   const rows: ChequeRow[] = (cheques ?? []).map((c) => ({
@@ -62,6 +70,7 @@ export default async function ChequesPage() {
     sucursal_banco: c.sucursal_banco,
     cuenta_corriente: c.cuenta_corriente,
     observaciones: c.observaciones,
+    created_at: (c as { created_at?: string | null }).created_at ?? null,
     banco: Array.isArray(c.banco) ? (c.banco[0] ?? null) : c.banco,
     cliente: Array.isArray(c.cliente) ? (c.cliente[0] ?? null) : c.cliente,
   }));
@@ -94,6 +103,7 @@ export default async function ChequesPage() {
         canWrite={canWrite}
         hoy={hoy}
         en7dias={en7dias}
+        historial={(historial ?? []) as never}
       />
     </div>
   );

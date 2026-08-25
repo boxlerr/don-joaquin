@@ -46,7 +46,7 @@ const propio: ChequeRow = {
 };
 
 function montar(cheques: ChequeRow[] = [recibido, propio]) {
-  render(<ChequesList cheques={cheques} bancos={[]} libradores={[]} canWrite hoy={HOY} en7dias={EN7} />);
+  render(<ChequesList cheques={cheques} bancos={[]} libradores={[]} canWrite hoy={HOY} en7dias={EN7} historial={[]} />);
 }
 
 const filas = () => screen.getAllByRole("row").slice(1); // sin el header
@@ -150,7 +150,7 @@ describe("ChequesList — abrir el cheque", () => {
   });
 
   it("sin permiso de escritura la fila no es clickeable", () => {
-    render(<ChequesList cheques={[recibido]} bancos={[]} libradores={[]} canWrite={false} hoy={HOY} en7dias={EN7} />);
+    render(<ChequesList cheques={[recibido]} bancos={[]} libradores={[]} canWrite={false} hoy={HOY} en7dias={EN7} historial={[]} />);
     fireEvent.click(screen.getAllByRole("row")[1]);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

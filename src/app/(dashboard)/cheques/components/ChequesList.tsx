@@ -6,6 +6,7 @@ import { cifra, origenDeVista, pertenece, type VistaResumen } from "../resumen";
 import StatCard from "@/components/ui/StatCard";
 import BancoChip from "@/components/ui/BancoChip";
 import EvolucionCheques from "./EvolucionCheques";
+import type { ChequeParaEvolucion, TransicionCheque } from "../evolucion";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,8 @@ export type ChequeRow = {
   sucursal_banco: string | null;
   cuenta_corriente: string | null;
   observaciones: string | null;
+  /** Cuándo se cargó al sistema. Piso de la evolución cuando no hay emisión. */
+  created_at?: string | null;
   banco: { nombre: string } | null;
   cliente: { razon_social: string } | null;
 };
@@ -323,6 +326,7 @@ export default function ChequesList({
   canWrite,
   hoy,
   en7dias,
+  historial,
 }: {
   cheques: ChequeRow[];
   bancos: BancoOption[];
@@ -332,6 +336,8 @@ export default function ChequesList({
   hoy: string;
   /** Hoy + 7 días: la ventana de "por vencer". */
   en7dias: string;
+  /** Cada cambio de estado con su fecha: es lo que permite mirar hacia atrás. */
+  historial: TransicionCheque[];
 }) {
   const router = useRouter();
   const [origenTab, setOrigenTab] = useState<OrigenTab>("recibido");
@@ -855,7 +861,22 @@ export default function ChequesList({
 
       {/* La curva va al FINAL: arriba están los números con los que se decide
           algo hoy, esto es el contexto que se mira después. */}
-      <EvolucionCheques cheques={cheques} hoy={hoy} />
+      <EvolucionCheques
+        cheques={cheques.map(
+          (c): ChequeParaEvolucion => ({
+            id: c.id,
+            origen: c.origen,
+            estado: c.estado,
+            importe: c.importe,
+            fecha_vencimiento: c.fecha_vencimiento,
+            // Desde cuándo el sistema sabe de este cheque. `fecha_emision` está
+            // vacía en casi todos, así que el piso real es la carga.
+            desde: (c.fecha_emision ?? c.created_at ?? "1970-01-01").slice(0, 10),
+          }),
+        )}
+        transiciones={historial}
+        hoy={hoy}
+      />
 
       {transicion && (
         <ChequeTransitionDialog
