@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { resumenPorMes, totalPendiente } from "../por-mes";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -206,6 +207,62 @@ const ACCIONES_POR_ESTADO: Record<ChequeOrigen, Record<ChequeEstado, Accion[]>> 
  * hay de cada uno evita el clic a ciegas, y el que está en cero se atenúa en
  * lugar de esconderse, así no parece que el estado no existe.
  */
+/**
+ * Un mes de la tira. A diferencia del chip de estado, acá el dato principal es
+ * el MONTO — es la pregunta que se hace: *"este mes tenés tanto de cheques"*.
+ * La cantidad va abajo y en cuerpo menor porque contesta otra cosa.
+ */
+function FiltroMes({
+  label,
+  monto,
+  cantidad,
+  activo,
+  atrasado,
+  esteMes,
+  onClick,
+}: {
+  label: string;
+  monto: number;
+  cantidad: number;
+  activo: boolean;
+  atrasado?: boolean;
+  esteMes?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={activo}
+      className={`flex min-w-[7.5rem] flex-col items-start gap-0.5 rounded-[8px] border px-3 py-2 text-left transition-colors ${
+        activo
+          ? "border-foreground/25 bg-foreground/[0.06]"
+          : "border-border hover:border-foreground/20 hover:bg-muted/50"
+      }`}
+    >
+      <span
+        className={`text-[11px] font-semibold uppercase tracking-wide ${
+          atrasado ? "text-rose-700" : esteMes ? "text-primary" : "text-muted-foreground"
+        }`}
+      >
+        {label}
+        {esteMes && <span className="ml-1 font-normal normal-case opacity-70">· este mes</span>}
+      </span>
+      <span
+        className={`text-[15px] font-semibold tabular-nums ${
+          atrasado ? "text-rose-700" : "text-foreground"
+        }`}
+      >
+        $ {Math.round(monto).toLocaleString("es-AR")}
+      </span>
+      <span className="text-[11px] tabular-nums text-muted-foreground">
+        {cantidad} cheque{cantidad === 1 ? "" : "s"}
+        {atrasado ? " · sin cerrar" : ""}
+      </span>
+    </button>
+  );
+}
+
 function FiltroEstado({
   label,
   cantidad,
@@ -266,6 +323,8 @@ export default function ChequesList({
   const router = useRouter();
   const [origenTab, setOrigenTab] = useState<OrigenTab>("recibido");
   const [estadoFiltro, setEstadoFiltro] = useState<ChequeEstado | "">("");
+  /** "YYYY-MM" o "" para todos los meses. */
+  const [mesFiltro, setMesFiltro] = useState("");
   const [bancoId, setBancoId] = useState("");
   const [search, setSearch] = useState("");
   const [transicion, setTransicion] = useState<{
@@ -312,8 +371,18 @@ export default function ChequesList({
     [cheques, origenTab],
   );
 
+  // Los meses se cuentan sobre el lado elegido y SIN el filtro de mes puesto:
+  // si no, al elegir septiembre la tira se quedaría con un solo mes y no habría
+  // cómo volver ni cómo comparar.
+  const hoyISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const meses = useMemo(() => resumenPorMes(delOrigen, hoyISO), [delOrigen, hoyISO]);
+  const totalMeses = useMemo(() => totalPendiente(meses), [meses]);
+
   const cambiarOrigen = (key: OrigenTab) => {
     setOrigenTab(key);
+    // Un mes puede quedarse sin cheques del otro lado: se limpia para no dejar
+    // la lista vacía sin explicar por qué.
+    setMesFiltro((actual) => (actual && meses.some((m) => m.mes === actual) ? actual : ""));
     // El estado elegido puede no existir del otro lado (ej: "En cartera" al
     // pasar a los nuestros): en ese caso se vuelve a mostrar todo.
     setEstadoFiltro((actual) =>
@@ -325,6 +394,7 @@ export default function ChequesList({
     return cheques.filter((c) => {
       if (origenTab !== "todos" && c.origen !== origenTab) return false;
       if (estadoFiltro && c.estado !== estadoFiltro) return false;
+      if (mesFiltro && c.fecha_vencimiento.slice(0, 7) !== mesFiltro) return false;
       if (bancoId) {
         const id = c.banco ? bancosByNombre.get(c.banco.nombre) : null;
         if (id !== bancoId) return false;
@@ -335,7 +405,7 @@ export default function ChequesList({
         search,
       );
     });
-  }, [cheques, origenTab, estadoFiltro, bancoId, search, bancosByNombre]);
+  }, [cheques, origenTab, estadoFiltro, mesFiltro, bancoId, search, bancosByNombre]);
 
   const mensajeVacio =
     cheques.length === 0
@@ -432,6 +502,45 @@ export default function ChequesList({
             );
           })}
         </div>
+
+        {/* Mes a mes. Va ARRIBA de los estados porque es la pregunta que se
+            hace primero —cuánto cae en septiembre— y el estado la refina. */}
+        {meses.length > 0 && (
+          <div className="border-b border-border">
+            <div className="px-3 pt-2.5 sm:px-5 sm:pt-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {origenTab === "propio"
+                  ? "Lo que hay que pagar, por mes"
+                  : origenTab === "recibido"
+                    ? "Lo que hay que cobrar, por mes"
+                    : "Pendiente por mes"}
+              </p>
+            </div>
+            <HorizontalScrollHint className="px-3 pb-2.5 pt-2 sm:px-5 sm:pb-3" fadeBg="from-card">
+              <div className="flex w-max items-stretch gap-2">
+                <FiltroMes
+                  label="Todos"
+                  monto={totalMeses}
+                  cantidad={meses.reduce((a, m) => a + m.cantidad, 0)}
+                  activo={mesFiltro === ""}
+                  onClick={() => setMesFiltro("")}
+                />
+                {meses.map((m) => (
+                  <FiltroMes
+                    key={m.mes}
+                    label={m.label}
+                    monto={m.monto}
+                    cantidad={m.cantidad}
+                    atrasado={m.atrasado}
+                    esteMes={m.esteMes}
+                    activo={mesFiltro === m.mes}
+                    onClick={() => setMesFiltro(mesFiltro === m.mes ? "" : m.mes)}
+                  />
+                ))}
+              </div>
+            </HorizontalScrollHint>
+          </div>
+        )}
 
         {/* Hasta 9 estados: en celular la tira scrollea sola y avisa que sigue. */}
         <div className="border-b border-border">
