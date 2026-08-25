@@ -3,6 +3,19 @@
 // selector de "Permisos individuales", para que ambos se vean y ordenen igual
 // que el menú lateral y no se desincronicen. El orden y los colores espejan el
 // sidebar (mismos hex que components/layout/Sidebar.tsx).
+//
+// NO se deriva de `nav-items` a propósito: este árbol es MÁS fino que el menú.
+// Caja es una entrada del sidebar y acá son dos permisos (saldo y caja grande),
+// Compliance es una y acá son cuatro, y hay secciones que no tienen entrada
+// propia en el menú — "Facturación en el dashboard" destapa importes DENTRO del
+// dashboard, no una página. Generarlo automáticamente perdería esa granularidad,
+// que es justo lo que se otorga.
+//
+// Lo que sí está garantizado es que NINGUNA sección quede afuera:
+//  · `sidebar-tree.test.ts` falla si una sección del catálogo no está acá.
+//  · Y si aun así pasara, el editor la muestra en un bloque "Sin ubicar" en vez
+//    de esconderla: una sección que no se puede otorgar es una pantalla que
+//    nadie puede abrir. Pasó el 25/08 con Previsión.
 
 import type { SeccionCodigo } from "@/lib/secciones";
 
@@ -100,6 +113,7 @@ export const SIDEBAR_ARBOL: ArbolGrupo[] = [
       { label: "Cheques", seccion: "cheques" },
       { label: "Impuestos", seccion: "impuestos" },
       { label: "Préstamos", seccion: "prestamos" },
+      { label: "Previsión", seccion: "prevision" },
     ],
   },
   {
@@ -127,3 +141,15 @@ export const SIDEBAR_ARBOL: ArbolGrupo[] = [
     ],
   },
 ];
+
+/** Todas las secciones que el árbol deja otorgar. */
+export function seccionesDelArbol(): Set<SeccionCodigo> {
+  const out = new Set<SeccionCodigo>();
+  for (const g of SIDEBAR_ARBOL) {
+    for (const p of g.paginas) {
+      if (p.seccion) out.add(p.seccion);
+      for (const s of p.subs ?? []) out.add(s.seccion);
+    }
+  }
+  return out;
+}
