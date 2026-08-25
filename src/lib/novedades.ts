@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "podes-ponerle-un-tope-de-gastos-a-la-caja",
+    fecha: "2026-08-25",
+    tipo: "nuevo",
+    ver: "caja",
+    titulo: "Podés ponerle un tope de gastos a la caja",
+    detalle: "Debajo del saldo hay una barra con lo que ya salió en el mes. Cuando se pasa del tope, se pone en rojo y te llega un aviso que te trae acá para cambiarlo.",
+    href: "/caja",
+  },
+  {
     id: "cheques-en-cartera-muestra-los-que-estan-de",
     fecha: "2026-08-25",
     tipo: "arreglo",
