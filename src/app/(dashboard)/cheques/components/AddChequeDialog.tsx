@@ -53,6 +53,8 @@ export default function AddChequeDialog({
   const [libradorNombre, setLibradorNombre] = useState("");
   const [libradorCuit, setLibradorCuit] = useState("");
   const [entregadoA, setEntregadoA] = useState("");
+  const [numero, setNumero] = useState("");
+  const [fechaEmision, setFechaEmision] = useState("");
   const [importe, setImporte] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState(today);
   const [bancoNombre, setBancoNombre] = useState("");
@@ -68,6 +70,8 @@ export default function AddChequeDialog({
     setLibradorNombre("");
     setLibradorCuit("");
     setEntregadoA("");
+    setNumero("");
+    setFechaEmision("");
     setImporte("");
     setFechaVencimiento(today);
     setBancoNombre("");
@@ -89,6 +93,8 @@ export default function AddChequeDialog({
         tipo,
         librador_nombre: libradorNombre,
         librador_cuit: libradorCuit || null,
+        numero: numero.trim() || null,
+        fecha_emision: fechaEmision || null,
         importe: parseFloat(importe),
         fecha_vencimiento: fechaVencimiento,
         banco_nombre: bancoNombre || null,
@@ -198,6 +204,27 @@ export default function AddChequeDialog({
                 />
               </FieldBlock>
             )}
+          </div>
+
+          {/* Número y emisión: el alta no los mandaba y todos los cheques de
+              producción quedaron con los dos campos en null. */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FieldBlock label="Número de cheque" icon={FileText}>
+              <FieldInput
+                icon={FileText}
+                placeholder="Ej: 00012345"
+                value={numero}
+                onChange={(e) => setNumero(e.target.value)}
+              />
+            </FieldBlock>
+            <FieldBlock label="Fecha de emisión" icon={Calendar}>
+              <FieldInput
+                icon={Calendar}
+                type="date"
+                value={fechaEmision}
+                onChange={(e) => setFechaEmision(e.target.value)}
+              />
+            </FieldBlock>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

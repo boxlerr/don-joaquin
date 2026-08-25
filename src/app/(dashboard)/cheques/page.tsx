@@ -30,7 +30,7 @@ export default async function ChequesPage() {
 
   const [
     { data: bancos },
-    { data: cheques, count: totalCheques },
+    { data: cheques },
     { data: libradores },
   ] = await Promise.all([
     supabase.from("bancos").select("id, nombre").eq("estado", "activo").order("nombre"),
@@ -83,6 +83,9 @@ export default async function ChequesPage() {
     (c) => c.origen === "propio" && (c.estado === "emitido" || c.estado === "entregado")
   );
   const totalPropiosPendientes = propiosPendientes.reduce((acc, c) => acc + c.importe, 0);
+  // Los cheques nuestros se cuentan contra los nuestros, no contra el total: la
+  // tarjeta decía "6 cheques registrados" cuando el propio era uno solo.
+  const propios = rows.filter((c) => c.origen === "propio");
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -129,9 +132,11 @@ export default async function ChequesPage() {
           label="Cheques nuestros"
           value={`$${formatARS(totalPropiosPendientes)}`}
           sub={
-            propiosPendientes.length === 0
-              ? `${totalCheques ?? 0} cheques registrados`
-              : `${propiosPendientes.length} sin debitar · ${totalCheques ?? 0} registrados`
+            propios.length === 0
+              ? "ninguno registrado"
+              : propiosPendientes.length === 0
+                ? `${propios.length} registrado${propios.length === 1 ? "" : "s"} · todos debitados`
+                : `${propiosPendientes.length} sin debitar de ${propios.length}`
           }
           color="neutral"
         />

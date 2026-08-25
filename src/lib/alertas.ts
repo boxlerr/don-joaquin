@@ -437,11 +437,14 @@ export async function generarAlertas() {
     });
   }
 
-  // Cheques en cartera próximos a vencer
+  // Cheques próximos a vencer: los recibidos en cartera (plata que entra) y los
+  // nuestros todavía sin debitar (plata que sale). Filtrar sólo por "cartera"
+  // dejaba a los propios sin avisar NUNCA: es un estado que un cheque nuestro
+  // jamás tiene, así que uno que vencía mañana no disparaba nada.
   const { data: cheques } = await supabase
     .from("cheques")
-    .select("id, librador_nombre, importe, fecha_vencimiento")
-    .eq("estado", "cartera")
+    .select("id, librador_nombre, importe, fecha_vencimiento, origen, entregado_a")
+    .in("estado", ["cartera", "emitido", "entregado"])
     .lte("fecha_vencimiento", enChequeStr)
     .gte("fecha_vencimiento", hoyStr);
 
@@ -452,11 +455,20 @@ export async function generarAlertas() {
     const diasRestantes = Math.ceil(
       (new Date(cheque.fecha_vencimiento).getTime() - hoy.getTime()) / 86400000
     );
+    const esPropio = (cheque as { origen?: string }).origen === "propio";
+    const contraparte = esPropio
+      ? (cheque as { entregado_a?: string | null }).entregado_a || "sin destinatario"
+      : cheque.librador_nombre;
+    const importeLabel = `$${Number(cheque.importe).toLocaleString("es-AR")}`;
     nuevasAlertas.push({
       tipo: "vencimiento_cheque",
       severidad: diasRestantes <= umbrales.diasCritico ? "critica" : "advertencia",
-      titulo: `Cheque próximo a vencer — ${cheque.librador_nombre}`,
-      mensaje: `Cheque de $${Number(cheque.importe).toLocaleString("es-AR")} de ${cheque.librador_nombre} vence en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`,
+      titulo: esPropio
+        ? `Cheque nuestro por debitarse — ${contraparte}`
+        : `Cheque próximo a vencer — ${contraparte}`,
+      mensaje: esPropio
+        ? `Cheque nuestro de ${importeLabel} entregado a ${contraparte} se debita en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`
+        : `Cheque de ${importeLabel} de ${contraparte} vence en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`,
       entidad_id: cheque.id,
       entidad_tipo: "cheques",
       fecha_disparo: new Date().toISOString(),

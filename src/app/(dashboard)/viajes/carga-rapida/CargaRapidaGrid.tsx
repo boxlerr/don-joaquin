@@ -11,11 +11,9 @@ import {
   Loader2,
   AlertTriangle,
   RotateCcw,
-  DollarSign,
 } from "lucide-react";
 import {
   createViajesBatchAction,
-  getImporteSugeridoAction,
   type ViajeFormData,
   type ViajeFilaRapida,
 } from "../actions";
@@ -145,7 +143,6 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
 
   const [filas, setFilas] = useState<Fila[]>([filaVacia()]);
   const [guardando, setGuardando] = useState(false);
-  const [calculando, setCalculando] = useState(false);
   const [resultado, setResultado] = useState<{ ok: boolean; creados?: number; mensaje: string } | null>(null);
   const [erroresValidacion, setErroresValidacion] = useState<{ fila: number; mensaje: string }[]>([]);
 
@@ -261,7 +258,7 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
             destino_nombre: c.destino === "—" ? "" : c.destino,
             km_con_carga: f.es_vacio ? "0" : dist,
             km_vacios: f.es_vacio ? dist : "0",
-            // Cambió la ruta: el monto se recalcula con "Calcular $ por tarifa".
+            // Cambió la ruta: la tarifa que estaba puesta ya no corresponde.
             tarifa_id: "",
           };
         }),
@@ -317,63 +314,6 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
       next.splice(idx + 1, 0, vuelta);
       return next;
     });
-  };
-
-  // Completa el monto de cada fila desde la tarifa vigente del destino (igual que
-  // el DM: tn × precio del destino). Es explícito —no por celda— porque en la
-  // carga rápida el valor a veces se conoce recién con el DM. Solo pisa filas no
-  // vacías con destino; las que no tengan tarifa quedan como están.
-  const calcularImportes = async () => {
-    if (!globalClienteId) {
-      setResultado({ ok: false, mensaje: "Seleccioná un cliente global para calcular los importes." });
-      return;
-    }
-    setCalculando(true);
-    setResultado(null);
-    try {
-      const objetivo = filas.filter((f) => !f.es_vacio && f.destino_nombre.trim());
-      const results = await Promise.all(
-        objetivo.map(async (f) => ({
-          id: f.id,
-          res: await getImporteSugeridoAction(
-            globalClienteId,
-            f.origen_nombre.trim() || null,
-            f.destino_nombre.trim() || null,
-            Number(f.tonelaje_real) || 0,
-            Number(f.km_con_carga) || 0,
-            f.fecha_viaje || null,
-          ),
-        })),
-      );
-      const byId = new Map(results.filter((r) => r.res).map((r) => [r.id, r.res!]));
-      setFilas((prev) =>
-        prev.map((f) => {
-          const r = byId.get(f.id);
-          if (!r) return f;
-          return { ...f, monto_flete: String(r.importe), tarifa_id: r.tarifaId };
-        }),
-      );
-      setResultado(
-        byId.size > 0
-          ? { ok: true, mensaje: `${byId.size} importe(s) calculados por tarifa. Revisá y guardá.` }
-          : {
-              ok: false,
-              mensaje:
-                "No se encontró tarifa vigente para esos destinos. Cargá las tarifas en /tarifas o importá el DM de YPF.",
-            },
-      );
-    } catch (e) {
-      // Mismo motivo que en Guardar: sin el catch la pantalla se quedaba muda.
-      setResultado({
-        ok: false,
-        mensaje:
-          e instanceof Error && e.message
-            ? `No se pudieron calcular los importes: ${e.message}`
-            : "No se pudieron calcular los importes. Probá de nuevo.",
-      });
-    } finally {
-      setCalculando(false);
-    }
   };
 
   const handleGuardar = async () => {
@@ -837,20 +777,6 @@ export default function CargaRapidaGrid({ data }: { data: ViajeFormData }) {
         <div className="sm:mr-auto">
           <SelloBorrador ts={borrador.guardadoTs} />
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={calcularImportes}
-          disabled={calculando || guardando}
-          className="font-semibold h-10 gap-2 w-full sm:w-auto"
-          title="Completa el monto de cada fila desde la tarifa vigente del destino"
-        >
-          {calculando ? (
-            <><Loader2 size={15} className="animate-spin" /> Calculando...</>
-          ) : (
-            <><DollarSign size={15} /> Calcular $ por tarifa</>
-          )}
-        </Button>
         <Button
           type="button"
           onClick={handleGuardar}

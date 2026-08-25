@@ -1,9 +1,13 @@
+// `proximamente` marca el canal que todavía no envía nada. Se puede configurar
+// pero no activar: el toggle prometía un envío que no existe en el código, así
+// que quien lo prendía se quedaba esperando avisos que nunca iban a salir.
 export const CANALES = [
   {
     key: "email" as const,
     nombre: "Email",
     descripcion: "Notificaciones por correo electrónico",
     activoClave: "notificaciones_email_activas",
+    proximamente: false,
     configCampos: [
       {
         clave: "email_remitente",
@@ -18,6 +22,7 @@ export const CANALES = [
     nombre: "WhatsApp",
     descripcion: "Alertas administrativas por WhatsApp",
     activoClave: "notificaciones_whatsapp_activas",
+    proximamente: true,
     configCampos: [
       {
         clave: "whatsapp_numero_remitente",
@@ -32,6 +37,7 @@ export const CANALES = [
     nombre: "Webhooks",
     descripcion: "Integraciones con sistemas externos",
     activoClave: "notificaciones_webhook_activa",
+    proximamente: true,
     configCampos: [
       {
         clave: "webhook_url",

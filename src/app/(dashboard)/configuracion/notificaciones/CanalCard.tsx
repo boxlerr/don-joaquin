@@ -36,6 +36,7 @@ interface Props {
     nombre: string;
     descripcion: string;
     configCampos: CanalCampo[];
+    proximamente?: boolean;
   };
   activo: boolean;
   configValores: Record<string, string>;
@@ -95,11 +96,16 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
             <div className="flex flex-wrap items-center gap-2 mb-1">
               <p className="text-sm font-semibold text-foreground">{canal.nombre}</p>
               <StatusBadge
-                label={activo ? "Activo" : "Inactivo"}
-                tone={activo ? "success" : "neutral"}
+                label={canal.proximamente ? "Próximamente" : activo ? "Activo" : "Inactivo"}
+                tone={!canal.proximamente && activo ? "success" : "neutral"}
               />
             </div>
             <p className="text-xs text-muted-foreground">{canal.descripcion}</p>
+            {canal.proximamente && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Todavía no envía nada. Los datos se pueden dejar cargados para cuando esté.
+              </p>
+            )}
             {error && (
               <p className="text-xs text-[#7F1D1D] mt-1.5 flex items-center gap-1">
                 <AlertCircle size={12} />
@@ -124,7 +130,9 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
               <DialogHeader>
                 <DialogTitle>Configurar {canal.nombre}</DialogTitle>
                 <DialogDescription>
-                  Datos utilizados para enviar notificaciones por este canal.
+                  {canal.proximamente
+                    ? "Este canal todavía no envía avisos. Lo que cargues queda guardado para cuando esté disponible."
+                    : "Datos utilizados para enviar notificaciones por este canal."}
                 </DialogDescription>
               </DialogHeader>
 
@@ -179,20 +187,25 @@ export default function CanalCard({ canal, activo, configValores }: Props) {
           <button
             type="button"
             role="switch"
-            aria-checked={activo}
-            disabled={togglePending}
+            aria-checked={canal.proximamente ? false : activo}
+            disabled={togglePending || canal.proximamente}
             onClick={onToggle}
             className="inline-flex size-9 shrink-0 items-center justify-center rounded-md disabled:opacity-50 disabled:cursor-not-allowed sm:size-auto"
             aria-label={`Activar ${canal.nombre}`}
+            title={
+              canal.proximamente
+                ? `${canal.nombre} todavía no envía avisos`
+                : `Activar ${canal.nombre}`
+            }
           >
             <span
               className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                activo ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
+                activo && !canal.proximamente ? "bg-[#0088D1]" : "bg-[#CBD5E1]"
               }`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-card shadow transition-transform ${
-                  activo ? "translate-x-4" : "translate-x-0.5"
+                  activo && !canal.proximamente ? "translate-x-4" : "translate-x-0.5"
                 }`}
               />
             </span>

@@ -184,8 +184,8 @@ export async function getChequeAlertasLive(
     ventanaCheque(supabase),
     supabase
       .from("cheques")
-      .select("id, librador_nombre, importe, fecha_vencimiento")
-      .eq("estado", "cartera")
+      .select("id, librador_nombre, importe, fecha_vencimiento, origen, entregado_a")
+      .in("estado", ["cartera", "emitido", "entregado"])
       .not("fecha_vencimiento", "is", null),
   ]);
 
@@ -197,6 +197,8 @@ export async function getChequeAlertasLive(
     librador_nombre: string;
     importe: number;
     fecha_vencimiento: string;
+    origen?: string | null;
+    entregado_a?: string | null;
   }[]) {
     const dias = diasRestantes(c.fecha_vencimiento);
     if (dias === null) continue;
@@ -205,19 +207,33 @@ export async function getChequeAlertasLive(
     if (!vencido && !(soloHitos ? hitos.has(dias) : dias <= ventana)) continue;
 
     const importeLabel = `$${Number(c.importe).toLocaleString("es-AR")}`;
+    // Un cheque nuestro no "se cobra": se debita. Es plata que sale, y el aviso
+    // tiene que decirlo con esas palabras o se lee como si entrara.
+    const esPropio = c.origen === "propio";
+    const contraparte = esPropio ? c.entregado_a || "sin destinatario" : c.librador_nombre;
 
     out.push({
       id: `chequevenc-${c.id}`,
       tipo: "vencimiento_cheque",
       severidad: vencido || dias <= DIAS_CRITICO ? "critica" : "advertencia",
-      titulo: vencido
-        ? `Cheque vencido — ${c.librador_nombre}`
-        : `Cheque próximo a vencer — ${c.librador_nombre}`,
-      mensaje: vencido
-        ? `Cheque de ${importeLabel} de ${c.librador_nombre} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))}.`
-        : dias === 0
-          ? `Cheque de ${importeLabel} de ${c.librador_nombre} vence hoy.`
-          : `Cheque de ${importeLabel} de ${c.librador_nombre} vence en ${dias} día${plural(dias)}.`,
+      titulo: esPropio
+        ? vencido
+          ? `Cheque nuestro sin debitar — ${contraparte}`
+          : `Cheque nuestro por debitarse — ${contraparte}`
+        : vencido
+          ? `Cheque vencido — ${contraparte}`
+          : `Cheque próximo a vencer — ${contraparte}`,
+      mensaje: esPropio
+        ? vencido
+          ? `Cheque nuestro de ${importeLabel} entregado a ${contraparte} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue sin debitarse.`
+          : dias === 0
+            ? `Cheque nuestro de ${importeLabel} entregado a ${contraparte} se debita hoy.`
+            : `Cheque nuestro de ${importeLabel} entregado a ${contraparte} se debita en ${dias} día${plural(dias)}.`
+        : vencido
+          ? `Cheque de ${importeLabel} de ${contraparte} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))}.`
+          : dias === 0
+            ? `Cheque de ${importeLabel} de ${contraparte} vence hoy.`
+            : `Cheque de ${importeLabel} de ${contraparte} vence en ${dias} día${plural(dias)}.`,
       fecha_vencimiento: c.fecha_vencimiento,
       entidad_tipo: "cheques",
     });
