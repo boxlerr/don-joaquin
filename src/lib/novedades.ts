@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "la-alerta-de-cuota-vencida-ya-no-salta-al",
+    fecha: "2026-08-25",
+    tipo: "mejora",
+    ver: "prestamos",
+    titulo: "La alerta de cuota vencida ya no salta al día siguiente",
+    detalle: "Como la cuota se tilda cuando se la ve debitada en el banco, los dos primeros días avisa suave —\"si ya la viste debitada, marcala como pagada\"— y recién después reclama en rojo.",
+    href: "/prestamos",
+  },
+  {
     id: "el-grafico-ahora-muestra-como-venia-la",
     fecha: "2026-08-25",
     tipo: "mejora",
