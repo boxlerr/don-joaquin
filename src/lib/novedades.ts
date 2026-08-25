@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ahora-ves-cuanto-de-cheques-cae-en-cada-mes",
+    fecha: "2026-08-25",
+    tipo: "nuevo",
+    ver: "cheques",
+    titulo: "Ahora ves cuánto de cheques cae en cada mes",
+    detalle: "Arriba de la lista está el total por mes, y tocando uno se filtra. El número baja solo a medida que los cheques se cobran o se debitan, y los meses que quedaron sin cerrar salen en rojo.",
+    href: "/cheques",
+  },
+  {
     id: "si-las-vacaciones-no-entran-en-un-ano-el",
     fecha: "2026-08-25",
     tipo: "mejora",
