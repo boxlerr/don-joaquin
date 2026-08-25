@@ -14,6 +14,7 @@ import CajaTabs from "../CajaTabs";
 import type { ViaticoPendiente } from "./RendirViaticoDialog";
 import type { CajaId } from "../actions";
 import type { CategoriaLibre } from "./CategoriaCajaField";
+import type { TopesCaja } from "../topes";
 
 /**
  * Ingreso y Egreso son las acciones del día: más grandes que el resto del
@@ -43,6 +44,14 @@ type Props = {
   puedeMarcarPrivado?: boolean;
   /** Primer día visible ("YYYY-MM-DD") cuando la caja chica es una ventana. */
   ventanaDesde?: string;
+  /** Tope de gastos por mes de cada caja. */
+  topesCaja: TopesCaja;
+  /** Lo que ya salió de cada caja en el mes en curso. */
+  egresosDelMes: Record<string, number>;
+  /** Primer día del mes en curso ("YYYY-MM-01"). */
+  mesEnCurso: string;
+  /** El tope de la caja general lo mueve sólo quien escribe en ella. */
+  puedeEditarTopeGeneral: boolean;
 };
 
 /**
@@ -65,6 +74,10 @@ export default function CajaViewCompleta({
   caja,
   puedeMarcarPrivado = false,
   ventanaDesde,
+  topesCaja,
+  egresosDelMes,
+  mesEnCurso,
+  puedeEditarTopeGeneral,
 }: Props) {
   const esGrande = caja === "grande";
 
@@ -151,6 +164,11 @@ export default function CajaViewCompleta({
         vista={esGrande ? "general" : "chica"}
         puedeMarcarPrivado={puedeMarcarPrivado}
         ventanaDesde={ventanaDesde}
+        topesCaja={topesCaja}
+        egresosDelMes={egresosDelMes}
+        mesEnCurso={mesEnCurso}
+        puedeEditarTope={puedeOperar}
+        puedeEditarTopeGeneral={puedeEditarTopeGeneral}
       />
 
       {/* Los viáticos pendientes de rendir son parte del saldo: van en la vista

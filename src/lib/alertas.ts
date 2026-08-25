@@ -357,6 +357,11 @@ export async function generarAlertas() {
   // alerta vieja seguía viva con la fecha vieja y la nueva no podía nacer.
   // Con la fecha adentro, renovar un documento es un aviso nuevo cuando vuelva a
   // entrar en la ventana de 30 días, y la misma fecha sigue sin duplicarse.
+  const MESES_CAJA = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  ];
+
   const existentesSet = new Set(
     (existentes ?? []).map((a) => `${a.tipo}:${a.entidad_id}:${a.entidad_tipo}:${a.fecha_vencimiento}`)
   );
@@ -1310,7 +1315,12 @@ export async function generarAlertas() {
         if (total <= topeMes) continue;
         // Se dispara una vez por mes excedido; si después baja y vuelve a
         // subir, la clave sigue siendo la misma y no repite.
-        const key = `otro:${mes}:prestamos_tope_mensual:${mes}-01`;
+        //
+        // El `null` no es cosmético: la alerta se inserta con `entidad_id` en
+        // null y el set de existentes se arma con ese mismo valor. Con el mes
+        // acá la clave NUNCA coincidía con la de la alerta ya guardada, así que
+        // el aviso del tope se volvía a crear en cada corrida del cron.
+        const key = `otro:null:prestamos_tope_mensual:${mes}-01`;
         if (existentesSet.has(key)) continue;
 
         const [y, m] = mes.split("-").map(Number);
@@ -1333,6 +1343,92 @@ export async function generarAlertas() {
     }
   } catch (e) {
     console.error("[alertas] tope mensual de préstamos:", e);
+  }
+
+  // ── Tope de gastos de la caja ──────────────────────────────────────────
+  // El mismo mecanismo sobre otra plata: en préstamos es lo que HAY QUE pagar,
+  // acá es lo que YA salió de la caja este mes. Se avisa una vez por mes y por
+  // caja: pasarse del tope es un hecho, no una cuenta regresiva.
+  try {
+    const { data: paramCaja } = await supabase
+      .from("parametros_sistema")
+      .select("valor")
+      .eq("clave", "caja_topes")
+      .maybeSingle();
+
+    let topesCaja: { diaria: number | null; grande: number | null } = {
+      diaria: null,
+      grande: null,
+    };
+    if (paramCaja?.valor) {
+      try {
+        const raw = JSON.parse(paramCaja.valor as string) as Record<string, unknown>;
+        const limpiar = (v: unknown) => {
+          const n = Number(v);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        };
+        topesCaja = { diaria: limpiar(raw?.diaria), grande: limpiar(raw?.grande) };
+      } catch {
+        // Un JSON roto en parámetros no puede tirar abajo el resto de las alertas.
+      }
+    }
+
+    const conTope = (["diaria", "grande"] as const).filter((c) => topesCaja[c] != null);
+    if (conTope.length > 0) {
+      const mes = hoyStr.slice(0, 7);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const movs = await traerTodo<any>(
+        (from, to) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("caja_movimientos")
+            .select("caja, monto")
+            .eq("tipo", "egreso")
+            .neq("categoria", "transferencia_interna")
+            .gte("fecha", `${mes}-01`)
+            .order("id", { ascending: true })
+            .range(from, to),
+        { etiqueta: "egresos de caja del mes para el tope" },
+      );
+
+      const salido: Record<string, number> = { diaria: 0, grande: 0 };
+      for (const m of (movs ?? []) as { caja: string | null; monto: number }[]) {
+        const c = m.caja ?? "diaria";
+        if (c === "diaria" || c === "grande") salido[c] += Math.abs(Number(m.monto) || 0);
+      }
+
+      const CAJA_NOMBRE = { diaria: "La caja chica", grande: "La caja general" } as const;
+      const plataCaja = (n: number) => `$ ${Math.round(n).toLocaleString("es-AR")}`;
+
+      for (const caja of conTope) {
+        const tope = topesCaja[caja]!;
+        const total = salido[caja] ?? 0;
+        if (total <= tope) continue;
+
+        // Misma forma que la clave del set de existentes, con el `entidad_id`
+        // en null que es como se guarda.
+        const key = `otro:null:caja_tope_mensual:${caja}:${mes}-01`;
+        if (existentesSet.has(key)) continue;
+
+        const exceso = total - tope;
+        const pct = Math.round((exceso / tope) * 100);
+        const [y, m] = mes.split("-").map(Number);
+        const nombreMes = `${MESES_CAJA[(m ?? 1) - 1]} de ${y}`;
+
+        nuevasAlertas.push({
+          tipo: "otro",
+          severidad: "advertencia",
+          titulo: `${CAJA_NOMBRE[caja]} se pasó del tope de ${nombreMes}`,
+          mensaje: `En ${nombreMes} salieron ${plataCaja(total)} de ${CAJA_NOMBRE[caja].toLowerCase()}: ${plataCaja(exceso)} más que el tope de ${plataCaja(tope)} (${pct}% por encima). Si el tope quedó corto, cambialo desde Caja.`,
+          entidad_id: null,
+          entidad_tipo: `caja_tope_mensual:${caja}`,
+          fecha_disparo: new Date().toISOString(),
+          fecha_vencimiento: `${mes}-01`,
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] tope de gastos de la caja:", e);
   }
 
   if (nuevasAlertas.length > 0) {

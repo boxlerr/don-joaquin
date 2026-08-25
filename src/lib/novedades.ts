@@ -93,7 +93,7 @@ export const NOVEDADES: Novedad[] = [
     id: "cheques-en-cartera-muestra-los-que-estan-de",
     fecha: "2026-08-25",
     tipo: "arreglo",
-    ver: "dashboard",
+    ver: "todos",
     titulo: "\"Cheques en cartera\" muestra los que están de verdad en cartera",
     detalle: "Contaba todos los cheques cargados, incluidos los nuestros y los ya acreditados: decía 6 cuando en cartera había 2.",
     href: "/dashboard",

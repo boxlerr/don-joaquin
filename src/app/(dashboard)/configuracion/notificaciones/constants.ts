@@ -95,6 +95,7 @@ export const ALERTAS = [
       "Lo que entró y lo que salió en el día, con el neto",
       "Con cuánto quedó cada caja",
       "El detalle de los movimientos, uno por uno",
+      "Cuando una caja se pasa del tope de gastos del mes",
     ],
   },
   {

@@ -74,6 +74,12 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
     return "/prestamos";
   }
   // Ausencia programada → legajo del chofer, tab Ausencias.
+  // El tope de gastos lleva a su caja, que es donde se ve la barra y se cambia
+  // el número. La chica es la vista por defecto; la general va por la URL.
+  if (alerta.tipo === "otro" && alerta.entidad_tipo?.startsWith("caja_tope_mensual")) {
+    return alerta.entidad_tipo.endsWith(":grande") ? "/caja?caja=grande" : "/caja";
+  }
+
   if (alerta.tipo === "otro" && alerta.entidad_tipo === "chofer_ausencia" && alerta.entidad_id) {
     return `/choferes/${alerta.entidad_id}?tab=ausencias`;
   }

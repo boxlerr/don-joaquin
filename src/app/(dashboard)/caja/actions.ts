@@ -14,6 +14,13 @@ import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
 import { normalizarTexto } from "@/lib/texto";
 import { clausulaVisibilidad, veLosOcultos } from "./visibilidad";
 import { desdeVentanaCajaChica } from "./ventana";
+import {
+  inicioDeMes,
+  mergeTopesCaja,
+  TOPES_CAJA_CLAVE,
+  type CajaTopeId,
+  type TopesCaja,
+} from "./topes";
 import { hoyArgentina, sumarDiasISO } from "@/lib/fecha-ar";
 import { avisarCambio } from "@/lib/avisos";
 import {
@@ -1416,5 +1423,105 @@ export async function rendirViaticoAction(data: {
   revalidatePath("/caja");
   // Las cajas abiertas en otras pantallas se enteran solas.
   await avisarCambio("caja");
+  return { ok: true };
+}
+
+/* ------------------------------------------------------------------ *
+ * Tope de egresos por mes
+ * ------------------------------------------------------------------ */
+
+/** Los topes configurados. Si nunca se tocaron, vienen los dos en null. */
+export async function getTopesCajaAction(): Promise<TopesCaja> {
+  await requireArea("caja", "read");
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("parametros_sistema")
+    .select("valor")
+    .eq("clave", TOPES_CAJA_CLAVE)
+    .maybeSingle();
+  if (!data?.valor) return mergeTopesCaja(null);
+  try {
+    return mergeTopesCaja(JSON.parse(data.valor as string));
+  } catch {
+    return mergeTopesCaja(null);
+  }
+}
+
+/**
+ * Cuánto salió de cada caja en el mes en curso.
+ *
+ * Sólo egresos: el tope mide plata que sale, así que un ingreso grande no puede
+ * "hacer lugar". Las transferencias entre cajas quedan afuera a propósito —
+ * mover plata de la general a la chica no es un gasto, y contarla haría que el
+ * tope saltara por un movimiento que no salió de la empresa.
+ */
+export async function getEgresosDelMesAction(): Promise<Record<CajaTopeId, number>> {
+  await requireArea("caja", "read");
+  const supabase = createAdminClient();
+  const desde = inicioDeMes(hoyArgentina());
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("caja_movimientos")
+    .select("caja, monto")
+    .eq("tipo", "egreso")
+    .neq("categoria", "transferencia_interna")
+    .gte("fecha", desde);
+
+  const out: Record<CajaTopeId, number> = { diaria: 0, grande: 0 };
+  for (const m of (data ?? []) as { caja: string; monto: number }[]) {
+    if (m.caja === "diaria" || m.caja === "grande") {
+      out[m.caja] += Math.abs(Number(m.monto) || 0);
+    }
+  }
+  return out;
+}
+
+/**
+ * Guarda los topes. Se normaliza antes de escribir (cero o negativo = sin
+ * tope), así lo guardado siempre es válido y la pantalla no tiene que
+ * defenderse.
+ *
+ * El tope de la caja general lo mueve sólo quien puede escribir en la caja
+ * general: es la misma regla que rige todo lo demás de esa caja.
+ */
+export async function guardarTopesCajaAction(
+  config: TopesCaja,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireArea("caja", "write");
+  const limpia = mergeTopesCaja(config);
+
+  const previos = await getTopesCajaAction();
+  if (limpia.grande !== previos.grande) await requireSeccion("caja_grande", "write");
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("parametros_sistema").upsert(
+    {
+      clave: TOPES_CAJA_CLAVE,
+      valor: JSON.stringify(limpia),
+      tipo_dato: "json",
+      categoria: "caja",
+      editable: true,
+      updated_by: user.id,
+    },
+    { onConflict: "clave" },
+  );
+  if (error) {
+    console.error("Error al guardar los topes de caja:", error);
+    return { error: "No se pudieron guardar los topes." };
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "parametro_sistema",
+    entidadId: TOPES_CAJA_CLAVE,
+    valoresAnteriores: previos,
+    valoresNuevos: limpia,
+    metadata: { origen: "caja" },
+  });
+
+  revalidatePath("/caja");
   return { ok: true };
 }

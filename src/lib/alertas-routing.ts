@@ -167,6 +167,9 @@ const ENTIDAD_A_COLUMNA: Record<string, string> = {
   "prestamo_cuota:": PRESTAMOS_COL,
   prestamos_tope_mensual: PRESTAMOS_COL,
 
+  // Caja (confidencial: el aviso trae los montos del mes).
+  "caja_tope_mensual:": "cambios_caja",
+
   // Finanzas
   "impuesto:": "impuestos",
 

@@ -13,6 +13,14 @@
  * pero la pantalla sólo edita y usa el mensual.
  */
 
+import { limpiarTope } from "@/lib/topes";
+
+// La cuenta en sí es la misma para cualquier tope del sistema y vive en
+// lib/topes. Se re-exporta para que las pantallas de préstamos sigan
+// importando de un solo lado.
+export { excedeTope, carga, nivel } from "@/lib/topes";
+export type { Exceso, Nivel } from "@/lib/topes";
+
 export const TOPES_CLAVE = "prestamos_topes";
 
 export type Periodo = "dia" | "semana" | "mes";
@@ -34,52 +42,13 @@ export const PERIODO_LABEL: Record<Periodo, string> = {
 /** Lo único que se edita y se controla hoy. */
 export const PERIODOS: Periodo[] = ["mes"];
 
-function limpiar(v: unknown): number | null {
-  const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : NaN;
-  // Un tope en cero no significa "avisar siempre", significa "sin tope".
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n);
-}
-
 /** Normaliza lo que venga de la base o del formulario a una config válida. */
 export function mergeTopes(raw: unknown): TopesConfig {
   if (!raw || typeof raw !== "object") return { ...TOPES_DEFAULT };
   const o = raw as Record<string, unknown>;
-  return { dia: limpiar(o.dia), semana: limpiar(o.semana), mes: limpiar(o.mes) };
+  return { dia: limpiarTope(o.dia), semana: limpiarTope(o.semana), mes: limpiarTope(o.mes) };
 }
 
 export function hayAlgunTope(t: TopesConfig): boolean {
   return t.mes != null;
-}
-
-export type Exceso = {
-  /** Cuánto se pasó, en plata. */
-  exceso: number;
-  /** Cuánto se pasó, en porcentaje sobre el tope. */
-  porcentaje: number;
-};
-
-/** Null si no hay tope o si no se pasa. */
-export function excedeTope(total: number, tope: number | null): Exceso | null {
-  if (tope == null || tope <= 0 || total <= tope) return null;
-  return { exceso: total - tope, porcentaje: ((total - tope) / tope) * 100 };
-}
-
-/**
- * Qué tan cargado está un período respecto de su tope, de 0 a 1+. Sirve para
- * pintar la barra: verde hasta 0.8, ámbar hasta 1, rojo pasado el tope.
- */
-export function carga(total: number, tope: number | null): number | null {
-  if (tope == null || tope <= 0) return null;
-  return total / tope;
-}
-
-export type Nivel = "ok" | "cerca" | "excedido";
-
-export function nivel(total: number, tope: number | null): Nivel {
-  const c = carga(total, tope);
-  if (c == null) return "ok";
-  if (c > 1) return "excedido";
-  if (c >= 0.85) return "cerca";
-  return "ok";
 }

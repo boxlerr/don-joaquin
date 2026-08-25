@@ -4,7 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea, hasSeccion } from "@/lib/auth";
 import { getUsuariosConSeccion } from "@/lib/permisos-usuarios";
 import CajaViewCompleta from "./components/CajaViewCompleta";
-import { getCategoriasLibresAction } from "./actions";
+import { getCategoriasLibresAction, getEgresosDelMesAction, getTopesCajaAction } from "./actions";
+import { inicioDeMes } from "./topes";
+import { hoyArgentina } from "@/lib/fecha-ar";
 import CajaTabs from "./CajaTabs";
 import { desdeVentanaCajaChica } from "./ventana";
 import { filtrarMovimientosVisibles } from "./visibilidad";
@@ -130,6 +132,13 @@ export default async function CajaPage({
   ];
   const mesesConDatos = [...new Set(fechasConDatos.map((f) => f.slice(0, 7)))].sort().reverse();
 
+  // El tope de gastos del mes y lo que ya salió. Se resuelve acá para que la
+  // franja se dibuje con la pantalla y no aparezca de golpe un segundo después.
+  const [topesCaja, egresosDelMes] = await Promise.all([
+    getTopesCajaAction(),
+    getEgresosDelMesAction(),
+  ]);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <CajaViewCompleta
@@ -144,6 +153,10 @@ export default async function CajaPage({
         showGastos={puedeVerGastos}
         puedeMarcarPrivado={puedeMarcarPrivado}
         ventanaDesde={ventanaDesde}
+        topesCaja={topesCaja}
+        egresosDelMes={egresosDelMes}
+        mesEnCurso={inicioDeMes(hoyArgentina())}
+        puedeEditarTopeGeneral={hasSeccion(user, "caja_grande", "write")}
       />
     </div>
   );

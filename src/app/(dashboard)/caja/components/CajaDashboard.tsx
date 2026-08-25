@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import ResumenCaja from "./ResumenCaja";
+import TopeCajaBar from "./TopeCajaBar";
+import type { TopesCaja } from "../topes";
 import { Button } from "@/components/ui/button";
 import CalendarioPopover from "@/components/ui/CalendarioPopover";
 import { Combobox } from "@/components/ui/combobox";
@@ -126,6 +128,16 @@ interface Props {
   puedeMarcarPrivado?: boolean;
   /** Primer día visible ("YYYY-MM-DD"). La caja chica es una ventana móvil. */
   ventanaDesde?: string;
+  /** Tope de gastos por mes de cada caja. */
+  topesCaja: TopesCaja;
+  /** Lo que ya salió de cada caja en el mes en curso. */
+  egresosDelMes: Record<string, number>;
+  /** Primer día del mes en curso ("YYYY-MM-01"). */
+  mesEnCurso: string;
+  /** Puede poner o cambiar el tope (área caja ≥ write). */
+  puedeEditarTope: boolean;
+  /** El tope de la caja general lo mueve sólo quien escribe en ella. */
+  puedeEditarTopeGeneral: boolean;
 }
 
 const CAJA_LABEL: Record<CajaFiltro, string> = {
@@ -141,6 +153,11 @@ export default function CajaDashboard({
   vista = "chica",
   puedeMarcarPrivado = false,
   ventanaDesde,
+  topesCaja,
+  egresosDelMes,
+  mesEnCurso,
+  puedeEditarTope,
+  puedeEditarTopeGeneral,
 }: Props) {
   const esGeneral = vista === "general";
   const [cajaFiltro, setCajaFiltro] = useState<CajaFiltro>(esGeneral ? "todas" : "diaria");
@@ -413,6 +430,17 @@ export default function CajaDashboard({
             sub: periodoLabel,
           },
         ]}
+      />
+
+      {/* Pegada al saldo y no arriba de todo: es el mismo dinero leído contra
+          su límite, no un dato aparte que compita con el saldo. */}
+      <TopeCajaBar
+        caja={cajaFiltro}
+        topes={topesCaja}
+        egresos={egresosDelMes}
+        mes={mesEnCurso}
+        puedeEditar={puedeEditarTope}
+        puedeEditarGeneral={puedeEditarTopeGeneral}
       />
 
       <MovimientosCajaTable
