@@ -14,6 +14,7 @@ vi.mock("../[slug]/actions", () => ({
   crearAusenciaAction: vi.fn(async () => ({ success: true })),
   editarAusenciaAction: vi.fn(async () => ({ success: true })),
   getViajesChoferEnRangoAction: vi.fn(async () => []),
+  previsualizarRepartoAction: vi.fn(async () => []),
 }));
 
 // Fechas relativas a hoy para que el período caiga en la ventana visible.

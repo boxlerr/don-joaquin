@@ -7,6 +7,7 @@ import { UMBRAL_DEFAULT } from "./umbral";
 vi.mock("../[slug]/actions", () => ({
   crearAusenciaAction: vi.fn(async () => ({ success: true })),
   getViajesChoferEnRangoAction: vi.fn(async () => []),
+  previsualizarRepartoAction: vi.fn(async () => []),
 }));
 vi.mock("./actions", () => ({
   guardarUmbralConfigAction: vi.fn(async () => ({ success: true })),

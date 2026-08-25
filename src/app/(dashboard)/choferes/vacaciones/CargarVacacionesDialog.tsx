@@ -12,10 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { crearAusenciaAction, getViajesChoferEnRangoAction } from "../[slug]/actions";
+import {
+  crearAusenciaAction,
+  getViajesChoferEnRangoAction,
+  previsualizarRepartoAction,
+} from "../[slug]/actions";
 import type { ViajeEnRango } from "../[slug]/types";
 import { formatFecha } from "@/lib/utils";
-import { AlertTriangle, Loader2, MapPin } from "lucide-react";
+import { AlertTriangle, Loader2, MapPin, Scissors } from "lucide-react";
 import UmbralEditor from "./UmbralEditor";
 import { umbralOrigen, type UmbralConfig } from "./umbral";
 
@@ -95,6 +99,7 @@ export default function CargarVacacionesDialog({
   // Viajes que el chofer ya tiene en el rango (aviso de conflicto). Mismo patrón
   // que CargarAusenciaDialog del legajo (único uso aceptado de setState-en-effect).
   const [viajesRango, setViajesRango] = useState<ViajeEnRango[]>([]);
+  const [reparto, setReparto] = useState<{ anio: number; dias: number; inicio: string; fin: string }[]>([]);
   const [loadingViajes, setLoadingViajes] = useState(false);
   // Se ocultan las sugerencias una vez que el usuario tocó manualmente las fechas.
   const [tocoFechas, setTocoFechas] = useState(!!inicioPreset);
@@ -112,6 +117,22 @@ export default function CargarVacacionesDialog({
         setViajesRango(vs);
         setLoadingViajes(false);
       }
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [open, choferId, inicio, fin]);
+
+  // Cómo se van a repartir los días entre los años, antes de guardar.
+  useEffect(() => {
+    if (!open || !choferId || !inicio || !fin || fin < inicio) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mismo patrón que los viajes en rango
+      setReparto([]);
+      return;
+    }
+    let cancelado = false;
+    previsualizarRepartoAction(choferId, inicio, fin).then((t) => {
+      if (!cancelado) setReparto(t);
     });
     return () => {
       cancelado = true;
@@ -296,6 +317,30 @@ export default function CargarVacacionesDialog({
                   )}
                 </p>
               )}
+            </div>
+          )}
+
+          {/* El corte se anticipa: quien carga tiene que ver que va a terminar
+              con dos filas donde puso una. */}
+          {reparto.length > 1 && (
+            <div className="flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <Scissors size={15} className="mt-0.5 shrink-0 text-amber-700" />
+              <div className="text-sm text-amber-900">
+                <p className="font-semibold">Estos días no entran todos en el mismo año</p>
+                <p className="mt-0.5 text-[13px] leading-snug">
+                  Se van a guardar como {reparto.length} períodos seguidos:
+                </p>
+                <ul className="mt-1 space-y-0.5 text-[13px] leading-snug">
+                  {reparto.map((t) => (
+                    <li key={`${t.anio}-${t.inicio}`}>
+                      <span className="font-medium">
+                        {t.dias} día{t.dias === 1 ? "" : "s"} del {t.anio}
+                      </span>{" "}
+                      — {formatFecha(t.inicio)} al {formatFecha(t.fin)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
 

@@ -123,6 +123,81 @@ export function anioParaImputar(saldos: SaldoAnio[], fechaInicioISO: string): nu
   return conSaldo.length > 0 ? conSaldo[0]!.anio : anioFecha;
 }
 
+/** Un pedazo de un período, imputado a un año. */
+export type TramoImputacion = { anio: number; dias: number };
+
+/**
+ * Cómo se reparten los días de un período entre los años que todavía tienen
+ * saldo: se agota primero el más viejo y lo que sobra pasa al siguiente.
+ *
+ * Sale de un caso real (Bárbara, 25/08/2026): cargó 7 días imputados a 2024 y
+ * después los extendió a 14. Como `anioParaImputar` elige UN año sin mirar
+ * cuántos días son, los 14 quedaron cargados a 2024 y el saldo de ese año se
+ * infló a 35 días. Ella lo resolvió a mano partiendo el período en dos —que es
+ * exactamente lo que hace esta función.
+ *
+ * Los días que no entran en ningún saldo vigente se imputan igual al año de la
+ * fecha: dejan el saldo en negativo y la pantalla ya avisa de eso en rojo. Es
+ * preferible a hacerlos desaparecer, que es lo que pasaba antes.
+ */
+export function repartirEntreAnios(
+  saldos: SaldoAnio[],
+  fechaInicioISO: string,
+  dias: number,
+): TramoImputacion[] {
+  const anioFecha = Number(fechaInicioISO.slice(0, 4));
+  // Misma ventana que anioParaImputar: sólo el año de la fecha y el anterior.
+  // Un período de hoy no puede consumir días de un año ya vencido.
+  const vigentes = saldos
+    .filter((s) => s.saldo > 0 && s.anio <= anioFecha && s.anio >= anioFecha - 1)
+    .sort((a, b) => a.anio - b.anio);
+
+  const tramos: TramoImputacion[] = [];
+  let restantes = Math.max(1, Math.trunc(dias));
+
+  for (const s of vigentes) {
+    if (restantes <= 0) break;
+    const toma = Math.min(s.saldo, restantes);
+    if (toma > 0) {
+      tramos.push({ anio: s.anio, dias: toma });
+      restantes -= toma;
+    }
+  }
+
+  if (restantes > 0) {
+    const yaEstá = tramos.find((t) => t.anio === anioFecha);
+    if (yaEstá) yaEstá.dias += restantes;
+    else tramos.push({ anio: anioFecha, dias: restantes });
+  }
+
+  return tramos;
+}
+
+/**
+ * Los tramos con sus fechas, uno atrás del otro desde el inicio del período.
+ * Es lo que se muestra antes de confirmar y lo que se termina guardando.
+ */
+export function tramosConFechas(
+  tramos: TramoImputacion[],
+  fechaInicioISO: string,
+): { anio: number; dias: number; inicio: string; fin: string }[] {
+  const out: { anio: number; dias: number; inicio: string; fin: string }[] = [];
+  let cursor = fechaInicioISO;
+  for (const t of tramos) {
+    const fin = sumarDias(cursor, t.dias - 1);
+    out.push({ anio: t.anio, dias: t.dias, inicio: cursor, fin });
+    cursor = sumarDias(fin, 1);
+  }
+  return out;
+}
+
+/** Suma días corridos a una fecha ISO, sin pasar por la zona horaria local. */
+function sumarDias(iso: string, dias: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
 export type Semaforo = "🔴" | "🟠" | "🟡" | "🟢";
 
 export function semaforo(adeudados: number, disponibles: number): Semaforo {

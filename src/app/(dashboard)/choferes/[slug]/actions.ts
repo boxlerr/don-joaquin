@@ -23,6 +23,8 @@ import {
   resumenSaldos,
   diasPorAntiguedad,
   aniosCumplidos,
+  repartirEntreAnios,
+  tramosConFechas,
 } from "../vacaciones/derivar";
 import {
   crearUrlSubidaAdjunto,
@@ -1317,6 +1319,32 @@ async function saldosAnioChofer(
   );
 }
 
+/**
+ * Cómo se van a repartir los días de un período entre los años, ANTES de
+ * guardarlo.
+ *
+ * Bárbara lo pidió así y tiene razón: *"el día de mañana capaz las estoy
+ * cargando medio apurada"*. Un reparto que pasa en silencio es peor que ninguno
+ * — se entera cuando el saldo ya quedó descuajeringado.
+ *
+ * `excluirId` saca el período que se está editando de la cuenta de usados, para
+ * que no compita consigo mismo.
+ */
+export async function previsualizarRepartoAction(
+  chofer_id: string,
+  fecha_inicio: string,
+  fecha_fin: string,
+  excluirId?: string,
+): Promise<{ anio: number; dias: number; inicio: string; fin: string }[]> {
+  await requireSeccion("choferes_vacaciones", "read");
+  if (!fecha_inicio || !fecha_fin || fecha_fin < fecha_inicio) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = createAdminClient() as any;
+  const saldos = await saldosAnioChofer(sb, chofer_id, excluirId);
+  const dias = diasPeriodo(fecha_inicio, fecha_fin);
+  return tramosConFechas(repartirEntreAnios(saldos, fecha_inicio, dias), fecha_inicio);
+}
+
 export async function crearAusenciaAction(
   chofer_id: string,
   data: {
@@ -1349,30 +1377,50 @@ export async function crearAusenciaAction(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sbAny = supabase as any;
-  // Las vacaciones se imputan al año más viejo con saldo disponible.
-  const anioCargo = data.es_vacaciones
-    ? anioParaImputar(await saldosAnioChofer(sbAny, chofer_id), data.fecha_inicio)
-    : null;
-  const { data: creada, error } = await sbAny
+
+  // Las vacaciones se imputan al año más viejo con saldo, y si no alcanza se
+  // reparten: los primeros días salen de ese año y el resto del siguiente. Un
+  // período se imputa a UN solo año (`anio_cargo`), así que repartir significa
+  // guardar un tramo por año — que es lo que se hacía a mano.
+  const base = {
+    chofer_id,
+    tipo,
+    estado: "autorizada",
+    autorizado_por: user.id,
+    observaciones: data.observaciones?.trim() || null,
+    es_vacaciones: data.es_vacaciones ?? false,
+    justificada: data.justificada ?? true,
+    fecha_aproximada: data.fecha_aproximada ?? false,
+    created_by: user.id,
+  };
+
+  let filas: Record<string, unknown>[];
+  let tramos: { anio: number; dias: number; inicio: string; fin: string }[] = [];
+
+  if (data.es_vacaciones) {
+    const saldos = await saldosAnioChofer(sbAny, chofer_id);
+    const dias = diasPeriodo(data.fecha_inicio, data.fecha_fin);
+    tramos = tramosConFechas(repartirEntreAnios(saldos, data.fecha_inicio, dias), data.fecha_inicio);
+    filas = tramos.map((t) => ({
+      ...base,
+      fecha_inicio: t.inicio,
+      fecha_fin: t.fin,
+      anio_cargo: t.anio,
+    }));
+  } else {
+    filas = [
+      { ...base, fecha_inicio: data.fecha_inicio, fecha_fin: data.fecha_fin, anio_cargo: null },
+    ];
+  }
+
+  const { data: creadas, error } = await sbAny
     .from("chofer_ausencias")
-    .insert({
-      chofer_id,
-      tipo,
-      fecha_inicio: data.fecha_inicio,
-      fecha_fin: data.fecha_fin,
-      estado: "autorizada",
-      autorizado_por: user.id,
-      observaciones: data.observaciones?.trim() || null,
-      es_vacaciones: data.es_vacaciones ?? false,
-      justificada: data.justificada ?? true,
-      fecha_aproximada: data.fecha_aproximada ?? false,
-      anio_cargo: anioCargo,
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
+    .insert(filas)
+    .select("id");
 
   if (error) return { error: "No se pudo registrar la ausencia" };
+  const creada = (creadas ?? [])[0] as { id?: string } | undefined;
+  const anioCargo = (filas[0]?.anio_cargo ?? null) as number | null;
 
   await logChoferAudit(
     chofer_id,
@@ -1392,7 +1440,9 @@ export async function crearAusenciaAction(
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
   revalidatePath("/choferes/vacaciones");
-  return { success: true };
+  // Si hubo que repartir, se devuelve el detalle: partir un período en dos no
+  // puede pasar en silencio, porque el que carga ve dos filas donde puso una.
+  return tramos.length > 1 ? { success: true, tramos } : { success: true };
 }
 
 // Carga varios períodos de vacaciones de una vez (el "plan sugerido" de la
@@ -1555,8 +1605,72 @@ export async function editarAusenciaAction(
     fecha_aproximada: data.fecha_aproximada ?? previo.fecha_aproximada ?? false,
   };
 
+  // Si el período creció más allá del saldo del año al que está imputado, se
+  // parte: se queda con los días que ese año todavía aguanta y el resto arranca
+  // un período nuevo en el año siguiente.
+  //
+  // Es EL caso que rompió (Bárbara, 25/08/2026): extendió unas vacaciones de 7
+  // a 14 días y los 14 quedaron cargados al mismo año, inflándole el saldo a 35
+  // días. Editar las fechas no reimputaba nada, ni siquiera cuando el saldo ya
+  // no daba.
+  //
+  // Sólo cuando el año lo eligió el sistema. Si alguien lo puso a mano, manda
+  // esa decisión: lo que carga una persona no lo pisa ningún proceso.
+  let tramosPartidos: { anio: number; dias: number; inicio: string; fin: string }[] = [];
+  if (esVac && anioCargo != null && data.anio_cargo === undefined) {
+    const saldos = await saldosAnioChofer(sb, chofer_id, id);
+    const disponible = saldos.find((x) => x.anio === anioCargo)?.saldo ?? 0;
+    const dias = diasPeriodo(data.fecha_inicio, data.fecha_fin);
+
+    if (disponible > 0 && dias > disponible) {
+      const sobran = dias - disponible;
+      const corte = tramosConFechas([{ anio: anioCargo, dias: disponible }], data.fecha_inicio)[0]!;
+      const desdeResto = tramosConFechas(
+        [{ anio: anioCargo, dias: disponible + 1 }],
+        data.fecha_inicio,
+      )[0]!.fin;
+
+      // El período editado se recorta a lo que entra en su año...
+      nuevos.fecha_fin = corte.fin;
+      // ...y el excedente se reparte desde el día siguiente.
+      const restoSaldos = saldos.filter((x) => x.anio !== anioCargo);
+      tramosPartidos = tramosConFechas(
+        repartirEntreAnios(restoSaldos, desdeResto, sobran),
+        desdeResto,
+      );
+    }
+  }
+
   const { error } = await sb.from("chofer_ausencias").update(nuevos).eq("id", id);
   if (error) return { error: "No se pudo actualizar la ausencia" };
+
+  if (tramosPartidos.length > 0) {
+    const { error: errExtra } = await sb.from("chofer_ausencias").insert(
+      tramosPartidos.map((t) => ({
+        chofer_id,
+        tipo,
+        fecha_inicio: t.inicio,
+        fecha_fin: t.fin,
+        estado: "autorizada",
+        autorizado_por: user.id,
+        observaciones: nuevos.observaciones,
+        es_vacaciones: true,
+        justificada: nuevos.justificada,
+        fecha_aproximada: nuevos.fecha_aproximada,
+        anio_cargo: t.anio,
+        created_by: user.id,
+      })),
+    );
+    // Si el tramo extra no entra, el período editado ya quedó recortado: mejor
+    // decirlo que dejar días sin registrar creyendo que se guardaron.
+    if (errExtra) {
+      console.error("Error al guardar el tramo del año siguiente:", errExtra);
+      return {
+        error:
+          "Se guardaron los días que entraban en el año imputado, pero no se pudo crear el período del año siguiente. Revisá las fechas.",
+      };
+    }
+  }
 
   await logChoferAudit(chofer_id, "ausencia_editada", previo, nuevos, user.id, {
     tipo: "chofer_ausencia",
@@ -1566,7 +1680,9 @@ export async function editarAusenciaAction(
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/viajes");
   revalidatePath("/choferes/vacaciones");
-  return { success: true };
+  return tramosPartidos.length > 0
+    ? { success: true, tramos: [{ anio: anioCargo!, dias: diasPeriodo(nuevos.fecha_inicio, nuevos.fecha_fin), inicio: nuevos.fecha_inicio, fin: nuevos.fecha_fin }, ...tramosPartidos] }
+    : { success: true };
 }
 
 export async function cancelarAusenciaAction(id: string, chofer_id: string) {

@@ -12,10 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { editarAusenciaAction, getViajesChoferEnRangoAction } from "../[slug]/actions";
+import {
+  editarAusenciaAction,
+  getViajesChoferEnRangoAction,
+  previsualizarRepartoAction,
+} from "../[slug]/actions";
 import type { ViajeEnRango } from "../[slug]/types";
 import { formatFecha } from "@/lib/utils";
-import { AlertTriangle, Loader2, MapPin } from "lucide-react";
+import { AlertTriangle, Loader2, MapPin, Scissors } from "lucide-react";
 import type { VacacionesPeriodo } from "./lib";
 
 interface Props {
@@ -33,6 +37,10 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
   const [anioCargo, setAnioCargo] = useState<string>(
     periodo?.anio_cargo != null ? String(periodo.anio_cargo) : "hist",
   );
+  // Si nadie tocó el selector, el año lo decide el sistema (y puede repartir).
+  // Tocarlo es una decisión explícita y le gana al reparto automático.
+  const [anioTocado, setAnioTocado] = useState(false);
+  const [reparto, setReparto] = useState<{ anio: number; dias: number; inicio: string; fin: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viajesRango, setViajesRango] = useState<ViajeEnRango[]>([]);
@@ -72,6 +80,23 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
     };
   }, [open, periodo, inicio, fin]);
 
+  // Cómo quedaría repartido, antes de guardar. Sólo cuando el año lo decide el
+  // sistema: si lo eligieron a mano, no hay nada que anticipar.
+  useEffect(() => {
+    if (!open || !periodo || anioTocado || !inicio || !fin || fin < inicio) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mismo patrón que los viajes en rango, arriba
+      setReparto([]);
+      return;
+    }
+    let cancelado = false;
+    previsualizarRepartoAction(periodo.chofer_id, inicio, fin, periodo.id).then((t) => {
+      if (!cancelado) setReparto(t);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [open, periodo, inicio, fin, anioTocado]);
+
   if (!periodo) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,7 +110,9 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
       fecha_fin: fin,
       observaciones: observaciones.trim() || null,
       es_vacaciones: true,
-      anio_cargo: anioCargo === "hist" ? null : Number(anioCargo),
+      // `undefined` = no lo tocó nadie: que el sistema lo impute y, si el saldo
+      // del año no alcanza, reparta el excedente al siguiente.
+      anio_cargo: anioTocado ? (anioCargo === "hist" ? null : Number(anioCargo)) : undefined,
     });
     setLoading(false);
     if (res.error) setError(res.error);
@@ -137,7 +164,10 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
             <Label className="text-sm font-medium text-foreground">Descuenta del saldo</Label>
             <select
               value={anioCargo}
-              onChange={(e) => setAnioCargo(e.target.value)}
+              onChange={(e) => {
+                setAnioCargo(e.target.value);
+                setAnioTocado(true);
+              }}
               className="w-full h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground"
             >
               {aniosOpciones.map((y) => (
@@ -152,6 +182,33 @@ export default function EditarPeriodoDialog({ periodo, open, onOpenChange, onSuc
               saldos se recalculan solos.
             </p>
           </div>
+
+          {/* Se anticipa el corte en vez de hacerlo callado: quien carga tiene
+              que ver que va a terminar con dos filas donde puso una. */}
+          {reparto.length > 1 && (
+            <div className="flex gap-2.5 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <Scissors size={15} className="mt-0.5 shrink-0 text-amber-700" />
+              <div className="text-sm text-amber-900">
+                <p className="font-semibold">Estos días no entran todos en el mismo año</p>
+                <p className="mt-0.5 text-[13px] leading-snug">
+                  Se van a guardar como {reparto.length} períodos seguidos:
+                </p>
+                <ul className="mt-1 space-y-0.5 text-[13px] leading-snug">
+                  {reparto.map((t) => (
+                    <li key={`${t.anio}-${t.inicio}`}>
+                      <span className="font-medium">
+                        {t.dias} día{t.dias === 1 ? "" : "s"} del {t.anio}
+                      </span>{" "}
+                      — {formatFecha(t.inicio)} al {formatFecha(t.fin)}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[12px] leading-snug text-amber-800">
+                  Si preferís cargarlos todos a un año, elegilo arriba.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">Observaciones (opcional)</Label>
