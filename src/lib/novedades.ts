@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "si-las-vacaciones-no-entran-en-un-ano-el",
+    fecha: "2026-08-25",
+    tipo: "mejora",
+    ver: "choferes_vacaciones",
+    titulo: "Si las vacaciones no entran en un año, el sistema reparte los días solo",
+    detalle: "Antes se cargaban todos al mismo año y el saldo quedaba inflado. Ahora te muestra cómo va a quedar antes de guardar, y si preferís cargarlos a un año lo elegís vos.",
+    href: "/choferes/vacaciones",
+  },
+  {
     id: "podes-ponerle-un-tope-de-gastos-a-la-caja",
     fecha: "2026-08-25",
     tipo: "nuevo",
