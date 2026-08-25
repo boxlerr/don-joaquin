@@ -22,6 +22,7 @@ import {
   Megaphone,
   PiggyBank,
   type LucideIcon,
+  TrendingUp,
 } from "lucide-react";
 import type { AreaCodigo } from "@/lib/auth";
 import type { SeccionCodigo } from "@/lib/secciones";
@@ -144,6 +145,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Impuestos", href: "/impuestos", icon: Landmark, seccion: "impuestos" },
       // Cuotas de préstamos bancarios — confidencial (solo dirección).
       { label: "Préstamos", href: "/prestamos", icon: PiggyBank, seccion: "prestamos" },
+      // Cierra el grupo porque resume a los cuatro de arriba: qué meses vienen
+      // apretados cruzando cuotas, cheques nuestros, sueldos y quién no está.
+      { label: "Previsión", href: "/prevision", icon: TrendingUp, seccion: "prevision" },
     ],
   },
   {

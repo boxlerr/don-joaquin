@@ -41,6 +41,7 @@ export type SeccionCodigo =
   | "cheques"
   | "impuestos"
   | "prestamos"
+  | "prevision"
   | "dashboard_completo"
   | "metricas"
   // Caja
@@ -114,6 +115,10 @@ export const SECCIONES: Seccion[] = [
   // Préstamos bancarios (planilla de la mamá): cuotas, avisos y carga semanal.
   // Confidencial como el resto de finanzas sensibles (audios Bárbara 02/07).
   { codigo: "prestamos", area: "finanzas", nombre: "Préstamos", orden: 14, confidencial: true },
+  // Previsión: cruza préstamos, cheques y sueldos para decir qué meses vienen
+  // apretados. Confidencial por lo que muestra, no por lo que es: el total del
+  // mes deja leer la masa salarial y la deuda bancaria de un vistazo.
+  { codigo: "prevision", area: "finanzas", nombre: "Previsión", orden: 15, confidencial: true },
   // Los importes del dashboard: facturación del período, $/km y montos por
   // chofer (audios 30/06, tema 6 — la plata no "servida en bandeja" al entrar).
   // Hasta el 21/08/2026 esto era una pantalla aparte, /dashboard/completo; ahora
