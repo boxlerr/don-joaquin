@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { resumenPorMes, totalPendiente } from "../por-mes";
+import { cifra, origenDeVista, pertenece, type VistaResumen } from "../resumen";
+import StatCard from "@/components/ui/StatCard";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -314,17 +316,25 @@ export default function ChequesList({
   bancos,
   libradores,
   canWrite,
+  hoy,
+  en7dias,
 }: {
   cheques: ChequeRow[];
   bancos: BancoOption[];
   libradores: LibradorOption[];
   canWrite: boolean;
+  /** Hoy en ISO, calculado en el servidor para que las cifras no dependan del reloj del navegador. */
+  hoy: string;
+  /** Hoy + 7 días: la ventana de "por vencer". */
+  en7dias: string;
 }) {
   const router = useRouter();
   const [origenTab, setOrigenTab] = useState<OrigenTab>("recibido");
   const [estadoFiltro, setEstadoFiltro] = useState<ChequeEstado | "">("");
   /** "YYYY-MM" o "" para todos los meses. */
   const [mesFiltro, setMesFiltro] = useState("");
+  /** Cuál de las cuatro cifras de arriba está abierta. `null` = ninguna. */
+  const [vista, setVista] = useState<VistaResumen | null>(null);
   const [bancoId, setBancoId] = useState("");
   const [search, setSearch] = useState("");
   const [transicion, setTransicion] = useState<{
@@ -374,11 +384,40 @@ export default function ChequesList({
   // Los meses se cuentan sobre el lado elegido y SIN el filtro de mes puesto:
   // si no, al elegir septiembre la tira se quedaría con un solo mes y no habría
   // cómo volver ni cómo comparar.
-  const hoyISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const meses = useMemo(() => resumenPorMes(delOrigen, hoyISO), [delOrigen, hoyISO]);
+  const meses = useMemo(() => resumenPorMes(delOrigen, hoy), [delOrigen, hoy]);
   const totalMeses = useMemo(() => totalPendiente(meses), [meses]);
 
+  const cifras = useMemo(
+    () => ({
+      cartera: cifra(cheques, "cartera", hoy, en7dias),
+      por_vencer: cifra(cheques, "por_vencer", hoy, en7dias),
+      vencidos: cifra(cheques, "vencidos", hoy, en7dias),
+      nuestros: cifra(cheques, "nuestros", hoy, en7dias),
+    }),
+    [cheques, hoy, en7dias],
+  );
+
+  /**
+   * Abrir una cifra deja ver de qué está hecha. Se limpian los demás filtros a
+   * propósito: si quedara uno puesto, la lista mostraría menos de lo que dice
+   * el número y no habría forma de darse cuenta.
+   */
+  const abrirVista = (v: VistaResumen) => {
+    if (vista === v) {
+      setVista(null);
+      return;
+    }
+    setVista(v);
+    setOrigenTab(origenDeVista(v));
+    setEstadoFiltro("");
+    setMesFiltro("");
+    setSearch("");
+    setBancoId("");
+  };
+
   const cambiarOrigen = (key: OrigenTab) => {
+    // Tocar una solapa es pedir otra cosa: la cifra abierta deja de aplicar.
+    setVista(null);
     setOrigenTab(key);
     // Un mes puede quedarse sin cheques del otro lado: se limpia para no dejar
     // la lista vacía sin explicar por qué.
@@ -395,6 +434,7 @@ export default function ChequesList({
       if (origenTab !== "todos" && c.origen !== origenTab) return false;
       if (estadoFiltro && c.estado !== estadoFiltro) return false;
       if (mesFiltro && c.fecha_vencimiento.slice(0, 7) !== mesFiltro) return false;
+      if (vista && !pertenece(c, vista, hoy, en7dias)) return false;
       if (bancoId) {
         const id = c.banco ? bancosByNombre.get(c.banco.nombre) : null;
         if (id !== bancoId) return false;
@@ -405,7 +445,7 @@ export default function ChequesList({
         search,
       );
     });
-  }, [cheques, origenTab, estadoFiltro, mesFiltro, bancoId, search, bancosByNombre]);
+  }, [cheques, origenTab, estadoFiltro, mesFiltro, vista, hoy, en7dias, bancoId, search, bancosByNombre]);
 
   const mensajeVacio =
     cheques.length === 0
@@ -473,8 +513,82 @@ export default function ChequesList({
     </span>
   );
 
+  const propiosTotal = useMemo(() => cheques.filter((c) => c.origen === "propio").length, [cheques]);
+
+  const ETIQUETA_VISTA: Record<VistaResumen, string> = {
+    cartera: "los cheques en cartera",
+    por_vencer: "los que vencen en los próximos 7 días",
+    vencidos: "los cheques vencidos",
+    nuestros: "los cheques nuestros sin debitar",
+  };
+
   return (
     <>
+      {/* Las cifras SON el filtro: tocarlas abre de qué están hechas. Antes
+          decían "1 sin gestionar" y no había forma de llegar a ese uno. */}
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard
+          label="En cartera"
+          value={`$${formatARS(cifras.cartera.total)}`}
+          sub={`${cifras.cartera.cantidad} cheque${cifras.cartera.cantidad === 1 ? "" : "s"} a cobrar`}
+          color="brand"
+          active={vista === "cartera"}
+          ariaLabel="Ver los cheques en cartera"
+          onClick={() => abrirVista("cartera")}
+        />
+        <StatCard
+          label="Por vencer"
+          value={`$${formatARS(cifras.por_vencer.total)}`}
+          sub={`${cifras.por_vencer.cantidad} en próximos 7 días`}
+          color="warning"
+          active={vista === "por_vencer"}
+          ariaLabel="Ver los cheques que vencen en los próximos 7 días"
+          onClick={() => abrirVista("por_vencer")}
+        />
+        <StatCard
+          label="Vencidos"
+          value={`$${formatARS(cifras.vencidos.total)}`}
+          sub={`${cifras.vencidos.cantidad} sin gestionar`}
+          color="error"
+          active={vista === "vencidos"}
+          ariaLabel="Ver los cheques vencidos"
+          onClick={() => abrirVista("vencidos")}
+        />
+        <StatCard
+          label="Cheques nuestros"
+          value={`$${formatARS(cifras.nuestros.total)}`}
+          sub={
+            propiosTotal === 0
+              ? "ninguno registrado"
+              : cifras.nuestros.cantidad === 0
+                ? `${propiosTotal} registrado${propiosTotal === 1 ? "" : "s"} · todos debitados`
+                : `${cifras.nuestros.cantidad} sin debitar de ${propiosTotal}`
+          }
+          color="neutral"
+          active={vista === "nuestros"}
+          ariaLabel="Ver los cheques nuestros sin debitar"
+          onClick={() => abrirVista("nuestros")}
+        />
+      </div>
+
+      {/* Con una cifra abierta hay que decir qué se está mirando y cómo salir:
+          un filtro que no se ve hace creer que faltan cheques. */}
+      {vista && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[8px] border border-border bg-muted/40 px-3.5 py-2.5">
+          <p className="text-sm text-foreground">
+            Mostrando <span className="font-semibold">{ETIQUETA_VISTA[vista]}</span>
+            <span className="text-muted-foreground"> · {filtered.length} de {cheques.length}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => setVista(null)}
+            className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted max-md:h-9"
+          >
+            Ver todos
+          </button>
+        </div>
+      )}
+
       <div className="bg-card rounded-[8px] border border-border shadow-sm">
         <div className="flex items-center gap-1 px-3 sm:px-5 pt-3 sm:pt-4 border-b border-border overflow-x-auto">
           {ORIGEN_TABS.map((tab) => {

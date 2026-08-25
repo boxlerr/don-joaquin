@@ -12,6 +12,13 @@ interface StatCardProps {
   /** Si se pasa, la tarjeta navega a esta ruta (se renderiza como enlace). */
   href?: string;
   active?: boolean;
+  /**
+   * Nombre accesible cuando el rótulo solo no alcanza. Hace falta cuando en la
+   * misma pantalla hay otro control con el mismo texto —por ejemplo la tarjeta
+   * "En cartera" y el filtro de estado "En cartera"—: sin esto, quien navega por
+   * voz o por teclado escucha dos veces lo mismo y no sabe cuál es cuál.
+   */
+  ariaLabel?: string;
 }
 
 const colorMap = {
@@ -62,6 +69,7 @@ export default function StatCard({
   onClick,
   href,
   active = false,
+  ariaLabel,
 }: StatCardProps) {
   const styles = colorMap[color];
 
@@ -172,6 +180,7 @@ export default function StatCard({
       onClick={onClick}
       role={onClick && !href ? "button" : undefined}
       aria-pressed={onClick && !href ? active : undefined}
+      aria-label={interactive ? ariaLabel : undefined}
       className={`relative overflow-hidden bg-card rounded-xl border ${styles.border} p-3.5 sm:p-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 group ${
         interactive ? "cursor-pointer hover:border-primary/50" : ""
       } ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background border-primary/60" : ""}`}

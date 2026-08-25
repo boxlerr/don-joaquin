@@ -30,6 +30,10 @@ const base: ChequeRow = {
   cliente: null,
 };
 
+/** Fechas fijas: las cifras de arriba no pueden depender del día en que corra el test. */
+const HOY = "2026-08-25";
+const EN7 = "2026-09-01";
+
 const recibido: ChequeRow = { ...base, id: "r1", librador_nombre: "Loma Negra" };
 const propio: ChequeRow = {
   ...base,
@@ -42,7 +46,7 @@ const propio: ChequeRow = {
 };
 
 function montar(cheques: ChequeRow[] = [recibido, propio]) {
-  render(<ChequesList cheques={cheques} bancos={[]} libradores={[]} canWrite />);
+  render(<ChequesList cheques={cheques} bancos={[]} libradores={[]} canWrite hoy={HOY} en7dias={EN7} />);
 }
 
 const filas = () => screen.getAllByRole("row").slice(1); // sin el header
@@ -146,7 +150,7 @@ describe("ChequesList — abrir el cheque", () => {
   });
 
   it("sin permiso de escritura la fila no es clickeable", () => {
-    render(<ChequesList cheques={[recibido]} bancos={[]} libradores={[]} canWrite={false} />);
+    render(<ChequesList cheques={[recibido]} bancos={[]} libradores={[]} canWrite={false} hoy={HOY} en7dias={EN7} />);
     fireEvent.click(screen.getAllByRole("row")[1]);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
