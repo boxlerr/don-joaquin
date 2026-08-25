@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ya-podes-mover-viajes-de-un-cliente-a-otro",
+    fecha: "2026-08-25",
+    tipo: "nuevo",
+    ver: "viajes",
+    titulo: "Ya podés mover viajes de un cliente a otro sin cargarlos de nuevo",
+    detalle: "En Viajes hay un botón \"Reasignar cliente\": elegís de qué cliente salen y a cuál van, te dice cuántos son antes de mover nada y los pasa a todos juntos.",
+    href: "/viajes",
+  },
+  {
     id: "la-alerta-de-cuota-vencida-ya-no-salta-al",
     fecha: "2026-08-25",
     tipo: "mejora",
