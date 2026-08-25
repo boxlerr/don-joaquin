@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "nueva-seccion-prevision",
+    fecha: "2026-08-25",
+    tipo: "nuevo",
+    ver: "prevision",
+    titulo: "Nueva sección: Previsión",
+    detalle: "Te dice qué meses vienen apretados cruzando cuotas de préstamos, cheques nuestros y sueldos contra lo que se espera facturar. Primero ponés a partir de qué número querés que avise, y cada mes muestra de qué está hecho el total.",
+    href: "/prevision",
+  },
+  {
     id: "ya-podes-mover-viajes-de-un-cliente-a-otro",
     fecha: "2026-08-25",
     tipo: "nuevo",
