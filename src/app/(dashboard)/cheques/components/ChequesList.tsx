@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { resumenPorMes, totalPendiente } from "../por-mes";
 import { cifra, origenDeVista, pertenece, type VistaResumen } from "../resumen";
 import StatCard from "@/components/ui/StatCard";
+import BancoChip from "@/components/ui/BancoChip";
+import EvolucionCheques from "./EvolucionCheques";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,8 +29,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import {
+  AlertTriangle,
   Ban,
   Banknote,
+  CalendarClock,
   Check,
   FileText,
   Landmark,
@@ -36,6 +40,7 @@ import {
   Pencil,
   Send,
   Trash2,
+  Wallet,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -532,6 +537,7 @@ export default function ChequesList({
           value={`$${formatARS(cifras.cartera.total)}`}
           sub={`${cifras.cartera.cantidad} cheque${cifras.cartera.cantidad === 1 ? "" : "s"} a cobrar`}
           color="brand"
+          icon={Wallet}
           active={vista === "cartera"}
           ariaLabel="Ver los cheques en cartera"
           onClick={() => abrirVista("cartera")}
@@ -541,6 +547,7 @@ export default function ChequesList({
           value={`$${formatARS(cifras.por_vencer.total)}`}
           sub={`${cifras.por_vencer.cantidad} en próximos 7 días`}
           color="warning"
+          icon={CalendarClock}
           active={vista === "por_vencer"}
           ariaLabel="Ver los cheques que vencen en los próximos 7 días"
           onClick={() => abrirVista("por_vencer")}
@@ -550,6 +557,7 @@ export default function ChequesList({
           value={`$${formatARS(cifras.vencidos.total)}`}
           sub={`${cifras.vencidos.cantidad} sin gestionar`}
           color="error"
+          icon={AlertTriangle}
           active={vista === "vencidos"}
           ariaLabel="Ver los cheques vencidos"
           onClick={() => abrirVista("vencidos")}
@@ -565,6 +573,7 @@ export default function ChequesList({
                 : `${cifras.nuestros.cantidad} sin debitar de ${propiosTotal}`
           }
           color="neutral"
+          icon={Landmark}
           active={vista === "nuestros"}
           ariaLabel="Ver los cheques nuestros sin debitar"
           onClick={() => abrirVista("nuestros")}
@@ -723,11 +732,16 @@ export default function ChequesList({
                     <p className="truncate text-sm font-semibold text-foreground">
                       {c.librador_nombre}
                     </p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      <span className="font-mono">{c.numero ?? "s/n"}</span>
-                      {c.banco?.nombre ? ` · ${c.banco.nombre}` : ""}
-                      {origenTab === "todos" && c.origen === "propio" ? " · Cheque nuestro" : ""}
-                    </p>
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="shrink-0 font-mono">{c.numero ?? "s/n"}</span>
+                      <span className="shrink-0 text-muted-foreground/40" aria-hidden>
+                        ·
+                      </span>
+                      <BancoChip nombre={c.banco?.nombre} className="min-w-0" />
+                    </div>
+                    {origenTab === "todos" && c.origen === "propio" && (
+                      <p className="mt-0.5 text-xs text-muted-foreground">Cheque nuestro</p>
+                    )}
                   </div>
                   <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                     {canWrite && menuAcciones(c)}
@@ -798,7 +812,7 @@ export default function ChequesList({
                     {c.numero ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {c.banco?.nombre ?? "—"}
+                    <BancoChip nombre={c.banco?.nombre} />
                   </TableCell>
                   <TableCell className="text-sm text-foreground">
                     {c.librador_nombre}
@@ -837,6 +851,11 @@ export default function ChequesList({
           </TableBody>
         </Table>
       </div>
+
+
+      {/* La curva va al FINAL: arriba están los números con los que se decide
+          algo hoy, esto es el contexto que se mira después. */}
+      <EvolucionCheques cheques={cheques} hoy={hoy} />
 
       {transicion && (
         <ChequeTransitionDialog

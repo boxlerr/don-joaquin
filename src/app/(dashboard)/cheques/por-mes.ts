@@ -105,3 +105,74 @@ export function resumenPorMes(cheques: ChequeParaMes[], hoyISO: string): MesCheq
 export function totalPendiente(meses: MesCheques[]): number {
   return meses.reduce((a, m) => a + m.monto, 0);
 }
+
+/** Un mes de la curva: lo que entra y lo que sale. */
+export type MesEvolucion = {
+  mes: string;
+  label: string;
+  /** Recibidos pendientes que vencen ese mes: plata que entra. */
+  aCobrar: number;
+  /** Nuestros sin debitar que vencen ese mes: plata que sale. */
+  aPagar: number;
+  /** La diferencia. Negativo = ese mes sale más de lo que entra. */
+  neto: number;
+};
+
+/**
+ * La curva del final de la pantalla: cuánto vence por mes de cada lado.
+ *
+ * **Grafica vencimientos, no el estado histórico de la cartera.** Es una
+ * distinción que importa: no guardamos en qué estado estaba cada cheque hace
+ * tres meses, así que una línea de "cuánta cartera había en marzo" habría que
+ * inventarla. Esto, en cambio, sale del dato que sí tenemos y contesta la
+ * pregunta que se hacen: en qué meses entra plata y en cuáles sale.
+ *
+ * Se incluyen los meses vacíos del medio: un hueco en el eje miente sobre la
+ * distancia entre dos vencimientos.
+ */
+export function evolucionPorMes(cheques: ChequeParaMes[], hoyISO: string): MesEvolucion[] {
+  const acc = new Map<string, { aCobrar: number; aPagar: number }>();
+
+  for (const c of cheques) {
+    if (!c.fecha_vencimiento || !siguePendiente(c)) continue;
+    const mes = c.fecha_vencimiento.slice(0, 7);
+    const v = acc.get(mes) ?? { aCobrar: 0, aPagar: 0 };
+    if (c.origen === "propio") v.aPagar += Number(c.importe) || 0;
+    else v.aCobrar += Number(c.importe) || 0;
+    acc.set(mes, v);
+  }
+
+  if (acc.size === 0) return [];
+
+  const claves = [...acc.keys()].sort();
+  const meses = mesesEntre(claves[0]!, claves[claves.length - 1]!);
+
+  return meses.map((mes) => {
+    const v = acc.get(mes) ?? { aCobrar: 0, aPagar: 0 };
+    return {
+      mes,
+      label: etiquetaMes(mes, hoyISO),
+      aCobrar: v.aCobrar,
+      aPagar: v.aPagar,
+      neto: v.aCobrar - v.aPagar,
+    };
+  });
+}
+
+/** Todos los meses de un extremo al otro, ambos incluidos. */
+function mesesEntre(desde: string, hasta: string): string[] {
+  const out: string[] = [];
+  let [y, m] = desde.split("-").map(Number) as [number, number];
+  const [yf, mf] = hasta.split("-").map(Number) as [number, number];
+  // Tope duro: un vencimiento mal cargado en el año 2200 no puede colgar la
+  // pantalla generando miles de meses.
+  while ((y < yf || (y === yf && m <= mf)) && out.length < 120) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}

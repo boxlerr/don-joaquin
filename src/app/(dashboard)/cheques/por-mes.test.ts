@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { etiquetaMes, resumenPorMes, siguePendiente, totalPendiente } from "./por-mes";
+import { etiquetaMes, evolucionPorMes, resumenPorMes, siguePendiente, totalPendiente } from "./por-mes";
 import type { ChequeParaMes } from "./por-mes";
 
 const HOY = "2026-09-15";
@@ -111,5 +111,40 @@ describe("etiquetaMes", () => {
   it("de otro año se aclara el año, o no se sabe de cuál habla", () => {
     expect(etiquetaMes("2027-01", HOY)).toBe("Ene 2027");
     expect(etiquetaMes("2025-12", HOY)).toBe("Dic 2025");
+  });
+});
+
+describe("evolucionPorMes", () => {
+  it("separa lo que entra de lo que sale", () => {
+    const r = evolucionPorMes(
+      [
+        ch("2026-09-05", 100_000),
+        ch("2026-09-20", 30_000, "emitido", "propio"),
+      ],
+      HOY,
+    );
+    expect(r).toEqual([
+      { mes: "2026-09", label: "Septiembre", aCobrar: 100_000, aPagar: 30_000, neto: 70_000 },
+    ]);
+  });
+
+  it("el neto negativo marca el mes en que sale más de lo que entra", () => {
+    const r = evolucionPorMes([ch("2026-09-20", 500_000, "emitido", "propio")], HOY);
+    expect(r[0]!.neto).toBe(-500_000);
+  });
+
+  it("rellena los meses del medio: un hueco mentiría sobre la distancia", () => {
+    const r = evolucionPorMes([ch("2026-09-05", 10), ch("2026-12-05", 20)], HOY);
+    expect(r.map((m) => m.mes)).toEqual(["2026-09", "2026-10", "2026-11", "2026-12"]);
+    expect(r[1]!.aCobrar).toBe(0);
+  });
+
+  it("no cuenta los cheques ya cerrados", () => {
+    expect(evolucionPorMes([ch("2026-09-05", 999, "acreditado")], HOY)).toEqual([]);
+  });
+
+  it("una fecha disparatada no cuelga la pantalla", () => {
+    const r = evolucionPorMes([ch("2026-09-05", 10), ch("2200-01-05", 20)], HOY);
+    expect(r.length).toBeLessThanOrEqual(120);
   });
 });
