@@ -37,6 +37,7 @@ import {
   Hash,
   MapPin,
   Phone,
+  Users,
 } from "lucide-react";
 import {
   Dialog,
@@ -64,6 +65,7 @@ import ViajeAdjuntosStrip from "./ViajeAdjuntosStrip";
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import { esFacturable } from "../flujo-logic";
 import CerrarViajeDialog from "./CerrarViajeDialog";
+import ReasignarClienteDialog from "./ReasignarClienteDialog";
 import EditViajeDialog from "./EditViajeDialog";
 import ExportViajesButton from "./ExportViajesButton";
 import FacturarBloqueDialog from "./FacturarBloqueDialog";
@@ -929,6 +931,7 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
 
   // Selección múltiple para facturación en bloque.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [reasignarOpen, setReasignarOpen] = useState(false);
   const [facturarOpen, setFacturarOpen] = useState(false);
   // Borrado en bloque: confirmación en la misma barra (sin modal) y aviso si
   // alguno quedó afuera por tener movimientos en Caja.
@@ -1295,7 +1298,21 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
             Limpiar filtros
           </Button>
         )}
+        {/* Reasignar vive acá y no sólo en la barra de selección: el caso que
+            lo hizo necesario son 1.315 viajes de un cliente, y tildarlos a mano
+            con la tabla paginada es imposible. */}
         <div className="w-full sm:ml-auto sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 w-full gap-1.5 sm:w-auto"
+            onClick={() => setReasignarOpen(true)}
+          >
+            <Users size={14} />
+            Reasignar cliente
+          </Button>
+        </div>
+        <div className="w-full sm:w-auto">
           <ExportViajesButton
             choferId={choferId}
             falta={falta}
@@ -1327,6 +1344,15 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
               Agregar remito ({selectedFacturables.length})
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setReasignarOpen(true)}
+          >
+            <Users size={14} />
+            Reasignar cliente
+          </Button>
           {/* Borrar en bloque: para limpiar rápido varias filas de prueba.
               Confirma en la misma barra, sin modal. */}
           {confirmBorrarBloque ? (
@@ -1949,6 +1975,15 @@ export default function ViajesTable({ choferId, falta, filtroExterno, onFiltroCh
       )}
 
       {/* Facturación en bloque */}
+
+      <ReasignarClienteDialog
+        open={reasignarOpen}
+        onOpenChange={setReasignarOpen}
+        seleccionados={selectedIds.size}
+        idsSeleccionados={[...selectedIds]}
+        onListo={() => setSelectedIds(new Set())}
+      />
+
       {facturarOpen && selectedFacturables.length > 0 && (
         <FacturarBloqueDialog
           viajes={selectedFacturables}

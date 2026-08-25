@@ -2689,3 +2689,139 @@ export async function getAusenciasProximasAction(dias = 14): Promise<AusenciaPro
       : a.en_curso ? -1 : 1,
   );
 }
+
+/* ------------------------------------------------------------------ *
+ * Reasignar viajes a otro cliente
+ * ------------------------------------------------------------------ */
+
+/**
+ * Mueve viajes de un cliente a otro.
+ *
+ * Existe por los 1.315 viajes colgados de "Sin asignar (import)": mientras
+ * estén ahí, cualquier número por cliente es mentira. Hasta ahora la única
+ * forma de sacarlos era uno por uno.
+ *
+ * Dos alcances a propósito:
+ *  · `ids` — lo que está tildado en la tabla. Sirve para un puñado.
+ *  · `clienteOrigenId` — TODOS los de ese cliente, estén o no en la página
+ *    visible. Es el único que sirve para 1.315: seleccionarlos a mano es
+ *    imposible con la tabla paginada.
+ *
+ * `simular` no toca nada y devuelve cuántos se moverían. La pantalla lo llama
+ * SIEMPRE antes de confirmar, así el número que se lee en el botón es el mismo
+ * que se va a ejecutar y no una estimación.
+ */
+export async function reasignarClienteViajesAction(input: {
+  clienteDestinoId: string;
+  ids?: string[];
+  clienteOrigenId?: string;
+  simular?: boolean;
+}): Promise<{ ok: true; movidos: number; simulado: boolean } | { error: string }> {
+  const user = await requireArea("viajes", "write");
+
+  const destino = z.string().uuid().safeParse(input.clienteDestinoId);
+  if (!destino.success) return { error: "Elegí el cliente al que van los viajes." };
+
+  const porIds = Array.isArray(input.ids) && input.ids.length > 0;
+  const porCliente = typeof input.clienteOrigenId === "string" && input.clienteOrigenId.length > 0;
+  if (!porIds && !porCliente) return { error: "No hay viajes para reasignar." };
+  if (porCliente && input.clienteOrigenId === input.clienteDestinoId) {
+    return { error: "El cliente de origen y el de destino son el mismo." };
+  }
+
+  const supabase = createAdminClient();
+
+  // Se listan primero para poder contar exacto y auditar qué se movió. Sin
+  // esto, un update masivo devuelve un número que nadie puede verificar.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (supabase as any).from("viajes").select("id").neq("cliente_id", destino.data);
+  if (porIds) {
+    const ids = z.array(z.string().uuid()).min(1).safeParse([...new Set(input.ids!)]);
+    if (!ids.success) return { error: "Selección inválida." };
+    q = q.in("id", ids.data);
+  } else {
+    const origen = z.string().uuid().safeParse(input.clienteOrigenId);
+    if (!origen.success) return { error: "Cliente de origen inválido." };
+    q = q.eq("cliente_id", origen.data);
+  }
+
+  const { data: aMover, error: leerErr } = await q;
+  if (leerErr) return { error: "No se pudieron leer los viajes a reasignar." };
+
+  const idsAMover: string[] = (aMover ?? []).map((v: { id: string }) => v.id);
+  if (idsAMover.length === 0) return { ok: true, movidos: 0, simulado: !!input.simular };
+  if (input.simular) return { ok: true, movidos: idsAMover.length, simulado: true };
+
+  // De a 500: un `in` con 1.315 uuid arma una URL que el proxy corta.
+  let movidos = 0;
+  for (let i = 0; i < idsAMover.length; i += 500) {
+    const lote = idsAMover.slice(i, i + 500);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("viajes")
+      .update({ cliente_id: destino.data })
+      .in("id", lote);
+    if (error) {
+      console.error("Error al reasignar viajes:", error);
+      return {
+        error:
+          movidos > 0
+            ? `Se reasignaron ${movidos} viajes y después falló. Volvé a intentar: los ya movidos no se repiten.`
+            : "No se pudieron reasignar los viajes.",
+      };
+    }
+    movidos += lote.length;
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "viajes",
+    entidadId: destino.data,
+    valoresAnteriores: { cliente_id: input.clienteOrigenId ?? null, viajes: idsAMover.length },
+    valoresNuevos: { cliente_id: destino.data, viajes: movidos },
+    metadata: { origen: "reasignacion_masiva", alcance: porIds ? "seleccion" : "cliente_completo" },
+  });
+
+  revalidatePath("/viajes");
+  revalidatePath("/clientes");
+  return { ok: true, movidos, simulado: false };
+}
+
+/**
+ * Los clientes con cuántos viajes tiene cada uno.
+ *
+ * El conteo no es decorativo: es lo que hace evidente el problema al abrir el
+ * diálogo. "Sin asignar (import) — 1.315 viajes" al lado de clientes con 20
+ * dice solo dónde está la pila que hay que repartir.
+ */
+export async function getClientesConViajesAction(): Promise<
+  { id: string; razon_social: string; viajes: number }[]
+> {
+  await requireArea("viajes", "read");
+  const supabase = createAdminClient();
+
+  const [{ data: clientes }, viajes] = await Promise.all([
+    supabase.from("clientes").select("id, razon_social").order("razon_social"),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    traerTodo<any>(
+      (from, to) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).from("viajes").select("cliente_id").order("id").range(from, to),
+      { etiqueta: "viajes por cliente" },
+    ),
+  ]);
+
+  const conteo = new Map<string, number>();
+  for (const v of (viajes ?? []) as { cliente_id: string | null }[]) {
+    if (!v.cliente_id) continue;
+    conteo.set(v.cliente_id, (conteo.get(v.cliente_id) ?? 0) + 1);
+  }
+
+  return ((clientes ?? []) as { id: string; razon_social: string }[]).map((c) => ({
+    id: c.id,
+    razon_social: c.razon_social,
+    viajes: conteo.get(c.id) ?? 0,
+  }));
+}
