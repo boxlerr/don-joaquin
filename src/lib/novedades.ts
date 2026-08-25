@@ -90,6 +90,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "cheques-en-cartera-muestra-los-que-estan-de",
+    fecha: "2026-08-25",
+    tipo: "arreglo",
+    ver: "dashboard",
+    titulo: "\"Cheques en cartera\" muestra los que están de verdad en cartera",
+    detalle: "Contaba todos los cheques cargados, incluidos los nuestros y los ya acreditados: decía 6 cuando en cartera había 2.",
+    href: "/dashboard",
+  },
+  {
+    id: "la-guia-de-cheques-ya-explica-los-cheques",
+    fecha: "2026-08-25",
+    tipo: "mejora",
+    ver: "cheques",
+    titulo: "La guía de cheques ya explica los cheques nuestros",
+    detalle: "Contaba un solo circuito, el de los que recibimos. Ahora muestra los dos: el que se cobra y el que se paga.",
+    href: "/cheques",
+  },
+  {
     id: "los-cheques-nuestros-ahora-avisan-antes-de",
     fecha: "2026-08-25",
     tipo: "nuevo",
