@@ -31,9 +31,16 @@ const TABS: TutorialTab[] = [
         mockup: <MockToolbar />,
       },
       {
+        title: "Primero: ¿es un cheque que recibimos o uno nuestro?",
+        description:
+          "Es lo primero que se elige, y cambia todo lo demás. Un cheque que recibimos es plata a cobrar y arranca “En cartera”. Uno nuestro es plata que sale, se le pone a quién se lo entregamos y arranca “Emitido”.",
+        mockup: <MockOrigen />,
+        hint: "Si es nuestro, el librador es la razón social con la que se emitió el cheque.",
+      },
+      {
         title: "Cargá los datos del cheque",
         description:
-          "Número, importe, banco, librador y las fechas de emisión y vencimiento. Podés vincularlo a un cliente. Entra en estado “En cartera”.",
+          "Número, importe, banco, librador y las fechas de emisión y vencimiento. Podés vincularlo a un cliente.",
         mockup: <MockChequeForm />,
         hint: "El banco y el cliente salen de catálogos: si falta uno, cargalo primero en su sección.",
       },
@@ -51,10 +58,11 @@ const TABS: TutorialTab[] = [
     icon: <Workflow size={14} />,
     steps: [
       {
-        title: "El ciclo de vida del cheque",
+        title: "Son dos circuitos distintos",
         description:
-          "Un cheque pasa por: En cartera → Entregado o Depositado → Acreditado. También puede terminar en Rechazado o Anulado. Cada estado tiene su color.",
+          "Un cheque que recibimos se cobra: En cartera → Entregado o Depositado → Acreditado. Uno nuestro se paga: Emitido → Entregado → Debitado. Los dos pueden terminar Rechazado o Anulado.",
         mockup: <MockCiclo />,
+        hint: "Entregado no es el final de un cheque nuestro: falta que lo cobren y se debite de la cuenta.",
       },
       {
         title: "Cambiá de estado según corresponda",
@@ -65,7 +73,7 @@ const TABS: TutorialTab[] = [
       {
         title: "Filtrá y exportá",
         description:
-          'Filtrá la lista por estado (En cartera, Entregados, Depositados, Acreditados, Rechazados, Anulados) y usá "Exportar" para bajar la cartera a Excel.',
+          'Filtrá por estado, o usá la solapa "Nuestros" para ver de una sólo los cheques que emitimos. Con "Exportar" bajás a Excel lo que estés viendo.',
         mockup: <MockFiltros />,
       },
     ],
@@ -132,15 +140,40 @@ function MockStats() {
   );
 }
 
+function MockOrigen() {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div className="rounded-md border-2 border-[#0088D1] bg-[#E1F5FE]/60 p-2.5">
+        <div className="text-[11px] font-bold text-primary">Lo recibimos</div>
+        <div className="text-[10px] text-muted-foreground mt-0.5">
+          Plata a cobrar. Arranca En cartera.
+        </div>
+      </div>
+      <div className="rounded-md border border-border bg-card p-2.5">
+        <div className="text-[11px] font-bold text-foreground">Es nuestro</div>
+        <div className="text-[10px] text-muted-foreground mt-0.5">
+          Plata que sale. Arranca Emitido.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MockCiclo() {
-  const flow = [
+  const recibido = [
     { label: "En cartera", color: "bg-[#E1F5FE] text-primary border-[#90CAF9]" },
     { label: "Depositado", color: "bg-[#FEF3C7] text-[#B45309] border-[#FCD34D]" },
     { label: "Acreditado", color: "bg-[#DCFCE7] text-[#14532D] border-[#86EFAC]" },
   ];
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex items-center gap-2 flex-wrap justify-center">
+  const propio = [
+    { label: "Emitido", color: "bg-[#E1F5FE] text-primary border-[#90CAF9]" },
+    { label: "Entregado", color: "bg-[#FEF3C7] text-[#B45309] border-[#FCD34D]" },
+    { label: "Debitado", color: "bg-[#DCFCE7] text-[#14532D] border-[#86EFAC]" },
+  ];
+  const fila = (titulo: string, flow: { label: string; color: string }[]) => (
+    <div className="w-full">
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground mb-1">{titulo}</div>
+      <div className="flex items-center gap-2 flex-wrap">
         {flow.map((s, i) => (
           <div key={s.label} className="flex items-center gap-2">
             <span className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border ${s.color}`}>
@@ -150,6 +183,12 @@ function MockCiclo() {
           </div>
         ))}
       </div>
+    </div>
+  );
+  return (
+    <div className="flex flex-col items-center gap-3">
+      {fila("Cheque que recibimos", recibido)}
+      {fila("Cheque nuestro", propio)}
       <div className="flex flex-wrap items-center justify-center gap-2">
         <span className="px-3 py-1 rounded-full text-[10px] font-semibold border bg-muted text-muted-foreground border-border">
           Entregado a tercero
@@ -182,7 +221,7 @@ function MockAcciones() {
 }
 
 function MockFiltros() {
-  const tabs = ["Todos", "En cartera", "Depositados", "Acreditados", "Rechazados"];
+  const tabs = ["Todos", "En cartera", "Nuestros", "Depositados", "Acreditados"];
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {tabs.map((t, i) => (

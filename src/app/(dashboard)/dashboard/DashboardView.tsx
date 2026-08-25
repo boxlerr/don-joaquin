@@ -105,7 +105,14 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
       .neq("estado", "cancelado"),
     supabase.from("caja_movimientos").select("*", { count: "exact", head: true }),
     supabase.from("viaticos").select("*", { count: "exact", head: true }),
-    supabase.from("cheques").select("*", { count: "exact", head: true }),
+    // En cartera es SÓLO un recibido sin cobrar. Sin los dos filtros la tarjeta
+    // contaba todos los cheques —propios, acreditados, rechazados y anulados—
+    // y marcaba 6 cuando en cartera había 2.
+    supabase
+      .from("cheques")
+      .select("*", { count: "exact", head: true })
+      .eq("origen", "recibido")
+      .eq("estado", "cartera"),
     supabase
       .from("alertas")
       .select("id, tipo, entidad_tipo, entidad_id, severidad", { count: "exact" })
