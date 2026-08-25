@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "los-bancos-ahora-se-ven-con-su-logo",
+    fecha: "2026-08-25",
+    tipo: "mejora",
+    ver: "cheques",
+    titulo: "Los bancos ahora se ven con su logo",
+    detalle: "En la lista de cheques cada banco aparece con su logo en lugar del nombre suelto, y el gráfico del final pasó a barras: cada mes muestra lo que entra y lo que sale, con el número encima.",
+    href: "/cheques",
+  },
+  {
     id: "la-lista-de-cheques-ahora-se-lee-de-un",
     fecha: "2026-08-25",
     tipo: "mejora",
