@@ -194,7 +194,9 @@ export default function StatCard({
           </div>
         </div>
         {Icon && (
-          <div className={`p-2.5 rounded-lg ${styles.iconBg} ${styles.text} transition-colors group-hover:bg-opacity-20`}>
+          // Círculo, no cuadrado redondeado: es la forma del mockup y la que
+          // ya usa la variante de dashboard, doce líneas más arriba.
+          <div className={`flex size-10 shrink-0 items-center justify-center rounded-full ${styles.iconBg} ${styles.text} transition-colors group-hover:bg-opacity-20`}>
             <Icon size={20} strokeWidth={2.5} />
           </div>
         )}
