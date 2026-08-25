@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-grafico-ahora-muestra-como-venia-la",
+    fecha: "2026-08-25",
+    tipo: "mejora",
+    ver: "cheques",
+    titulo: "El gráfico ahora muestra cómo venía la cartera mes a mes",
+    detalle: "Cuatro líneas —en cartera, por vencer, vencidos y los nuestros— con el estado real que tenían los cheques al cierre de cada mes. Se puede ver a 6 o 12 meses.",
+    href: "/cheques",
+  },
+  {
     id: "los-bancos-ahora-se-ven-con-su-logo",
     fecha: "2026-08-25",
     tipo: "mejora",
