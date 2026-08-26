@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "las-fotos-ya-no-se-te-pegan-al-trabajo",
+    fecha: "2026-08-26",
+    tipo: "arreglo",
+    ver: "mantenimiento_servicios",
+    titulo: "Las fotos ya no se te pegan al trabajo siguiente",
+    detalle: "En el Taller, después de guardar, las fotos se limpian solas. Antes quedaban puestas y se subían de nuevo con el trabajo siguiente, aunque fuera de otro camión.",
+    href: "/taller",
+  },
+  {
     id: "los-papeles-del-acoplado-separados-de-los",
     fecha: "2026-08-26",
     tipo: "nuevo",
