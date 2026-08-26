@@ -96,6 +96,9 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Wrench,
         area: "mantenimiento",
         children: [
+          // Primera de la lista: es la que abre el herrero desde el teléfono, y
+          // es la única del grupo que se usa parado al lado del camión.
+          { label: "Taller", href: "/taller", seccion: "mantenimiento_servicios" },
           { label: "Servicios", href: "/mantenimiento", seccion: "mantenimiento_servicios" },
           { label: "Costos de repuestos", href: "/mantenimiento/costos", seccion: "mantenimiento_costos" },
         ],
