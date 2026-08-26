@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "toca-un-trabajo-del-taller-y-se-abre",
+    fecha: "2026-08-26",
+    tipo: "mejora",
+    ver: "mantenimiento_servicios",
+    titulo: "Tocá un trabajo del taller y se abre completo",
+    detalle: "Se ve la foto grande, el mensaje entero, la hora y dónde quedó guardado. Y al cargar, la pantalla ahora te avisa antes si falta la unidad o el chofer.",
+    href: "/taller",
+  },
+  {
     id: "en-taller-ya-podes-elegir-el-camion-y-el",
     fecha: "2026-08-26",
     tipo: "mejora",
