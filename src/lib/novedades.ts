@@ -90,6 +90,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "mira-una-rotura-entera-sin-entrar-a-editarla",
+    fecha: "2026-08-26",
+    tipo: "mejora",
+    ver: "mantenimiento_servicios",
+    titulo: "Mirá una rotura entera sin entrar a editarla",
+    detalle: "Tocá la fila en Mantenimiento y se abre ahí mismo con el texto completo y las fotos. Antes había que abrir la edición para ver la foto.",
+    href: "/mantenimiento?tab=roturas",
+  },
+  {
+    id: "subi-todas-las-fotos-que-quieras-al-cargar",
+    fecha: "2026-08-26",
+    tipo: "mejora",
+    ver: "mantenimiento_servicios",
+    titulo: "Subí todas las fotos que quieras al cargar un trabajo",
+    detalle: "En el Taller hay dos botones: \"Sacar foto\" saca una con la cámara y \"Del celular\" te deja elegir varias de la galería.",
+    href: "/taller",
+  },
+  {
     id: "la-lista-del-taller-ahora-se-busca-y-se",
     fecha: "2026-08-26",
     tipo: "mejora",
