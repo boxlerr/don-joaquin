@@ -241,48 +241,70 @@ export type RoturaRow = {
   estado_uso: string | null;
 };
 
+// insumo_id/marca/estado_uso son columnas nuevas todavía no reflejadas en los
+// tipos generados; usamos un cast puntual para poder pedirlas en el select.
+const SELECT_ROTURA =
+  "id, fecha, tipo, gravedad, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, insumo_id, marca, estado_uso, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapRotura(r: any): RoturaRow {
+  const camion = Array.isArray(r.camion) ? r.camion[0] : r.camion;
+  const acoplado = Array.isArray(r.acoplado) ? r.acoplado[0] : r.acoplado;
+  const chofer = Array.isArray(r.chofer) ? r.chofer[0] : r.chofer;
+  return {
+    id: r.id,
+    fecha: r.fecha,
+    tipo: r.tipo ?? "goma",
+    gravedad: r.gravedad ?? "leve",
+    cantidad: r.cantidad,
+    costo: r.costo,
+    moneda: r.moneda,
+    posicion: r.posicion,
+    observaciones: r.observaciones,
+    chofer_id: r.chofer_id ?? null,
+    camion_id: r.camion_id ?? null,
+    acoplado_id: r.acoplado_id ?? null,
+    unidad_patente: camion?.patente ?? acoplado?.patente ?? null,
+    unidad_tipo: camion ? "camion" : acoplado ? "acoplado" : null,
+    chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : null,
+    insumo_id: r.insumo_id ?? null,
+    marca: r.marca ?? null,
+    estado_uso: r.estado_uso ?? null,
+  };
+}
+
 export async function getRoturasAction(): Promise<RoturaRow[]> {
   await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
-  // insumo_id/marca/estado_uso son columnas nuevas todavía no reflejadas en los
-  // tipos generados; usamos un cast puntual para poder pedirlas en el select.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
     .from("roturas_gomas")
-    .select(
-      "id, fecha, tipo, gravedad, cantidad, costo, moneda, posicion, observaciones, chofer_id, camion_id, acoplado_id, insumo_id, marca, estado_uso, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido)"
-    )
+    .select(SELECT_ROTURA)
     .order("fecha", { ascending: false })
     .limit(200);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return ((data ?? []) as any[]).map((r) => {
-    const camion = Array.isArray(r.camion) ? r.camion[0] : r.camion;
-    const acoplado = Array.isArray(r.acoplado) ? r.acoplado[0] : r.acoplado;
-    const chofer = Array.isArray(r.chofer) ? r.chofer[0] : r.chofer;
-    const unidad_patente = camion?.patente ?? acoplado?.patente ?? null;
-    const unidad_tipo: RoturaRow["unidad_tipo"] = camion ? "camion" : acoplado ? "acoplado" : null;
-    return {
-      id: r.id,
-      fecha: r.fecha,
-      tipo: r.tipo ?? "goma",
-      gravedad: r.gravedad ?? "leve",
-      cantidad: r.cantidad,
-      costo: r.costo,
-      moneda: r.moneda,
-      posicion: r.posicion,
-      observaciones: r.observaciones,
-      chofer_id: r.chofer_id ?? null,
-      camion_id: r.camion_id ?? null,
-      acoplado_id: r.acoplado_id ?? null,
-      unidad_patente,
-      unidad_tipo,
-      chofer_nombre: chofer ? `${chofer.apellido}, ${chofer.nombre}` : null,
-      insumo_id: r.insumo_id ?? null,
-      marca: r.marca ?? null,
-      estado_uso: r.estado_uso ?? null,
-    };
-  });
+  return ((data ?? []) as any[]).map(mapRotura);
+}
+
+/**
+ * Una rotura suelta, por id.
+ *
+ * La tabla muestra las últimas 200 por fecha. Un enlace del Taller a una rotura
+ * más vieja caería fuera de esa tanda y la pantalla se abriría sin nada
+ * desplegado: el link "no anda" sin decir por qué. Con esto se la trae aparte y
+ * el enlace funciona siempre.
+ */
+export async function getRoturaPorIdAction(id: string): Promise<RoturaRow | null> {
+  await requireArea("mantenimiento", "read");
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("roturas_gomas")
+    .select(SELECT_ROTURA)
+    .eq("id", id)
+    .maybeSingle();
+  return data ? mapRotura(data) : null;
 }
 
 export type RoturaPorChofer = {

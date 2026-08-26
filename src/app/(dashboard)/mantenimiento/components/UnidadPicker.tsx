@@ -50,7 +50,9 @@ export default function UnidadPicker({
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const acoplados_ = acoplados ?? [];
+  // `useMemo` para que la lista no sea un array nuevo en cada render: sin esto
+  // los useMemo que dependen de ella se recalculan siempre.
+  const acoplados_ = useMemo(() => acoplados ?? [], [acoplados]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- sincronización intencional al cambiar props/abrir (carga o reset de estado)
   useEffect(() => setMounted(true), []);

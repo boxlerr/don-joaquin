@@ -4,6 +4,7 @@ import { getLegajoEstado } from "@/lib/chofer-validation";
 import MantenimientoClient from "./components/MantenimientoClient";
 import {
   getServiciosAction,
+  getRoturaPorIdAction,
   getRoturasAction,
   getRoturasPorChoferAction,
   getAlertasProximosServicesAction,
@@ -21,14 +22,20 @@ const TABS_VALIDAS: Tab[] = ["servicios", "roturas", "insumos", "alertas", "repo
 export default async function MantenimientoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; rotura?: string }>;
 }) {
   const user = await requireSeccion("mantenimiento_servicios", "read");
   const canWrite = hasSeccion(user, "mantenimiento_servicios", "write");
   const supabase = createAdminClient();
 
-  const { tab } = await searchParams;
-  const initialTab = TABS_VALIDAS.includes(tab as Tab) ? (tab as Tab) : undefined;
+  const { tab, rotura } = await searchParams;
+  // Un `?rotura=` que llega sin tab viene del Taller: la rotura vive en esa
+  // solapa, abrir en "servicios" sería dejarla igual de escondida.
+  const initialTab = TABS_VALIDAS.includes(tab as Tab)
+    ? (tab as Tab)
+    : rotura
+      ? ("roturas" as Tab)
+      : undefined;
 
   const [
     servicios,
@@ -68,6 +75,14 @@ export default async function MantenimientoPage({
       .order("apellido"),
   ]);
 
+  // Si la rotura del enlace quedó fuera de las últimas 200, se la trae aparte y
+  // se la pone adelante: el usuario llegó acá por ESA fila, tiene que estar.
+  let roturasVisibles = roturas;
+  if (rotura && !roturas.some((r) => r.id === rotura)) {
+    const suelta = await getRoturaPorIdAction(rotura);
+    if (suelta) roturasVisibles = [suelta, ...roturas];
+  }
+
   const choferesParaSelector = (choferesResult.data ?? []).map((c) => {
     const estado = getLegajoEstado(c);
     return {
@@ -82,7 +97,7 @@ export default async function MantenimientoPage({
   return (
     <MantenimientoClient
       servicios={servicios}
-      roturas={roturas}
+      roturas={roturasVisibles}
       roturasPorChofer={roturasPorChofer}
       alertas={alertas}
       reportePorUnidad={reportePorUnidad}
@@ -94,6 +109,7 @@ export default async function MantenimientoPage({
       choferes={choferesParaSelector}
       canWrite={canWrite}
       initialTab={initialTab}
+      initialRotura={rotura}
     />
   );
 }

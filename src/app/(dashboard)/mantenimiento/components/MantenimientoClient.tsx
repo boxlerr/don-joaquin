@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect} from "react";
 import { formatFecha } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,6 +25,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { EmptyTableRow } from "@/components/ui/EmptyState";
+import RoturaDetalle from "./RoturaDetalle";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
-import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3, Package, DollarSign, Pencil, CheckCircle2, X, PowerOff } from "lucide-react";
+import { Wrench, CircleDot, BellRing, AlertTriangle, Trash2, BarChart3, Package, DollarSign, Pencil, CheckCircle2, X, PowerOff, ChevronRight } from "lucide-react";
 import AddServicioDialog from "./AddServicioDialog";
 import AddRoturaDialog, { tipoRoturaLabel } from "./AddRoturaDialog";
 import InsumosPanel from "./InsumosPanel";
@@ -99,6 +100,7 @@ export default function MantenimientoClient({
   tiposServicio,
   canWrite,
   initialTab,
+  initialRotura,
 }: {
   servicios: ServicioRow[];
   roturas: RoturaRow[];
@@ -113,6 +115,8 @@ export default function MantenimientoClient({
   tiposServicio: TipoServicioOption[];
   canWrite: boolean;
   initialTab?: Tab;
+  /** `?rotura=<id>`: se abre desplegada y se lleva a la vista. */
+  initialRotura?: string;
 }) {
   const router = useRouter();
   const [tab, setTabState] = useState<Tab>(initialTab ?? "servicios");
@@ -140,6 +144,23 @@ export default function MantenimientoClient({
   // Edición (servicios y roturas siguen con modal; los insumos se editan inline en la tabla)
   const [editServicio, setEditServicio] = useState<ServicioRow | null>(null);
   const [editRotura, setEditRotura] = useState<RoturaRow | null>(null);
+  // Qué rotura está desplegada. Mirar y editar son cosas distintas: entrar al
+  // diálogo de edición para leer un detalle es cómo se rompen los datos.
+  const [roturaAbierta, setRoturaAbierta] = useState<string | null>(initialRotura ?? null);
+
+  // Llegar desde el Taller tiene que dejar la rotura A LA VISTA, no sólo
+  // desplegada: en una tabla larga, abrir una fila que quedó fuera de pantalla
+  // se siente igual que no haber abierto nada.
+  useEffect(() => {
+    if (!initialRotura) return;
+    const t = setTimeout(() => {
+      const el =
+        document.getElementById(`rotura-${initialRotura}`) ??
+        document.getElementById(`rotura-m-${initialRotura}`);
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [initialRotura]);
   // Borrado (confirmación)
   const [confirmDel, setConfirmDel] = useState<{ tipo: "servicio" | "rotura" | "insumo"; id: string; label: string; usos?: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -468,14 +489,17 @@ export default function MantenimientoClient({
                     </>
                   );
                   return (
-                    <div key={r.id} className="flex items-start gap-3 p-4">
-                      {canWrite ? (
-                        <button type="button" onClick={() => setEditRotura(r)} className="min-w-0 flex-1 text-left">
-                          {detalle}
-                        </button>
-                      ) : (
-                        <div className="min-w-0 flex-1">{detalle}</div>
-                      )}
+                    <div key={r.id} id={`rotura-m-${r.id}`} className="p-4">
+                      <div className="flex items-start gap-3">
+                      {/* Tocar la tarjeta MUESTRA; el lápiz edita. Antes tocar
+                          abría la edición, que es entrar a modificar para mirar. */}
+                      <button
+                        type="button"
+                        onClick={() => setRoturaAbierta((a) => (a === r.id ? null : r.id))}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        {detalle}
+                      </button>
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         <span className="text-sm font-medium text-[#F59E0B]">
                           {r.cantidad} <span className="text-xs font-normal text-muted-foreground">u.</span>
@@ -500,6 +524,12 @@ export default function MantenimientoClient({
                           </div>
                         )}
                       </div>
+                      </div>
+                      {roturaAbierta === r.id && (
+                        <div className="-mx-4 mt-3 border-t border-border">
+                          <RoturaDetalle rotura={r} />
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -523,14 +553,25 @@ export default function MantenimientoClient({
                 {roturas.length === 0 ? (
                   <EmptyTableRow message="Sin roturas registradas." />
                 ) : (
-                  roturas.map((r) => (
+                  roturas.flatMap((r) => [
                     <TableRow
                       key={r.id}
-                      onClick={canWrite ? () => setEditRotura(r) : undefined}
-                      className={canWrite ? "group cursor-pointer" : undefined}
-                      title={canWrite ? "Editar rotura" : undefined}
+                      id={`rotura-${r.id}`}
+                      onClick={() => setRoturaAbierta((a) => (a === r.id ? null : r.id))}
+                      className={`group cursor-pointer ${roturaAbierta === r.id ? "bg-muted/40" : ""}`}
+                      title="Ver el detalle"
                     >
-                      <TableCell className="pl-4 lg:pl-6 text-muted-foreground">{fmtFecha(r.fecha)}</TableCell>
+                      <TableCell className="pl-4 lg:pl-6 text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          {/* Sin el chevron, que la fila se abra es un secreto. */}
+                          <ChevronRight
+                            size={14}
+                            className={`shrink-0 text-muted-foreground/50 transition-transform ${roturaAbierta === r.id ? "rotate-90" : ""}`}
+                            aria-hidden
+                          />
+                          {fmtFecha(r.fecha)}
+                        </span>
+                      </TableCell>
                       <TableCell className="font-medium">{r.chofer_nombre ?? <span className="italic text-muted-foreground/60">Sin asignar</span>}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-1.5">
@@ -585,8 +626,18 @@ export default function MantenimientoClient({
                           </div>
                         </TableCell>
                       )}
-                    </TableRow>
-                  ))
+                    </TableRow>,
+                    // El detalle va como fila propia debajo, ocupando todo el
+                    // ancho: es la única forma de mostrar el texto entero y las
+                    // fotos sin romper las columnas de arriba.
+                    roturaAbierta === r.id ? (
+                      <TableRow key={`${r.id}-detalle`} className="hover:bg-transparent">
+                        <TableCell colSpan={canWrite ? 8 : 7} className="p-0">
+                          <RoturaDetalle rotura={r} />
+                        </TableCell>
+                      </TableRow>
+                    ) : null,
+                  ])
                 )}
               </TableBody>
             </Table>

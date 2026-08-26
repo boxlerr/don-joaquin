@@ -114,8 +114,10 @@ export default function DetalleTrabajo({
                   En Mantenimiento, junto con el resto de las roturas y reparaciones. Desde ahí se
                   le puede poner el costo y el repuesto que se usó.
                 </p>
+                {/* Al trabajo exacto, ya desplegado: mandar a la pantalla y
+                    que la persona lo busque entre 200 filas es no mandarla. */}
                 <Link
-                  href="/mantenimiento"
+                  href={`/mantenimiento?tab=roturas&rotura=${trabajo.id}`}
                   className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
                 >
                   Abrir Mantenimiento

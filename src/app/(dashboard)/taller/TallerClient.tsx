@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Camera, Check, ChevronRight, Loader2, Truck, User, X, Sparkles } from "lucide-react";
+import { Camera, Check, ChevronRight, ImagePlus, Loader2, Truck, User, X, Sparkles } from "lucide-react";
 import { useAdjuntos } from "@/components/ui/AdjuntosDocumentos";
 import {
   crearUrlSubidaRoturaAction,
@@ -40,11 +40,6 @@ import { leerMensaje } from "./parseo";
 
 /** 56px: es el mínimo con el que un dedo acierta sin apuntar. */
 const BOTON = "h-14 rounded-xl text-base font-semibold";
-
-function fechaCorta(iso: string): string {
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return `${d}/${m}/${y}`;
-}
 
 /** El número del paso, para que se lea como una lista y no como un formulario. */
 function Paso({ n, titulo, nota }: { n: number; titulo: string; nota?: string }) {
@@ -148,6 +143,7 @@ export default function TallerClient({
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
   const camaraRef = useRef<HTMLInputElement>(null);
+  const galeriaRef = useRef<HTMLInputElement>(null);
 
   // Elección a mano. `undefined` = todavía manda lo que detectó el texto;
   // `null` = lo quitó a propósito. La diferencia importa: sin ella, quitar algo
@@ -181,15 +177,6 @@ export default function TallerClient({
 
   const unidadDetectada = unidadManual === undefined && lectura.unidad != null;
   const personaDetectada = personaManual === undefined && lectura.persona != null;
-
-  // Al vaciar el texto se vuelve a empezar: si no, una elección hecha para el
-  // trabajo anterior se arrastraría al siguiente sin que se note.
-  useEffect(() => {
-    if (texto.trim() === "") {
-      setUnidadManual(undefined);
-      setPersonaManual(undefined);
-    }
-  }, [texto]);
 
   const opcionesUnidad: OpcionLista[] = useMemo(
     () =>
@@ -252,12 +239,26 @@ export default function TallerClient({
         <div className="space-y-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
           {/* ── 1. La foto ────────────────────────────────────────────────── */}
           <div>
-            <Paso n={1} titulo="Sacá una foto" nota="si podés" />
+            <Paso n={1} titulo="Sacá las fotos" nota="las que quieras" />
+            {/* Dos caminos, y hacen falta los dos: `capture` abre la cámara
+                directo pero en el teléfono sólo deja UNA por vez, así que sin el
+                botón de la galería no había forma de mandar las dos fotos que
+                mandan siempre en el grupo (el antes y el después). */}
             <input
               ref={camaraRef}
               type="file"
               accept="image/*"
               capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                adj.agregarArchivos(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <input
+              ref={galeriaRef}
+              type="file"
+              accept="image/*"
               multiple
               className="hidden"
               onChange={(e) => {
@@ -265,18 +266,35 @@ export default function TallerClient({
                 e.target.value = "";
               }}
             />
-            <button
-              type="button"
-              onClick={() => camaraRef.current?.click()}
-              disabled={guardando}
-              className={`flex w-full items-center justify-center gap-2.5 border-2 border-dashed border-border bg-muted/20 text-foreground transition-colors hover:bg-muted/40 disabled:opacity-50 ${BOTON}`}
-            >
-              <Camera size={22} />
-              {adj.pendientes.length > 0 ? "Sacar otra" : "Sacar una foto"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => camaraRef.current?.click()}
+                disabled={guardando}
+                className={`flex flex-1 items-center justify-center gap-2 border-2 border-dashed border-border bg-muted/20 text-foreground transition-colors hover:bg-muted/40 disabled:opacity-50 ${BOTON}`}
+              >
+                <Camera size={20} />
+                {adj.pendientes.length > 0 ? "Otra foto" : "Sacar foto"}
+              </button>
+              <button
+                type="button"
+                onClick={() => galeriaRef.current?.click()}
+                disabled={guardando}
+                className={`flex flex-1 items-center justify-center gap-2 border-2 border-dashed border-border bg-muted/20 text-foreground transition-colors hover:bg-muted/40 disabled:opacity-50 ${BOTON}`}
+              >
+                <ImagePlus size={20} />
+                Del celular
+              </button>
+            </div>
 
             {adj.pendientes.length > 0 && (
-              <ul className="mt-2.5 flex flex-wrap gap-2">
+              <p className="mt-2 text-xs text-muted-foreground">
+                {adj.pendientes.length} foto{adj.pendientes.length === 1 ? "" : "s"} lista
+                {adj.pendientes.length === 1 ? "" : "s"} para subir
+              </p>
+            )}
+            {adj.pendientes.length > 0 && (
+              <ul className="mt-1.5 flex flex-wrap gap-2">
                 {adj.pendientes.map((f, i) => (
                   <li key={`${f.name}-${i}`} className="relative">
                     <Image
@@ -308,7 +326,16 @@ export default function TallerClient({
                 tocar el campo y la pantalla queda corrida. */}
             <textarea
               value={texto}
-              onChange={(e) => setTexto(e.target.value)}
+              onChange={(e) => {
+                setTexto(e.target.value);
+                // Al vaciar el texto se vuelve a empezar: si no, una elección
+                // hecha para el trabajo anterior se arrastra al siguiente sin
+                // que se note.
+                if (e.target.value.trim() === "") {
+                  setUnidadManual(undefined);
+                  setPersonaManual(undefined);
+                }
+              }}
               rows={4}
               disabled={guardando}
               placeholder={"Refuerzo en balancín\nAF-112-ON\nAlbornoz Matías"}
