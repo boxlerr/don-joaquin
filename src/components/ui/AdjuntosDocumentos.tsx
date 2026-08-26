@@ -51,6 +51,13 @@ export type AdjuntosController = {
   subiendo: { idx: number; total: number; pct: number } | null;
   agregarArchivos: (files: FileList | File[] | null) => void;
   quitarPendiente: (idx: number) => void;
+  /**
+   * Vacía la tanda pendiente. Hace falta donde el formulario NO se cierra
+   * después de guardar (el Taller): ahí el hook se monta una sola vez, así que
+   * sin esto las fotos del trabajo anterior se vuelven a subir con el
+   * siguiente y quedan pegadas a la unidad equivocada.
+   */
+  limpiarPendientes: () => void;
   eliminarExistente: (id: string) => Promise<void>;
   /** Sube los archivos pendientes al Storage y devuelve sus metadatos. */
   subirPendientes: () => Promise<AdjuntoMeta[]>;
@@ -113,6 +120,8 @@ export function useAdjuntos(opts: {
     setPendientes((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const limpiarPendientes = () => setPendientes([]);
+
   const eliminarExistente = async (id: string) => {
     setDeletingArchivoId(id);
     const res = await deleteArchivo(id);
@@ -156,6 +165,7 @@ export function useAdjuntos(opts: {
     subiendo,
     agregarArchivos,
     quitarPendiente,
+    limpiarPendientes,
     eliminarExistente,
     subirPendientes,
   };

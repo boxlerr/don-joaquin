@@ -222,6 +222,10 @@ export default function TallerClient({
       setTexto("");
       setUnidadManual(undefined);
       setPersonaManual(undefined);
+      // Las fotos también: el formulario no se cierra al guardar, así que sin
+      // esto las del trabajo anterior se subían de nuevo con el siguiente y
+      // terminaban colgadas del camión equivocado.
+      adj.limpiarPendientes();
       setListo(true);
       setRecargas((n) => n + 1);
       router.refresh();
@@ -410,7 +414,7 @@ export default function TallerClient({
               <>
                 <Loader2 size={20} className="animate-spin" />
                 {adj.subiendo
-                  ? `Subiendo la foto ${adj.subiendo.idx + 1} de ${adj.subiendo.total}…`
+                  ? `Subiendo la foto ${adj.subiendo.idx} de ${adj.subiendo.total}…`
                   : "Guardando…"}
               </>
             ) : !texto.trim() ? (

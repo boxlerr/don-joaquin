@@ -154,9 +154,15 @@ export default function MantenimientoClient({
   useEffect(() => {
     if (!initialRotura) return;
     const t = setTimeout(() => {
-      const el =
-        document.getElementById(`rotura-${initialRotura}`) ??
-        document.getElementById(`rotura-m-${initialRotura}`);
+      // Las dos vistas conviven en el DOM (`hidden md:table` / `md:hidden`), así
+      // que hay que quedarse con la que se está VIENDO: en el teléfono —de donde
+      // viene justamente quien toca el enlace del Taller— la fila de escritorio
+      // existe pero está en display:none, y scrollIntoView sobre eso no hace nada.
+      const candidatos = [
+        document.getElementById(`rotura-${initialRotura}`),
+        document.getElementById(`rotura-m-${initialRotura}`),
+      ];
+      const el = candidatos.find((e) => e && e.offsetParent !== null) ?? candidatos.find(Boolean);
       el?.scrollIntoView({ block: "center", behavior: "smooth" });
     }, 120);
     return () => clearTimeout(t);
