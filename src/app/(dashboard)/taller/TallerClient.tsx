@@ -11,6 +11,7 @@ import {
   deleteArchivoRoturaAction,
 } from "../mantenimiento/actions";
 import ElegirEnLista, { type OpcionLista } from "./ElegirEnLista";
+import DetalleTrabajo, { descripcionDe } from "./DetalleTrabajo";
 import { cargarTrabajoTallerAction, type DatosTaller, type TrabajoFeed } from "./actions";
 import { leerMensaje } from "./parseo";
 
@@ -28,8 +29,13 @@ import { leerMensaje } from "./parseo";
  *     si el parser no entiende o si prefiere no escribirlos, los botones están
  *     siempre a la vista. Una función que sólo existe si adivinás la fórmula no
  *     existe.
- *  3. **Nada es obligatorio salvo el texto.** Perder el registro por un campo
- *     que faltaba es volver al grupo de WhatsApp, que es de donde venimos.
+ *  3. **Hace falta el camión O el chofer**, y la pantalla lo dice desde el
+ *     principio en vez de dejarlo fallar al guardar. No es un capricho: la
+ *     tabla tiene un CHECK (`roturas_gomas_unidad_requerida`) que exige al
+ *     menos uno de los dos. Se descubrió cargando los mensajes reales del
+ *     grupo del 24/08: los de "27 bajas" no traen patente y la base los
+ *     rechazaba. Prometer que se guarda igual y que después falle es peor que
+ *     pedirlo de entrada.
  */
 
 /** 56px: es el mínimo con el que un dedo acierta sin apuntar. */
@@ -148,6 +154,7 @@ export default function TallerClient({
   const [personaManual, setPersonaManual] = useState<string | null | undefined>(undefined);
   const [abrirUnidad, setAbrirUnidad] = useState(false);
   const [abrirPersona, setAbrirPersona] = useState(false);
+  const [detalle, setDetalle] = useState<TrabajoFeed | null>(null);
 
   const adj = useAdjuntos({
     open: true,
@@ -200,7 +207,10 @@ export default function TallerClient({
     [datos.personas],
   );
 
-  const puedeGuardar = texto.trim().length > 0 && !guardando;
+  // La base exige camión, acoplado o chofer: sin uno de los dos el insert
+  // falla. Se valida acá para decirlo antes de que escriba todo, no después.
+  const hayDestino = unidadId != null || personaId != null;
+  const puedeGuardar = texto.trim().length > 0 && hayDestino && !guardando;
 
   const guardar = async () => {
     if (!puedeGuardar) return;
@@ -308,13 +318,13 @@ export default function TallerClient({
 
           {/* ── 3 y 4. Camión y quién ─────────────────────────────────────── */}
           <div>
-            <Paso n={3} titulo="¿De qué camión?" nota="si sabés cuál" />
+            <Paso n={3} titulo="¿De qué camión o acoplado?" nota={hayDestino ? undefined : "hace falta este o el de abajo"} />
             <FilaElegir
               icono={Truck}
               valor={unidad?.patente ?? null}
               sub={unidad?.tipo === "acoplado" ? "Acoplado" : "Camión"}
               detectado={unidadDetectada}
-              vacio="Tocá para elegir el camión"
+              vacio="Tocá para elegir la unidad"
               onTocar={() => setAbrirUnidad(true)}
               onQuitar={() => setUnidadManual(null)}
               disabled={guardando}
@@ -328,7 +338,7 @@ export default function TallerClient({
           </div>
 
           <div>
-            <Paso n={4} titulo="¿Quién lo maneja?" nota="si sabés quién" />
+            <Paso n={4} titulo="¿De quién es?" nota={hayDestino ? undefined : "o este"} />
             <FilaElegir
               icono={User}
               valor={persona ? `${persona.apellido}, ${persona.nombre}`.replace(/^,\s*/, "") : null}
@@ -372,6 +382,10 @@ export default function TallerClient({
                   ? `Subiendo la foto ${adj.subiendo.idx + 1} de ${adj.subiendo.total}…`
                   : "Guardando…"}
               </>
+            ) : !texto.trim() ? (
+              "Escribí qué se hizo"
+            ) : !hayDestino ? (
+              "Falta la unidad o el chofer"
             ) : (
               <>
                 <Check size={20} />
@@ -385,23 +399,25 @@ export default function TallerClient({
       <ElegirEnLista
         abierto={abrirUnidad}
         onCerrar={() => setAbrirUnidad(false)}
-        titulo="¿De qué camión?"
+        titulo="¿De qué camión o acoplado?"
         opciones={opcionesUnidad}
         elegidoId={unidadId}
         onElegir={setUnidadManual}
         placeholder="Buscar por patente…"
-        textoVacio="No sé de qué camión es"
+        textoVacio="No sé de cuál es"
       />
       <ElegirEnLista
         abierto={abrirPersona}
         onCerrar={() => setAbrirPersona(false)}
-        titulo="¿Quién maneja ese camión?"
+        titulo="¿De quién es la unidad?"
         opciones={opcionesPersona}
         elegidoId={personaId}
         onElegir={setPersonaManual}
         placeholder="Buscar por apellido…"
         textoVacio="No sé de quién es"
       />
+
+      <DetalleTrabajo trabajo={detalle} onCerrar={() => setDetalle(null)} />
 
       {/* ── Lo cargado, como se ve en el grupo ──────────────────────────── */}
       <section className="mt-6">
@@ -413,7 +429,14 @@ export default function TallerClient({
         ) : (
           <ul className="space-y-2.5">
             {feedInicial.map((t) => (
-              <li key={t.id} className="rounded-xl border border-border bg-card p-3.5 shadow-sm">
+              <li key={t.id}>
+                {/* Toda la tarjeta es el botón: en un teléfono, un "ver más"
+                    chiquito en una esquina es un blanco que se falla. */}
+                <button
+                  type="button"
+                  onClick={() => setDetalle(t)}
+                  className="w-full rounded-xl border border-border bg-card p-3.5 text-left shadow-sm transition-colors active:bg-muted/40"
+                >
                 {t.fotos.length > 0 && (
                   <div className="mb-2.5 flex gap-2 overflow-x-auto">
                     {t.fotos.map((f) => (
@@ -429,8 +452,10 @@ export default function TallerClient({
                     ))}
                   </div>
                 )}
+                {/* Las roturas viejas cargadas desde Mantenimiento no tienen
+                    texto: sin esto la tarjeta salía vacía, con sólo la fecha. */}
                 <p className="whitespace-pre-line text-[15px] leading-snug text-foreground">
-                  {t.texto}
+                  {descripcionDe(t)}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
                   <span className="tabular-nums">{fechaCorta(t.fecha)}</span>
@@ -459,6 +484,7 @@ export default function TallerClient({
                     </>
                   )}
                 </div>
+                </button>
               </li>
             ))}
           </ul>

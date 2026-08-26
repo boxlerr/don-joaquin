@@ -66,7 +66,14 @@ export async function getDatosTallerAction(): Promise<DatosTaller> {
 export type TrabajoFeed = {
   id: string;
   fecha: string;
+  /** Cuándo se cargó, con hora. Es lo que permite reconocer el mensaje. */
+  cargadoEn: string | null;
   texto: string;
+  /** Qué se rompió, cuando la fila no vino del taller y no tiene texto. */
+  tipo: string | null;
+  posicion: string | null;
+  marca: string | null;
+  cantidad: number | null;
   patente: string | null;
   persona: string | null;
   fotos: string[];
@@ -82,7 +89,7 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
   const { data } = await (supabase as any)
     .from("roturas_gomas")
     .select(
-      "id, fecha, observaciones, created_at, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido), usuario:usuarios!roturas_gomas_created_by_fkey(nombre, apellido)",
+      "id, fecha, observaciones, created_at, tipo, posicion, marca, cantidad, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido), usuario:usuarios!roturas_gomas_created_by_fkey(nombre, apellido)",
     )
     .order("created_at", { ascending: false })
     .limit(limite);
@@ -90,7 +97,12 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
   const filas = (data ?? []) as {
     id: string;
     fecha: string;
+    created_at: string | null;
     observaciones: string | null;
+    tipo: string | null;
+    posicion: string | null;
+    marca: string | null;
+    cantidad: number | null;
     camion: { patente: string } | { patente: string }[] | null;
     acoplado: { patente: string } | { patente: string }[] | null;
     chofer: { nombre: string; apellido: string } | { nombre: string; apellido: string }[] | null;
@@ -133,7 +145,12 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
     return {
       id: f.id,
       fecha: f.fecha,
+      cargadoEn: f.created_at ?? null,
       texto: f.observaciones ?? "",
+      tipo: f.tipo ?? null,
+      posicion: f.posicion ?? null,
+      marca: f.marca ?? null,
+      cantidad: f.cantidad ?? null,
       patente: uno(f.camion)?.patente ?? uno(f.acoplado)?.patente ?? null,
       persona: ch ? `${ch.apellido ?? ""} ${ch.nombre ?? ""}`.trim() || null : null,
       fotos: fotosPorId.get(f.id) ?? [],
@@ -145,10 +162,10 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
 /**
  * Guarda un trabajo del taller.
  *
- * Lo único obligatorio es el TEXTO. Ni la patente ni la persona lo son a
- * propósito: si el herrero escribe algo que el parser no entiende, se guarda
- * igual y se completa después. Perder el registro por un campo que faltaba es
- * volver al grupo de WhatsApp, que es de donde venimos.
+ * Hacen falta el texto y ADEMÁS el camión o el chofer: la tabla tiene un CHECK
+ * que exige al menos uno de los dos. Se descubrió cargando los mensajes reales
+ * del grupo del 24/08 — los de "27 bajas" no traen patente y la base los
+ * rechazaba con un error de Postgres que nadie podría interpretar.
  */
 export async function cargarTrabajoTallerAction(input: {
   texto: string;
@@ -161,6 +178,13 @@ export async function cargarTrabajoTallerAction(input: {
 
   const texto = (input.texto ?? "").trim();
   if (!texto) return { error: "Escribí qué se hizo." };
+
+  // El CHECK `roturas_gomas_unidad_requerida` exige camión, acoplado o chofer.
+  // Se comprueba acá para devolver una frase que se entienda, en vez del error
+  // crudo de Postgres.
+  if (!input.unidadId && !input.personaId) {
+    return { error: "Elegí de qué unidad es, o de quién, para poder guardarlo." };
+  }
 
   const bajas = leerBajas(texto);
 
