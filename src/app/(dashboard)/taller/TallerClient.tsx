@@ -11,8 +11,8 @@ import {
   deleteArchivoRoturaAction,
 } from "../mantenimiento/actions";
 import ElegirEnLista, { type OpcionLista } from "./ElegirEnLista";
-import DetalleTrabajo, { descripcionDe } from "./DetalleTrabajo";
-import { cargarTrabajoTallerAction, type DatosTaller, type TrabajoFeed } from "./actions";
+import FeedTaller from "./FeedTaller";
+import { cargarTrabajoTallerAction, type DatosTaller, type FeedResultado } from "./actions";
 import { leerMensaje } from "./parseo";
 
 /**
@@ -134,10 +134,12 @@ function FilaElegir({
 export default function TallerClient({
   datos,
   feedInicial,
+  hoy,
   canWrite,
 }: {
   datos: DatosTaller;
-  feedInicial: TrabajoFeed[];
+  feedInicial: FeedResultado;
+  hoy: string;
   canWrite: boolean;
 }) {
   const router = useRouter();
@@ -154,7 +156,8 @@ export default function TallerClient({
   const [personaManual, setPersonaManual] = useState<string | null | undefined>(undefined);
   const [abrirUnidad, setAbrirUnidad] = useState(false);
   const [abrirPersona, setAbrirPersona] = useState(false);
-  const [detalle, setDetalle] = useState<TrabajoFeed | null>(null);
+  // Sube cuando se guarda algo: es la señal para que el feed vuelva al principio.
+  const [recargas, setRecargas] = useState(0);
 
   const adj = useAdjuntos({
     open: true,
@@ -233,6 +236,7 @@ export default function TallerClient({
       setUnidadManual(undefined);
       setPersonaManual(undefined);
       setListo(true);
+      setRecargas((n) => n + 1);
       router.refresh();
       setTimeout(() => setListo(false), 3000);
     } catch (e) {
@@ -417,79 +421,7 @@ export default function TallerClient({
         textoVacio="No sé de quién es"
       />
 
-      <DetalleTrabajo trabajo={detalle} onCerrar={() => setDetalle(null)} />
-
-      {/* ── Lo cargado, como se ve en el grupo ──────────────────────────── */}
-      <section className="mt-6">
-        <h2 className="mb-2 px-1 text-sm font-semibold text-foreground">Lo último cargado</h2>
-        {feedInicial.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-            Todavía no hay trabajos cargados. El primero que cargues aparece acá.
-          </p>
-        ) : (
-          <ul className="space-y-2.5">
-            {feedInicial.map((t) => (
-              <li key={t.id}>
-                {/* Toda la tarjeta es el botón: en un teléfono, un "ver más"
-                    chiquito en una esquina es un blanco que se falla. */}
-                <button
-                  type="button"
-                  onClick={() => setDetalle(t)}
-                  className="w-full rounded-xl border border-border bg-card p-3.5 text-left shadow-sm transition-colors active:bg-muted/40"
-                >
-                {t.fotos.length > 0 && (
-                  <div className="mb-2.5 flex gap-2 overflow-x-auto">
-                    {t.fotos.map((f) => (
-                      <Image
-                        key={f}
-                        src={f}
-                        alt=""
-                        width={200}
-                        height={200}
-                        unoptimized
-                        className="h-28 w-auto shrink-0 rounded-lg border border-border object-cover"
-                      />
-                    ))}
-                  </div>
-                )}
-                {/* Las roturas viejas cargadas desde Mantenimiento no tienen
-                    texto: sin esto la tarjeta salía vacía, con sólo la fecha. */}
-                <p className="whitespace-pre-line text-[15px] leading-snug text-foreground">
-                  {descripcionDe(t)}
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
-                  <span className="tabular-nums">{fechaCorta(t.fecha)}</span>
-                  {t.patente && (
-                    <>
-                      <span aria-hidden>·</span>
-                      <span className="inline-flex items-center gap-1">
-                        <Truck size={11} />
-                        {t.patente}
-                      </span>
-                    </>
-                  )}
-                  {t.persona && (
-                    <>
-                      <span aria-hidden>·</span>
-                      <span className="inline-flex items-center gap-1">
-                        <User size={11} />
-                        {t.persona}
-                      </span>
-                    </>
-                  )}
-                  {t.quien && (
-                    <>
-                      <span aria-hidden>·</span>
-                      <span>cargó {t.quien}</span>
-                    </>
-                  )}
-                </div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <FeedTaller inicial={feedInicial} hoy={hoy} refrescar={recargas} />
     </div>
   );
 }

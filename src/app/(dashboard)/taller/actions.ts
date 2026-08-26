@@ -75,24 +75,73 @@ export type TrabajoFeed = {
   marca: string | null;
   cantidad: number | null;
   patente: string | null;
+  /** Id de la unidad, para poder pedir su historial exacto. */
+  unidadId: string | null;
   persona: string | null;
   fotos: string[];
   quien: string | null;
 };
 
-/** Lo último que se cargó, para que se vea como el grupo: foto, texto y fecha. */
-export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
+export type FeedFiltros = {
+  /** Texto libre: busca en el mensaje. */
+  busca?: string;
+  /** Historial de una unidad. */
+  unidadId?: string | null;
+  /** Historial de una persona. */
+  personaId?: string | null;
+  /** Cuántos saltear, para el "Ver más". */
+  desde?: number;
+};
+
+export type FeedResultado = {
+  trabajos: TrabajoFeed[];
+  /** Cuántos hay en TOTAL con esos filtros, no cuántos vinieron. */
+  total: number;
+  hayMas: boolean;
+};
+
+// De a cuántos se traen. Con 150 cargas, traerlas todas es una pantalla que no
+// termina. NO se exporta: un archivo "use server" sólo puede exportar funciones
+// async, y exportar la constante rompe el build (no el typecheck).
+const FEED_PAGINA = 20;
+
+/**
+ * Lo cargado, con filtros y de a tandas.
+ *
+ * Nace de una pregunta de Julián: *"¿cómo se irá visualizando cuando haya 150
+ * cargadas?"*. La primera versión traía las últimas 30 y las apilaba: con 150,
+ * 120 quedaban invisibles y no había forma de contestar "qué le hicimos a este
+ * acoplado" — que es exactamente el historial que pidió Bárbara.
+ *
+ * La búsqueda pega sobre el MENSAJE, y eso alcanza para casi todo justamente
+ * porque el texto se guarda tal cual se escribió: buscar "AF-112" encuentra el
+ * trabajo aunque la patente no esté en su columna. Para el historial exacto de
+ * una unidad o una persona están los filtros por id, que es lo que se usa al
+ * tocar la patente de una tarjeta.
+ */
+export async function getFeedTallerAction(filtros: FeedFiltros = {}): Promise<FeedResultado> {
   await requireArea("mantenimiento", "read");
   const supabase = createAdminClient();
 
+  const desde = Math.max(0, filtros.desde ?? 0);
+  const busca = (filtros.busca ?? "").trim();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (supabase as any)
+  let q = (supabase as any)
     .from("roturas_gomas")
     .select(
-      "id, fecha, observaciones, created_at, tipo, posicion, marca, cantidad, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido), usuario:usuarios!roturas_gomas_created_by_fkey(nombre, apellido)",
-    )
+      "id, fecha, observaciones, created_at, tipo, posicion, marca, cantidad, camion_id, acoplado_id, camion:camiones(patente), acoplado:acoplados(patente), chofer:choferes(nombre, apellido), usuario:usuarios!roturas_gomas_created_by_fkey(nombre, apellido)",
+      { count: "exact" },
+    );
+
+  if (busca) q = q.or(`observaciones.ilike.%${busca}%,tipo.ilike.%${busca}%,marca.ilike.%${busca}%`);
+  // La unidad puede ser camión o acoplado: se prueba en las dos columnas.
+  if (filtros.unidadId) q = q.or(`camion_id.eq.${filtros.unidadId},acoplado_id.eq.${filtros.unidadId}`);
+  if (filtros.personaId) q = q.eq("chofer_id", filtros.personaId);
+
+  const { data, count } = await q
     .order("created_at", { ascending: false })
-    .limit(limite);
+    .range(desde, desde + FEED_PAGINA - 1);
 
   const filas = (data ?? []) as {
     id: string;
@@ -103,6 +152,8 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
     posicion: string | null;
     marca: string | null;
     cantidad: number | null;
+    camion_id: string | null;
+    acoplado_id: string | null;
     camion: { patente: string } | { patente: string }[] | null;
     acoplado: { patente: string } | { patente: string }[] | null;
     chofer: { nombre: string; apellido: string } | { nombre: string; apellido: string }[] | null;
@@ -111,8 +162,8 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
 
   const uno = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
 
-  // Las fotos salen de la tabla puente de roturas, en UNA consulta para no
-  // pedir una por fila: el feed muestra 30 y serían 30 idas al servidor.
+  // Las fotos salen de la tabla puente en UNA consulta: una por fila serían
+  // veinte idas al servidor por pantalla.
   const ids = filas.map((f) => f.id);
   const { data: adj } = ids.length
     ? await supabase
@@ -139,7 +190,7 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
     fotosPorId.set(p.rotura_id, arr);
   }
 
-  return filas.map((f) => {
+  const trabajos: TrabajoFeed[] = filas.map((f) => {
     const ch = uno(f.chofer);
     const us = uno(f.usuario);
     return {
@@ -152,11 +203,15 @@ export async function getFeedTallerAction(limite = 30): Promise<TrabajoFeed[]> {
       marca: f.marca ?? null,
       cantidad: f.cantidad ?? null,
       patente: uno(f.camion)?.patente ?? uno(f.acoplado)?.patente ?? null,
+      unidadId: f.camion_id ?? f.acoplado_id ?? null,
       persona: ch ? `${ch.apellido ?? ""} ${ch.nombre ?? ""}`.trim() || null : null,
       fotos: fotosPorId.get(f.id) ?? [],
       quien: us ? `${us.nombre ?? ""} ${us.apellido ?? ""}`.trim() || null : null,
     };
   });
+
+  const total = count ?? trabajos.length;
+  return { trabajos, total, hayMas: desde + trabajos.length < total };
 }
 
 /**
