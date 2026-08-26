@@ -30,6 +30,13 @@ const LOGOS: Record<string, string> = {
   mb: "/marcas/mercedes.svg",
 };
 
+/**
+ * Las marcas para las que el sistema tiene logo, con la grafía que conviene
+ * guardar. Es la lista que ofrece el alta de una unidad: eligiendo una de acá,
+ * la unidad queda con imagen en todas las pantallas sin hacer nada más.
+ */
+export const MARCAS_CON_LOGO = ["Scania", "Iveco", "Mercedes Benz", "Volvo"] as const;
+
 export function logoDeMarca(marca: string | null | undefined): string | null {
   if (!marca) return null;
   const clave = normalizar(marca);

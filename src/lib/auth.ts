@@ -32,6 +32,13 @@ export type CurrentUser = {
   telefono: string | null;
   estado: "activo" | "inactivo" | "suspendido" | "eliminado";
   must_change_password: boolean;
+  /**
+   * La pantalla con la que arranca esta persona después del login. Null = el
+   * dashboard. Existe porque el rol dice lo que PUEDE ver y no lo que viene a
+   * hacer: Anabela tiene el mismo rol que media empresa y entra sólo a cargar
+   * documentación.
+   */
+  pantalla_inicio: string | null;
   rol: {
     id: string;
     codigo: string;
@@ -55,7 +62,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   if (!user) return null;
 
-  const { data: profile, error } = await supabase
+  // `as any`: `pantalla_inicio` es columna nueva y database.ts todavía no la
+  // tiene (se regenera aparte). Mismo patrón que `camion_documentos.aseguradora`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profile, error } = await (supabase as any)
     .from("usuarios")
     .select(
       `
@@ -66,6 +76,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       telefono,
       estado,
       must_change_password,
+      pantalla_inicio,
       rol:roles!rol_id (
         id,
         codigo,
@@ -190,6 +201,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     telefono: profile.telefono,
     estado: profile.estado,
     must_change_password: profile.must_change_password ?? false,
+    pantalla_inicio: (profile as { pantalla_inicio?: string | null }).pantalla_inicio ?? null,
     rol: {
       id: rol.id,
       codigo: rol.codigo,

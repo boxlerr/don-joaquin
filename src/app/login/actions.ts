@@ -104,9 +104,10 @@ export async function loginAction(
     return { error: "No se pudo iniciar sesión. Intentá de nuevo." };
   }
 
-  const { data: profile } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columna nueva, ver auth.ts
+  const { data: profile } = await (supabase as any)
     .from("usuarios")
-    .select("estado")
+    .select("estado, pantalla_inicio")
     .eq("id", user.id)
     .single();
 
@@ -120,10 +121,13 @@ export async function loginAction(
   await recordLoginAttempt(email, ipAddress, true, undefined, userAgent);
   await auditLoginSuccess(user.id, email, ipAddress, userAgent);
 
+  // Si venía de una URL concreta (por ejemplo, hizo click en un mail de aviso),
+  // manda esa. Si entró por la puerta, la pantalla con la que trabaja.
+  const inicio =
+    (profile as { pantalla_inicio?: string | null }).pantalla_inicio ?? "/dashboard";
+  const destino = redirectTo === "/dashboard" ? inicio : redirectTo;
   const safeRedirect =
-    redirectTo.startsWith("/") && !redirectTo.startsWith("//")
-      ? redirectTo
-      : "/dashboard";
+    destino.startsWith("/") && !destino.startsWith("//") ? destino : "/dashboard";
 
   redirect(safeRedirect);
 }

@@ -32,6 +32,7 @@ const FIELD_COMBO_TRIGGER =
   "h-full border-0 rounded-none bg-transparent hover:bg-transparent focus-visible:ring-0";
 import type { Database } from "@/types/database";
 import { addCamionAction } from "../actions";
+import { logoDeMarca, MARCAS_CON_LOGO } from "@/components/ui/MarcaLogo";
 import { useBorrador } from "@/hooks/useBorrador";
 import { objetoCon } from "@/lib/borrador-local";
 import AvisoBorrador from "@/components/borradores/AvisoBorrador";
@@ -330,16 +331,16 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Marca */}
-            <InputFieldWithIcon
-              label="Marca *"
-              name="marca"
-              placeholder="Ej: Mercedes Benz"
-              required
+            {/* Marca — con la imagen que va a tener la unidad en todo el sistema.
+                El logo se ata a la MARCA y no al modelo: el modelo es distinto en
+                cada unidad (451-G360, 291-P310…) y todos los Scania se dibujan
+                igual. Elegir una de las cuatro conocidas deja a la unidad con
+                imagen sin hacer nada más; se puede escribir otra igual, pero se
+                avisa que va a quedar con el camioncito genérico. */}
+            <CampoMarca
               value={marca}
-              onChange={(e) => handleMarcaChange(e.target.value)}
+              onChange={handleMarcaChange}
               onBlur={() => setErrors(validate())}
-              icon={Tag}
               error={errors.marca}
             />
 
@@ -476,6 +477,95 @@ export default function AddCamionDialog({ children }: { children: React.ReactNod
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * El campo Marca: el logo aparece en el momento en que se elige, que es la
+ * imagen con la que la unidad se va a ver en la lista de flota, en los viajes y
+ * en Compliance. Antes era un campo de texto suelto y no había forma de saber,
+ * al cargarla, si la unidad iba a quedar con logo o con el ícono genérico —
+ * hoy hay una unidad así en la flota (vino del Excel solo con la patente).
+ */
+function CampoMarca({
+  value,
+  onChange,
+  onBlur,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  error?: string;
+}) {
+  const logo = logoDeMarca(value);
+  const escrita = value.trim();
+
+  return (
+    <div className="space-y-1">
+      <Label htmlFor="marca" className="text-xs font-semibold text-muted-foreground">
+        Marca *
+      </Label>
+      <div
+        className={`relative flex h-10 w-full items-center overflow-hidden rounded-lg border bg-card transition-all focus-within:ring-2 ${
+          error
+            ? "border-red-300 focus-within:border-red-500 focus-within:ring-red-100"
+            : "border-border focus-within:border-[#0088D1] focus-within:ring-[#0088D1]/20"
+        }`}
+      >
+        <div className="flex h-full w-10 shrink-0 items-center justify-center border-r border-border bg-muted/50 text-primary">
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- SVG local
+            <img src={logo} alt="" className="max-h-[18px] max-w-[26px] object-contain" />
+          ) : (
+            <Tag size={15} />
+          )}
+        </div>
+        <input
+          id="marca"
+          name="marca"
+          placeholder="Ej: Mercedes Benz"
+          required
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          className="h-full flex-1 border-0 bg-transparent px-3 text-sm text-foreground outline-none focus:outline-none focus:ring-0"
+        />
+      </div>
+
+      {/* En dos columnas y no en fila libre: el campo mide media ventana y con
+          wrap los cuatro quedaban apretados uno contra otro. */}
+      <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+        {MARCAS_CON_LOGO.map((m) => {
+          const elegida = logoDeMarca(value) === logoDeMarca(m) && escrita !== "";
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => onChange(m)}
+              title={`Marcar como ${m}`}
+              className={`inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-[12px] whitespace-nowrap transition-colors ${
+                elegida
+                  ? "border-[#0088D1]/40 bg-[#0088D1]/10 font-semibold text-[#0088D1]"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- SVG local */}
+              <img src={logoDeMarca(m)!} alt="" className="max-h-[14px] max-w-[22px] object-contain" />
+              {/* "Mercedes Benz" no entra en media columna y se cortaba a la
+                  mitad; el valor que se guarda sigue siendo el nombre completo. */}
+              <span className="truncate">{m === "Mercedes Benz" ? "Mercedes" : m}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {escrita !== "" && !logo && (
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          No tenemos el logo de «{escrita}»: la unidad se va a ver con el ícono de camión.
+        </p>
+      )}
+    </div>
   );
 }
 
