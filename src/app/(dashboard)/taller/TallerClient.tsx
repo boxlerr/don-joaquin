@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Camera, Check, Loader2, Truck, User, X } from "lucide-react";
+import { Camera, Check, ChevronRight, Loader2, Truck, User, X, Sparkles } from "lucide-react";
 import { useAdjuntos } from "@/components/ui/AdjuntosDocumentos";
 import {
   crearUrlSubidaRoturaAction,
   getArchivosRoturaAction,
   deleteArchivoRoturaAction,
 } from "../mantenimiento/actions";
+import ElegirEnLista, { type OpcionLista } from "./ElegirEnLista";
 import { cargarTrabajoTallerAction, type DatosTaller, type TrabajoFeed } from "./actions";
 import { leerMensaje } from "./parseo";
 
@@ -18,27 +19,110 @@ import { leerMensaje } from "./parseo";
  *
  * La restricción que manda sobre todo el diseño la puso Bárbara: *"que lo
  * cargue una persona que no tiene un pato en fila… cero habilidades con la
- * compu"*. Por eso la pantalla **no tiene formulario**: tiene una foto y un
- * texto, igual que el grupo de WhatsApp donde hoy reportan todo.
+ * compu"*. De ahí salen las tres decisiones de la pantalla:
  *
- * Tres decisiones que se siguen de eso:
- *
- *  · **Se escribe libre y el sistema entiende.** La patente y el nombre salen
- *    del texto (ver `parseo.ts`), no de dos selectores que habría que buscar en
- *    una lista de 40 unidades con el dedo.
- *  · **Lo entendido se muestra antes de mandar.** Si el parser se equivoca, se
- *    ve. Un dato adivinado en silencio es peor que un campo vacío.
- *  · **Nada es obligatorio salvo el texto.** Si no reconoce la patente, se
- *    guarda igual y se completa después. Perder el registro por un campo que
- *    faltaba es volver al grupo de WhatsApp, que es de donde venimos.
+ *  1. **Pasos numerados, uno abajo del otro.** No hay nada que descubrir: se ve
+ *     qué falta y qué ya está sin leer ninguna instrucción.
+ *  2. **El camión y el chofer se pueden TOCAR para elegir.** El texto libre los
+ *     detecta solo (ver `parseo.ts`), pero eso es un atajo, no el único camino:
+ *     si el parser no entiende o si prefiere no escribirlos, los botones están
+ *     siempre a la vista. Una función que sólo existe si adivinás la fórmula no
+ *     existe.
+ *  3. **Nada es obligatorio salvo el texto.** Perder el registro por un campo
+ *     que faltaba es volver al grupo de WhatsApp, que es de donde venimos.
  */
 
-/** 56px de alto: es el mínimo con el que un dedo acierta sin apuntar. */
+/** 56px: es el mínimo con el que un dedo acierta sin apuntar. */
 const BOTON = "h-14 rounded-xl text-base font-semibold";
 
 function fechaCorta(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
   return `${d}/${m}/${y}`;
+}
+
+/** El número del paso, para que se lea como una lista y no como un formulario. */
+function Paso({ n, titulo, nota }: { n: number; titulo: string; nota?: string }) {
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground/[0.08] text-xs font-bold text-foreground">
+        {n}
+      </span>
+      <span className="text-sm font-semibold text-foreground">{titulo}</span>
+      {nota && <span className="text-xs text-muted-foreground">· {nota}</span>}
+    </div>
+  );
+}
+
+/** Fila para elegir: muestra lo elegido o invita a tocar. Nunca se esconde. */
+function FilaElegir({
+  icono: Icono,
+  valor,
+  sub,
+  vacio,
+  detectado,
+  onTocar,
+  onQuitar,
+  disabled,
+}: {
+  icono: typeof Truck;
+  valor: string | null;
+  sub?: string | null;
+  vacio: string;
+  detectado?: boolean;
+  onTocar: () => void;
+  onQuitar: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="flex items-stretch gap-2">
+      <button
+        type="button"
+        onClick={onTocar}
+        disabled={disabled}
+        className={`flex min-h-14 flex-1 items-center gap-3 rounded-xl border px-3.5 text-left transition-colors disabled:opacity-50 ${
+          valor
+            ? "border-emerald-200 bg-emerald-50/70"
+            : "border-dashed border-border bg-muted/20 hover:bg-muted/40"
+        }`}
+      >
+        <Icono size={20} className={valor ? "shrink-0 text-emerald-700" : "shrink-0 text-muted-foreground"} />
+        <span className="min-w-0 flex-1">
+          {valor ? (
+            <>
+              <span className="block truncate text-base font-semibold text-emerald-900">{valor}</span>
+              {(sub || detectado) && (
+                <span className="block truncate text-xs text-emerald-800/80">
+                  {detectado ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Sparkles size={11} />
+                      lo saqué de lo que escribiste
+                    </span>
+                  ) : (
+                    sub
+                  )}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="block text-base text-muted-foreground">{vacio}</span>
+          )}
+        </span>
+        {!valor && <ChevronRight size={18} className="shrink-0 text-muted-foreground" />}
+      </button>
+
+      {valor && (
+        <button
+          type="button"
+          onClick={onQuitar}
+          disabled={disabled}
+          aria-label="Quitar"
+          className="flex w-14 shrink-0 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+        >
+          <X size={18} />
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function TallerClient({
@@ -57,6 +141,14 @@ export default function TallerClient({
   const [listo, setListo] = useState(false);
   const camaraRef = useRef<HTMLInputElement>(null);
 
+  // Elección a mano. `undefined` = todavía manda lo que detectó el texto;
+  // `null` = lo quitó a propósito. La diferencia importa: sin ella, quitar algo
+  // que el parser detectó lo volvería a poner en la siguiente tecla.
+  const [unidadManual, setUnidadManual] = useState<string | null | undefined>(undefined);
+  const [personaManual, setPersonaManual] = useState<string | null | undefined>(undefined);
+  const [abrirUnidad, setAbrirUnidad] = useState(false);
+  const [abrirPersona, setAbrirPersona] = useState(false);
+
   const adj = useAdjuntos({
     open: true,
     entidadId: null,
@@ -71,6 +163,43 @@ export default function TallerClient({
     [texto, datos.unidades, datos.personas],
   );
 
+  const unidadId = unidadManual !== undefined ? unidadManual : (lectura.unidad?.id ?? null);
+  const personaId = personaManual !== undefined ? personaManual : (lectura.persona?.id ?? null);
+
+  const unidad = datos.unidades.find((u) => u.id === unidadId) ?? null;
+  const persona = datos.personas.find((p) => p.id === personaId) ?? null;
+
+  const unidadDetectada = unidadManual === undefined && lectura.unidad != null;
+  const personaDetectada = personaManual === undefined && lectura.persona != null;
+
+  // Al vaciar el texto se vuelve a empezar: si no, una elección hecha para el
+  // trabajo anterior se arrastraría al siguiente sin que se note.
+  useEffect(() => {
+    if (texto.trim() === "") {
+      setUnidadManual(undefined);
+      setPersonaManual(undefined);
+    }
+  }, [texto]);
+
+  const opcionesUnidad: OpcionLista[] = useMemo(
+    () =>
+      datos.unidades.map((u) => ({
+        id: u.id,
+        principal: u.patente,
+        secundario: u.tipo === "acoplado" ? "Acoplado" : "Camión",
+      })),
+    [datos.unidades],
+  );
+
+  const opcionesPersona: OpcionLista[] = useMemo(
+    () =>
+      datos.personas.map((p) => ({
+        id: p.id,
+        principal: `${p.apellido}, ${p.nombre}`.replace(/^,\s*|,\s*$/g, ""),
+      })),
+    [datos.personas],
+  );
+
   const puedeGuardar = texto.trim().length > 0 && !guardando;
 
   const guardar = async () => {
@@ -81,9 +210,9 @@ export default function TallerClient({
       const archivos = await adj.subirPendientes();
       const res = await cargarTrabajoTallerAction({
         texto: texto.trim(),
-        unidadId: lectura.unidad?.id ?? null,
-        unidadTipo: lectura.unidad?.tipo ?? null,
-        personaId: lectura.persona?.id ?? null,
+        unidadId,
+        unidadTipo: unidad?.tipo ?? null,
+        personaId,
         archivos,
       });
       if ("error" in res) {
@@ -91,9 +220,11 @@ export default function TallerClient({
         return;
       }
       setTexto("");
+      setUnidadManual(undefined);
+      setPersonaManual(undefined);
       setListo(true);
       router.refresh();
-      setTimeout(() => setListo(false), 2500);
+      setTimeout(() => setListo(false), 3000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo guardar. Probá de nuevo.");
     } finally {
@@ -104,106 +235,127 @@ export default function TallerClient({
   return (
     <div className="mx-auto max-w-lg">
       {canWrite && (
-        <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-          {/* La foto va PRIMERO porque es lo primero que hacen: sacan la foto y
-              después escriben. El input abre la cámara directo, sin pasar por el
-              carrete. */}
-          <input
-            ref={camaraRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              adj.agregarArchivos(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => camaraRef.current?.click()}
-            disabled={guardando}
-            className={`flex w-full items-center justify-center gap-2.5 border-2 border-dashed border-border bg-muted/30 text-foreground transition-colors hover:bg-muted disabled:opacity-50 ${BOTON}`}
-          >
-            <Camera size={22} />
-            {adj.pendientes.length > 0 ? "Sacar otra foto" : "Sacar una foto"}
-          </button>
+        <div className="space-y-5 rounded-2xl border border-border bg-card p-4 shadow-sm">
+          {/* ── 1. La foto ────────────────────────────────────────────────── */}
+          <div>
+            <Paso n={1} titulo="Sacá una foto" nota="si podés" />
+            <input
+              ref={camaraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                adj.agregarArchivos(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => camaraRef.current?.click()}
+              disabled={guardando}
+              className={`flex w-full items-center justify-center gap-2.5 border-2 border-dashed border-border bg-muted/20 text-foreground transition-colors hover:bg-muted/40 disabled:opacity-50 ${BOTON}`}
+            >
+              <Camera size={22} />
+              {adj.pendientes.length > 0 ? "Sacar otra" : "Sacar una foto"}
+            </button>
 
-          {adj.pendientes.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-2">
-              {adj.pendientes.map((f, i) => (
-                <li key={`${f.name}-${i}`} className="relative">
-                  <Image
-                    src={URL.createObjectURL(f)}
-                    alt=""
-                    width={84}
-                    height={84}
-                    unoptimized
-                    className="size-20 rounded-lg border border-border object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => adj.quitarPendiente(i)}
-                    aria-label="Quitar la foto"
-                    className="absolute -right-1.5 -top-1.5 flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm"
-                  >
-                    <X size={14} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+            {adj.pendientes.length > 0 && (
+              <ul className="mt-2.5 flex flex-wrap gap-2">
+                {adj.pendientes.map((f, i) => (
+                  <li key={`${f.name}-${i}`} className="relative">
+                    <Image
+                      src={URL.createObjectURL(f)}
+                      alt=""
+                      width={84}
+                      height={84}
+                      unoptimized
+                      className="size-20 rounded-lg border border-border object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => adj.quitarPendiente(i)}
+                      aria-label="Quitar la foto"
+                      className="absolute -right-1.5 -top-1.5 flex size-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm"
+                    >
+                      <X size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-          {/* text-base y no text-sm: por debajo de 16px, iOS hace zoom solo al
-              tocar el campo y la pantalla queda corrida. */}
-          <textarea
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            rows={5}
-            disabled={guardando}
-            placeholder={"¿Qué se hizo?\n\nRefuerzo en balancín\nAF-112-ON\nAlbornoz Matías"}
-            className="mt-3 w-full resize-none rounded-xl border border-input bg-background p-3.5 text-base leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
-          />
+          {/* ── 2. Qué se hizo ────────────────────────────────────────────── */}
+          <div>
+            <Paso n={2} titulo="Escribí qué se hizo" />
+            {/* text-base y no text-sm: por debajo de 16px iOS hace zoom solo al
+                tocar el campo y la pantalla queda corrida. */}
+            <textarea
+              value={texto}
+              onChange={(e) => setTexto(e.target.value)}
+              rows={4}
+              disabled={guardando}
+              placeholder={"Refuerzo en balancín\nAF-112-ON\nAlbornoz Matías"}
+              className="w-full resize-none rounded-xl border border-input bg-background p-3.5 text-base leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+            />
+            <p className="mt-1.5 px-0.5 text-xs text-muted-foreground">
+              Escribilo como lo mandás por WhatsApp. Si ponés la patente o el nombre, los reconozco
+              solo.
+            </p>
+          </div>
 
-          {/* Lo que entendió. Aparece sólo cuando hay algo que confirmar: en un
-              teléfono, un bloque vacío se come media pantalla. */}
-          {(lectura.unidad || lectura.persona || lectura.patenteDesconocida || lectura.bajas) && (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {lectura.unidad && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-sm font-medium text-emerald-900">
-                  <Truck size={14} />
-                  {lectura.unidad.patente}
-                </span>
-              )}
-              {lectura.persona && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-sm font-medium text-emerald-900">
-                  <User size={14} />
-                  {lectura.persona.apellido} {lectura.persona.nombre}
-                </span>
-              )}
-              {lectura.bajas != null && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-sm text-foreground">
-                  baja n° {lectura.bajas}
-                </span>
-              )}
-              {lectura.patenteDesconocida && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-sm text-amber-900">
-                  {lectura.patenteDesconocida} no está cargada — se guarda igual
-                </span>
-              )}
-            </div>
+          {/* ── 3 y 4. Camión y quién ─────────────────────────────────────── */}
+          <div>
+            <Paso n={3} titulo="¿De qué camión?" nota="si sabés cuál" />
+            <FilaElegir
+              icono={Truck}
+              valor={unidad?.patente ?? null}
+              sub={unidad?.tipo === "acoplado" ? "Acoplado" : "Camión"}
+              detectado={unidadDetectada}
+              vacio="Tocá para elegir el camión"
+              onTocar={() => setAbrirUnidad(true)}
+              onQuitar={() => setUnidadManual(null)}
+              disabled={guardando}
+            />
+            {lectura.patenteDesconocida && !unidad && (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Escribiste {lectura.patenteDesconocida} y esa patente no está cargada. Elegila de la
+                lista, o dejalo así y se guarda igual.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Paso n={4} titulo="¿Quién lo maneja?" nota="si sabés quién" />
+            <FilaElegir
+              icono={User}
+              valor={persona ? `${persona.apellido}, ${persona.nombre}`.replace(/^,\s*/, "") : null}
+              detectado={personaDetectada}
+              vacio="Tocá para elegir el chofer"
+              onTocar={() => setAbrirPersona(true)}
+              onQuitar={() => setPersonaManual(null)}
+              disabled={guardando}
+            />
+          </div>
+
+          {lectura.bajas != null && (
+            <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
+              Anoté que es la baja n° {lectura.bajas}.
+            </p>
           )}
 
           {error && (
-            <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
+            <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-800">
               {error}
             </p>
           )}
 
           {listo && (
-            <p className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-900">
-              Guardado. Ya quedó registrado.
+            <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm font-medium text-emerald-900">
+              <Check size={16} className="shrink-0" />
+              Guardado. Ya quedó registrado abajo.
             </p>
           )}
 
@@ -211,7 +363,7 @@ export default function TallerClient({
             type="button"
             onClick={guardar}
             disabled={!puedeGuardar}
-            className={`mt-3 flex w-full items-center justify-center gap-2 bg-[#0088D1] text-white transition-colors hover:bg-[#0277BD] disabled:opacity-40 ${BOTON}`}
+            className={`flex w-full items-center justify-center gap-2 bg-[#0088D1] text-white transition-colors hover:bg-[#0277BD] disabled:opacity-40 ${BOTON}`}
           >
             {guardando ? (
               <>
@@ -223,14 +375,35 @@ export default function TallerClient({
             ) : (
               <>
                 <Check size={20} />
-                Listo
+                Guardar el trabajo
               </>
             )}
           </button>
         </div>
       )}
 
-      {/* Lo cargado, como se ve en el grupo: foto, texto y cuándo. */}
+      <ElegirEnLista
+        abierto={abrirUnidad}
+        onCerrar={() => setAbrirUnidad(false)}
+        titulo="¿De qué camión?"
+        opciones={opcionesUnidad}
+        elegidoId={unidadId}
+        onElegir={setUnidadManual}
+        placeholder="Buscar por patente…"
+        textoVacio="No sé de qué camión es"
+      />
+      <ElegirEnLista
+        abierto={abrirPersona}
+        onCerrar={() => setAbrirPersona(false)}
+        titulo="¿Quién maneja ese camión?"
+        opciones={opcionesPersona}
+        elegidoId={personaId}
+        onElegir={setPersonaManual}
+        placeholder="Buscar por apellido…"
+        textoVacio="No sé de quién es"
+      />
+
+      {/* ── Lo cargado, como se ve en el grupo ──────────────────────────── */}
       <section className="mt-6">
         <h2 className="mb-2 px-1 text-sm font-semibold text-foreground">Lo último cargado</h2>
         {feedInicial.length === 0 ? (
