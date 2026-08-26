@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "en-taller-ya-podes-elegir-el-camion-y-el",
+    fecha: "2026-08-26",
+    tipo: "mejora",
+    ver: "mantenimiento_servicios",
+    titulo: "En Taller ya podés elegir el camión y el chofer de una lista",
+    detalle: "Antes había que escribir la patente en el texto para que la reconociera. Ahora hay dos botones que abren una lista con buscador, y si igual la escribís te la reconoce sola.",
+    href: "/taller",
+  },
+  {
     id: "nueva-pantalla-taller-carga-el-trabajo-como",
     fecha: "2026-08-26",
     tipo: "nuevo",
