@@ -29,6 +29,7 @@ import {
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
+  asegurarPortada,
   getAdjuntos,
   deleteAdjunto,
   type AdjuntoCfg,
@@ -2289,6 +2290,9 @@ export async function registrarDocumentoChoferAction(input: {
   if (adjuntos.length) {
     const r = await vincularAdjuntos(CHOFER_DOC_CFG, nuevoDoc.id, adjuntos, user.id);
     adjuntosFallidos = r.fallidos;
+    // La portada (`archivo_id`) es lo que muestra Compliance: sin esto el papel
+    // queda cargado pero el checklist lo da por no presentado.
+    await asegurarPortada(CHOFER_DOC_CFG, "chofer_documentos", nuevoDoc.id);
   }
 
   const { data: tipoDoc } = await supabase
@@ -2357,6 +2361,7 @@ export async function updateDocumentoChoferAction(input: {
   if (input.adjuntos_nuevos?.length) {
     const r = await vincularAdjuntos(CHOFER_DOC_CFG, id, input.adjuntos_nuevos, user.id);
     adjuntosFallidos = r.fallidos;
+    await asegurarPortada(CHOFER_DOC_CFG, "chofer_documentos", id);
   }
 
   const { data: tipoDoc } = await supabase

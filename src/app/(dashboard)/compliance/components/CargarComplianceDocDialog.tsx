@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,13 +12,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Send, Truck, User } from "lucide-react";
+import { Eye, FileText, Loader2, Send, Truck, User } from "lucide-react";
 import {
   uploadComplianceDocAction,
   crearUrlSubidaComplianceDocAction,
   setComplianceVencimientoAction,
   setComplianceEnviarAAction,
+  getComplianceDocArchivosAction,
 } from "../actions";
+import VisorArchivo, { type ArchivoParaVer } from "@/components/ui/VisorArchivo";
+import type { AdjuntoExistente } from "@/lib/adjuntos-server";
 import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
 import ArchivosCargar, { type ArchivoElegido } from "./ArchivosCargar";
 import type { ArchivoMeta } from "@/lib/adjuntos-server";
@@ -48,6 +51,8 @@ interface Props {
   requisito: ComplianceRequisito;
   chofer_id?: string;
   camion_id?: string;
+  /** Cuando el papel es de la tolva: el documento se guarda contra esta patente. */
+  acoplado_id?: string;
   /**
    * De quién es el documento (nombre del chofer o patente). El diálogo se abre
    * desde listas de 78 nombres: sin esto no hay forma de confirmar que se está
@@ -71,6 +76,7 @@ export default function CargarComplianceDocDialog({
   requisito,
   chofer_id,
   camion_id,
+  acoplado_id,
   entidadLabel,
   edit,
   open,
@@ -157,6 +163,7 @@ export default function CargarComplianceDocDialog({
               requisito_id: requisito.id,
               chofer_id: chofer_id ?? null,
               camion_id: camion_id ?? null,
+              acoplado_id: acoplado_id ?? null,
               periodo: periodo || null,
               fecha_emision: fechaEmision || null,
               fecha_vencimiento: fechaVencimiento,
@@ -339,19 +346,30 @@ export default function CargarComplianceDocDialog({
               </div>
             </div>
 
-            {/* Derecha: el papel. */}
-            <ArchivosCargar
-              archivos={archivos}
-              onChange={setArchivos}
-              onError={setError}
-              subiendo={subiendo}
-              titulo={esEdicion ? "El papel renovado" : "El papel"}
-              ayuda={
-                esEdicion
-                  ? "Se agrega a los que ya estaban; no reemplaza nada."
-                  : "Es opcional: podés registrar solo el vencimiento y subir el papel después."
-              }
-            />
+            {/* Derecha: el papel. Arriba, lo que ya está guardado (si se está
+                renovando): sin esto, desde acá no había forma de mirar el
+                documento anterior y había que adivinar si estaba o no. */}
+            <div className="space-y-3">
+              {edit && (
+                <PapelesYaCargados
+                  documento_id={edit.documento_id}
+                  fuente={edit.fuente}
+                  contexto={`${requisito.nombre}${entidadLabel ? ` · ${entidadLabel}` : ""}`}
+                />
+              )}
+              <ArchivosCargar
+                archivos={archivos}
+                onChange={setArchivos}
+                onError={setError}
+                subiendo={subiendo}
+                titulo={esEdicion ? "El papel renovado" : "El papel"}
+                ayuda={
+                  esEdicion
+                    ? "Se agrega a los que ya estaban; no reemplaza nada."
+                    : "Es opcional: podés registrar solo el vencimiento y subir el papel después."
+                }
+              />
+            </div>
           </div>
 
           <DialogFooter className="gap-2 border-t border-border pt-3">
@@ -380,5 +398,95 @@ export default function CargarComplianceDocDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Los papeles que el documento YA tiene guardados, con su nombre real y un click
+ * para verlos en el visor de la aplicación.
+ *
+ * Es la mitad que faltaba de esta ventana: al renovar un vencimiento solo se veía
+ * el recuadro para subir uno nuevo, así que quien entraba no podía comprobar si
+ * el papel anterior estaba cargado ni cuál era.
+ */
+function PapelesYaCargados({
+  documento_id,
+  fuente,
+  contexto,
+}: {
+  documento_id: string;
+  fuente: "compliance_documentos" | "chofer_documentos" | "camion_documentos";
+  contexto: string;
+}) {
+  const [cargando, setCargando] = useState(true);
+  const [archivos, setArchivos] = useState<AdjuntoExistente[]>([]);
+  const [visor, setVisor] = useState<ArchivoParaVer | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    getComplianceDocArchivosAction({ documento_id, fuente })
+      .then((res) => {
+        if (!cancelado) setArchivos(res);
+      })
+      .catch(() => {
+        if (!cancelado) setArchivos([]);
+      })
+      .finally(() => {
+        if (!cancelado) setCargando(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [documento_id, fuente]);
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+        Lo que ya está cargado
+      </p>
+
+      {cargando ? (
+        <p className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <Loader2 size={12} className="animate-spin" />
+          Buscando el papel…
+        </p>
+      ) : archivos.length === 0 ? (
+        <p className="rounded-md border border-dashed border-border px-2.5 py-2 text-[12px] leading-snug text-muted-foreground">
+          Este documento tiene la fecha, pero todavía no tiene el papel guardado.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {archivos.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() =>
+                setVisor({
+                  nombre: a.nombre_original,
+                  url: a.url,
+                  downloadUrl: a.downloadUrl,
+                  mime: a.mime_type,
+                })
+              }
+              title={`Ver ${a.nombre_original}`}
+              className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2.5 py-2 text-left transition-colors hover:border-[#0088D1] hover:bg-[#E1F5FE]"
+            >
+              <FileText size={13} className="shrink-0 text-muted-foreground" />
+              <span className="truncate text-[12px] font-medium text-foreground">
+                {a.nombre_original}
+              </span>
+              <Eye size={13} className="ml-auto shrink-0 text-primary" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <VisorArchivo
+        archivo={visor}
+        titulo={contexto}
+        open={visor !== null}
+        onOpenChange={(o) => !o && setVisor(null)}
+      />
+    </div>
   );
 }

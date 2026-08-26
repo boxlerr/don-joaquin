@@ -9,11 +9,11 @@ import {
   Upload,
   Pencil,
   History,
-  Download,
+  FileText,
+  FileX,
   ChevronDown,
   Users,
   Truck,
-  Building2,
   FileSpreadsheet,
   Printer,
   MessageSquare,
@@ -25,7 +25,6 @@ import {
 import AvatarPersona from "@/components/ui/AvatarPersona";
 import MarcaLogo from "@/components/ui/MarcaLogo";
 import {
-  NIVEL_LABEL,
   type ChoferInfo,
   type ComplianceEstado,
   type ComplianceEstadoRow,
@@ -37,6 +36,7 @@ import CargarComplianceDocDialog, { type EditVencimiento } from "./CargarComplia
 import ComplianceHistorialDialog from "./ComplianceHistorialDialog";
 import ComplianceHelpButton from "./ComplianceHelpButton";
 import ComplianceRail from "./ComplianceRail";
+import TarjetaAlcance from "./TarjetaAlcance";
 import {
   ComplianceFiltros,
   ComplianceMetricas,
@@ -46,7 +46,8 @@ import {
   hayFiltros,
   type FiltrosCompliance,
 } from "./ComplianceResumen";
-import { getSignedUrlComplianceArchivoAction } from "../actions";
+import { getComplianceArchivoParaVerAction } from "../actions";
+import VisorArchivo, { type ArchivoParaVer } from "@/components/ui/VisorArchivo";
 import { formatFecha } from "@/lib/utils";
 import { exportarComplianceChecklistXlsx } from "../export";
 
@@ -76,17 +77,18 @@ interface Props {
 
 const NIVELES: ComplianceNivel[] = ["empresa", "unidad", "chofer"];
 
-const NIVEL_ICON: Record<ComplianceNivel, typeof Users> = {
-  empresa: Building2,
-  unidad: Truck,
-  chofer: Users,
-};
+/**
+ * Si el papel es del ACOPLADO y no del chasis. Lo dice la propia fila: la vista
+ * la trae con `acoplado_id`, y el server la engancha a la ficha del chasis que
+ * lo lleva puesto (ver `engancharAcopladosASuChasis`).
+ */
+const esDelAcoplado = (r: ComplianceEstadoRow) => r.acoplado_id != null;
 
-const NIVEL_SUB: Record<ComplianceNivel, string> = {
-  empresa: "Se presenta una vez para toda la flota",
-  unidad: "Uno por cada unidad",
-  chofer: "Uno por cada chofer",
-};
+/** De quién es el papel que se está mirando: "VTV · AB742XZ". */
+function tituloDeFila(row: ComplianceEstadoRow): string {
+  const de = row.chofer_nombre ?? row.camion_patente;
+  return de ? `${row.requisito_nombre} · ${de}` : row.requisito_nombre;
+}
 
 const ESTADO_RANK: Record<ComplianceEstado, number> = {
   vencido: 0,
@@ -196,8 +198,15 @@ function groupRows(rows: ComplianceEstadoRow[], nivel: ComplianceNivel): EntityG
       id = r.chofer_id ?? "sin-chofer";
       label = r.chofer_nombre ?? "Chofer sin nombre";
     } else if (nivel === "unidad") {
-      id = r.camion_id ?? "sin-camion";
-      label = r.camion_patente ?? "Unidad sin patente";
+      // Un acoplado sin chasis enganchado no puede colgar de ninguna ficha:
+      // arma la suya, con su patente. Son 3 de 64 al 26/08/2026.
+      if (!r.camion_id && r.acoplado_id) {
+        id = r.acoplado_id;
+        label = r.acoplado_patente ?? "Acoplado sin patente";
+      } else {
+        id = r.camion_id ?? "sin-camion";
+        label = r.camion_patente ?? "Unidad sin patente";
+      }
     } else {
       id = "empresa";
       label = "Empresa";
@@ -270,6 +279,13 @@ export default function ComplianceChecklistPage({
     chofer_id?: string;
     camion_id?: string;
   } | null>(null);
+  // El papel abierto en el visor de la aplicación (null = visor cerrado).
+  const [visor, setVisor] = useState<{
+    archivo: ArchivoParaVer | null;
+    cargando: boolean;
+    error: string | null;
+    titulo: string;
+  } | null>(null);
 
   const checklistRef = useRef<HTMLDivElement>(null);
 
@@ -334,17 +350,31 @@ export default function ComplianceChecklistPage({
     );
   };
 
-  const abrirArchivo = async (archivo_id: string, download: boolean) => {
-    const res = await getSignedUrlComplianceArchivoAction(archivo_id, { download });
-    if ("url" in res && res.url) window.open(res.url, "_blank", "noopener,noreferrer");
-    else alert(res.error ?? "No se pudo abrir el archivo");
+  // El papel se mira ACÁ ADENTRO: abrir una pestaña nueva hacía perder la
+  // pantalla, el filtro puesto y el lugar de la lista para ver un PDF de una
+  // carilla. El visor se abre en "cargando" y después entra el archivo.
+  const abrirArchivo = async (archivo_id: string, titulo: string) => {
+    setVisor({ archivo: null, cargando: true, error: null, titulo });
+    const res = await getComplianceArchivoParaVerAction(archivo_id);
+    setVisor((v) =>
+      v === null
+        ? v
+        : "archivo" in res
+          ? { ...v, archivo: res.archivo, cargando: false }
+          : { ...v, cargando: false, error: res.error },
+    );
   };
 
-  const handleCasilla = (row: ComplianceEstadoRow) => {
-    if (!canWrite) {
-      if (row.archivo_id) startTransition(() => abrirArchivo(row.archivo_id!, false));
-      return;
-    }
+  /**
+   * Abre la ventana de la fila: si ya hay un documento cargado la abre para
+   * EDITARLO (con su fecha, sus observaciones y los papeles que ya tiene), y si
+   * no, para cargar uno nuevo.
+   *
+   * Es el mismo camino para los tres accesos —la casilla, el botón "Cargar" y el
+   * lápiz—. El lápiz abría siempre una carga en blanco: decía "editar", no traía
+   * nada de lo que había y desde ahí no se podía ver el papel guardado.
+   */
+  const abrirDialogo = (row: ComplianceEstadoRow) => {
     const req = reqById.get(row.requisito_id);
     if (!req) return;
     const target = {
@@ -368,15 +398,13 @@ export default function ComplianceChecklistPage({
     }
   };
 
-  const handleSubir = (row: ComplianceEstadoRow) => {
-    const req = reqById.get(row.requisito_id);
-    if (!req) return;
-    setDialogState({
-      requisito: req,
-      chofer_id: row.chofer_id ?? undefined,
-      camion_id: row.camion_id ?? undefined,
-      entidadLabel: row.chofer_nombre ?? row.camion_patente ?? null,
-    });
+  const handleCasilla = (row: ComplianceEstadoRow) => {
+    // Sin permiso de escritura la casilla no carga nada: muestra el papel.
+    if (!canWrite) {
+      if (row.archivo_id) void abrirArchivo(row.archivo_id, tituloDeFila(row));
+      return;
+    }
+    abrirDialogo(row);
   };
 
   const handleHistorial = (row: ComplianceEstadoRow) => {
@@ -426,9 +454,9 @@ export default function ComplianceChecklistPage({
           panelAbierto={abierto}
           onTogglePanel={() => togglePanel(r.requisito_codigo)}
           onCasilla={() => handleCasilla(r)}
-          onSubir={() => handleSubir(r)}
+          onSubir={() => abrirDialogo(r)}
           onHistorial={() => handleHistorial(r)}
-          onDescargar={() => startTransition(() => abrirArchivo(r.archivo_id!, true))}
+          onAbrirArchivo={() => void abrirArchivo(r.archivo_id!, tituloDeFila(r))}
         />
         {panel !== null && abierto && (
           <div className="border-t border-border bg-muted/20 px-3 sm:px-4 py-4">{panel}</div>
@@ -458,44 +486,27 @@ export default function ComplianceChecklistPage({
   ) : (
     NIVELES.map((n) => {
       const grupo = rowsPorNivel[n];
-      if (grupo.length === 0) return null;
-      const Icon = NIVEL_ICON[n];
+      // Un alcance sin coincidencias se muestra igual, apagado: si desaparece,
+      // no hay forma de saber si no tiene documentos o si se lo comió el filtro
+      // (buscando "VTV" desaparecían Empresa y Choferes sin explicación).
+      const vacia = grupo.length === 0;
       // Con un filtro puesto todo arranca abierto; sin filtro, sólo "Empresa"
       // (unidades y choferes son 800 filas).
       const abiertoPorDefecto = filtrando || n === "empresa";
-      const abierto = nivelManual.get(n) ?? abiertoPorDefecto;
+      const abierto = !vacia && (nivelManual.get(n) ?? abiertoPorDefecto);
+      // La lista va soldada a la tarjeta cuando es UNA caja; con las fichas de
+      // cada unidad o chofer son varias, y ahí la tarjeta cierra sola.
+      const soldada = abierto && (n === "empresa" || !agrupar);
       return (
-        <section key={n} className="space-y-2">
-          <button
-            type="button"
-            onClick={() => toggleColapso(n, abierto)}
-            aria-expanded={abierto}
-            className="flex items-center gap-2 w-full text-left group rounded-lg -mx-2 px-2 py-1.5 hover:bg-muted/40 transition-colors"
-          >
-            {/* Chevron en caja: sin esto la cabecera se leía como un título y
-                no como algo que se puede abrir. */}
-            <span
-              className={`flex items-center justify-center size-[22px] shrink-0 rounded-md border border-border bg-card text-muted-foreground transition-all group-hover:border-primary/50 group-hover:text-primary ${
-                abierto ? "" : "-rotate-90"
-              }`}
-            >
-              <ChevronDown size={14} />
-            </span>
-            <Icon size={15} className="shrink-0 text-muted-foreground" />
-            {/* En celular el subtítulo baja a una segunda línea en vez de
-                romper la fila (o desaparecer). */}
-            <span className="min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-1 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <span>{NIVEL_LABEL[n]}</span>
-              <span aria-hidden className="hidden sm:inline">·</span>
-              <span className="truncate text-[10px] sm:text-[12px] font-medium sm:font-semibold text-muted-foreground/70 sm:text-muted-foreground">
-                {NIVEL_SUB[n]}
-              </span>
-            </span>
-            <span className="shrink-0 text-[11px] text-muted-foreground/70">{grupo.length}</span>
-            <span className="ml-auto shrink-0 text-[11px] font-semibold text-muted-foreground/70 group-hover:text-primary transition-colors">
-              {abierto ? "Ocultar" : "Mostrar"}
-            </span>
-          </button>
+        <section key={n} className={soldada ? "" : "space-y-2"}>
+          <TarjetaAlcance
+            nivel={n}
+            rows={grupo}
+            abierto={abierto}
+            soldada={soldada}
+            vacia={vacia}
+            onToggle={() => toggleColapso(n, abierto)}
+          />
 
           {abierto && (() => {
             // Filtrando por UN tipo de documento hay exactamente una fila por
@@ -503,7 +514,7 @@ export default function ComplianceChecklistPage({
             // Ahí la lista va derecha, con el nombre en cada fila.
             if (n === "empresa" || !agrupar) {
               return (
-                <div className="border border-border rounded-[12px] overflow-hidden bg-card">
+                <div className="overflow-hidden rounded-b-[12px] border border-border bg-card">
                   {grupo.map((r, i) => renderFila(r, i, n !== "empresa"))}
                 </div>
               );
@@ -578,12 +589,49 @@ export default function ComplianceChecklistPage({
                         </div>
                       </button>
 
-                      {/* Lista de documentos del subgrupo */}
-                      {gAbierto && (
-                        <div className="divide-y divide-border">
-                          {g.rows.map((r, i) => renderFila(r, i))}
-                        </div>
-                      )}
+                      {/* Lista de documentos del subgrupo. En las unidades va
+                          partida en dos: los papeles del chasis y los de la
+                          tolva, cada uno con su patente arriba. Se entra por la
+                          misma ficha de siempre; lo único nuevo es que ahora
+                          cada papel dice de cuál de las dos patentes es. */}
+                      {gAbierto && (() => {
+                        const delAcoplado =
+                          n === "unidad"
+                            ? g.rows.filter(esDelAcoplado)
+                            : [];
+                        if (delAcoplado.length === 0) {
+                          return (
+                            <div className="divide-y divide-border">
+                              {g.rows.map((r, i) => renderFila(r, i))}
+                            </div>
+                          );
+                        }
+                        const delChasis = g.rows.filter((r) => !esDelAcoplado(r));
+                        // La patente sale de la propia fila: es la del acoplado
+                        // que tenía el papel, no la del vínculo de hoy.
+                        const patenteAcoplado =
+                          delAcoplado[0]?.acoplado_patente ?? unidades?.[g.id]?.acoplados?.[0] ?? null;
+                        return (
+                          <>
+                            {delChasis.length > 0 && (
+                              <>
+                                <TiraDeParte titulo="Del chasis" patente={g.label} />
+                                <div className="divide-y divide-border">
+                                  {delChasis.map((r, i) => renderFila(r, i))}
+                                </div>
+                              </>
+                            )}
+                            <TiraDeParte
+                              titulo="Del acoplado"
+                              patente={patenteAcoplado}
+                              sinPatente="sin acoplado enganchado"
+                            />
+                            <div className="divide-y divide-border">
+                              {delAcoplado.map((r, i) => renderFila(r, i))}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   );
                 })}
@@ -704,6 +752,15 @@ export default function ComplianceChecklistPage({
           onOpenChange={(o) => !o && setHistorialState(null)}
         />
       )}
+
+      <VisorArchivo
+        archivo={visor?.archivo ?? null}
+        cargando={visor?.cargando ?? false}
+        error={visor?.error ?? null}
+        titulo={visor?.titulo}
+        open={visor !== null}
+        onOpenChange={(o) => !o && setVisor(null)}
+      />
     </div>
   );
 }
@@ -820,7 +877,7 @@ function ChecklistRow({
   onCasilla,
   onSubir,
   onHistorial,
-  onDescargar,
+  onAbrirArchivo,
 }: {
   row: ComplianceEstadoRow;
   /** De quién es la fila. Va sólo cuando la lista no está agrupada por entidad
@@ -836,7 +893,7 @@ function ChecklistRow({
   onCasilla: () => void;
   onSubir: () => void;
   onHistorial: () => void;
-  onDescargar: () => void;
+  onAbrirArchivo: () => void;
 }) {
   const ui = ESTADO_UI[row.estado];
   const tag = tagCliente(row.cliente_aplica);
@@ -917,6 +974,11 @@ function ChecklistRow({
               {enviarA}
             </span>
           )}
+          {row.numero && (
+            <span className="truncate" title={`Número del documento: ${row.numero}`}>
+              N.º {row.numero}
+            </span>
+          )}
           {row.observaciones && (
             <span className="inline-flex items-center gap-1 italic truncate">
               <MessageSquare size={10} className="shrink-0" />
@@ -964,6 +1026,7 @@ function ChecklistRow({
           <button
             type="button"
             onClick={onSubir}
+            data-tour="btn-cargar"
             className="inline-flex w-[104px] shrink-0 items-center justify-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-[12px] font-semibold text-primary transition-colors hover:border-primary/60 hover:bg-primary/10"
             title={`Cargar ${row.requisito_nombre}`}
           >
@@ -980,8 +1043,14 @@ function ChecklistRow({
         )}
       </div>
 
-      {/* Acciones */}
-      <div className="flex items-center gap-0.5 shrink-0 print:hidden">
+      {/* Acciones — SIEMPRE las mismas tres ranuras: papel · historial · editar.
+          La que no aplica va apagada o vacía, pero ocupa su lugar. Con los
+          botones apareciendo y desapareciendo, cada fila alineaba distinto y la
+          columna quedaba en escalera. */}
+      <div
+        data-tour={primero ? "acciones-fila" : undefined}
+        className="flex items-center gap-0.5 shrink-0 print:hidden"
+      >
         {expandible && onTogglePanel && (
           <IconBtn
             title={panelAbierto ? "Ocultar presentaciones" : "Ver presentaciones y fechas límite"}
@@ -990,31 +1059,107 @@ function ChecklistRow({
             <CalendarClock size={14} />
           </IconBtn>
         )}
-        {row.archivo_id && (
-          <IconBtn title="Descargar documento" onClick={onDescargar}>
-            <Download size={14} />
+        {/* El papel. Con documento cargado se abre en el visor de la aplicación
+            (y el número dice cuántos hay); sin papel, el mismo lugar lleva el
+            ícono tachado y en gris: se ve de un saque cuál tiene el respaldo y
+            cuál es solo una fecha escrita a mano. */}
+        {row.archivo_id ? (
+          <IconBtn
+            title={
+              (row.archivos ?? 1) > 1
+                ? `Ver el papel cargado — hay ${row.archivos}, el resto en el historial`
+                : "Ver el papel cargado"
+            }
+            onClick={onAbrirArchivo}
+          >
+            <FileText size={14} />
+            {(row.archivos ?? 0) > 1 && (
+              <span className="text-[10px] font-semibold leading-none">{row.archivos}</span>
+            )}
+          </IconBtn>
+        ) : (
+          <IconBtn
+            title={
+              canWrite
+                ? "Sin papel cargado — tocá para subirlo"
+                : "Sin papel cargado: acá está la fecha, pero no el documento"
+            }
+            onClick={canWrite ? onSubir : undefined}
+            apagado
+          >
+            <FileX size={14} />
           </IconBtn>
         )}
         <IconBtn title="Ver historial" onClick={onHistorial}>
           <History size={14} />
         </IconBtn>
-        {canWrite && row.estado !== "faltante" && (
+        {canWrite && row.estado !== "faltante" ? (
           <IconBtn title="Editar vencimiento / reemplazar" onClick={onSubir}>
             <Pencil size={14} />
           </IconBtn>
+        ) : (
+          <span className="inline-block h-7 min-w-7 max-md:h-9 max-md:min-w-9" aria-hidden />
         )}
       </div>
     </div>
   );
 }
 
-function IconBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+/**
+ * El renglón que separa los papeles del chasis de los del acoplado, con la
+ * patente de cada parte. Va dentro de la ficha de la unidad, no en una sección
+ * aparte: quien carga entra por la patente del camión, como siempre.
+ */
+function TiraDeParte({
+  titulo,
+  patente,
+  sinPatente,
+}: {
+  titulo: string;
+  patente: string | null;
+  /** Qué decir cuando esa parte no tiene patente asignada. */
+  sinPatente?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-t border-border bg-muted/20 px-3 py-1.5 sm:px-4">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+        {titulo}
+      </span>
+      <span className="text-[12px] font-semibold text-foreground">
+        {patente ?? (
+          <span className="font-normal italic text-muted-foreground">{sinPatente}</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function IconBtn({
+  title,
+  onClick,
+  children,
+  apagado = false,
+}: {
+  title: string;
+  /** Sin `onClick` el botón queda inerte (informa, no hace). */
+  onClick?: () => void;
+  children: React.ReactNode;
+  /** Marca "esto todavía no está": mismo lugar y tamaño, en gris claro. */
+  apagado?: boolean;
+}) {
   return (
     <button
       type="button"
       title={title}
       onClick={onClick}
-      className="size-7 max-md:size-9 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-[#E1F5FE] transition-colors"
+      disabled={!onClick}
+      className={`h-7 min-w-7 px-1 gap-0.5 max-md:h-9 max-md:min-w-9 inline-flex items-center justify-center rounded-md transition-colors ${
+        apagado ? "text-muted-foreground/35" : "text-muted-foreground"
+      } ${
+        onClick
+          ? "hover:text-primary hover:bg-[#E1F5FE] cursor-pointer"
+          : "cursor-default"
+      }`}
     >
       {children}
     </button>

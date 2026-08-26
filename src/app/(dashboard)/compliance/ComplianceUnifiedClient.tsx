@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import HorizontalScrollHint from "@/components/ui/HorizontalScrollHint";
 import ComplianceChecklistPage from "./components/ComplianceChecklistPage";
 import ComplianceHelpButton from "./components/ComplianceHelpButton";
+import TourCompliance, { BotonRecorrido } from "./components/TourCompliance";
 import AgregarDocumentoDialog from "./components/AgregarDocumentoDialog";
 import OrganismoChecklistPage from "./organismos/OrganismoChecklistPage";
 import Form931Client from "./form-931/Form931Client";
@@ -46,6 +47,8 @@ type OrganismoData = {
 
 interface Props {
   canWrite: boolean;
+  /** Quién está mirando: el recorrido guiado se ofrece una vez por persona. */
+  userId: string;
   /** Papeleta combinada de YPF + Loma (los específicos van marcados "(solo X)"). */
   documentacion: ClienteData;
   organismos: OrganismoData[];
@@ -92,6 +95,7 @@ type TabDef = {
  */
 export default function ComplianceUnifiedClient({
   canWrite,
+  userId,
   documentacion,
   organismos,
   periodos931,
@@ -118,7 +122,13 @@ export default function ComplianceUnifiedClient({
       vencidos: documentacion.rows.filter((r) => r.estado === "vencido").length,
       acciones: (
         <>
-          <ComplianceHelpButton />
+          {/* Los dos botones de ayuda van juntos y marcados como uno: el último
+              paso del recorrido los ilumina a la vez, porque lo que hay que
+              recordar es el par —el recorrido y la guía con capturas—. */}
+          <span data-tour="ayuda" className="inline-flex items-center gap-2">
+            <BotonRecorrido />
+            <ComplianceHelpButton />
+          </span>
           <Button
             variant="outline"
             size="sm"
@@ -290,6 +300,8 @@ export default function ComplianceUnifiedClient({
       )}
 
       {tab?.render()}
+
+      <TourCompliance userId={userId} />
 
       {agregando && (
         <AgregarDocumentoDialog

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,8 +18,9 @@ import {
 } from "lucide-react";
 import {
   getComplianceHistorialAction,
-  getSignedUrlComplianceArchivoAction,
+  getComplianceArchivoParaVerAction,
 } from "../actions";
+import VisorArchivo, { type ArchivoParaVer } from "@/components/ui/VisorArchivo";
 import type { ComplianceHistorialDoc, ComplianceRequisito } from "../types";
 import { formatFecha } from "@/lib/utils";
 
@@ -76,7 +77,11 @@ function HistorialBody({
   const [docs, setDocs] = useState<ComplianceHistorialDoc[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  // El papel se mira dentro de la aplicación, encima del historial: irse a otra
+  // pestaña para ver un PDF y volver a buscar la fila es el camino largo.
+  const [visor, setVisor] = useState<{ archivo: ArchivoParaVer | null; titulo: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancel = false;
@@ -99,14 +104,12 @@ function HistorialBody({
     };
   }, [requisito.id, chofer_id, camion_id]);
 
-  const abrirArchivo = (archivo_id: string) => {
+  const abrirArchivo = async (archivo_id: string, titulo: string) => {
     setOpeningId(archivo_id);
-    startTransition(async () => {
-      const res = await getSignedUrlComplianceArchivoAction(archivo_id);
-      setOpeningId(null);
-      if ("url" in res && res.url) window.open(res.url, "_blank", "noopener,noreferrer");
-      else setError(res.error ?? "No se pudo abrir el archivo");
-    });
+    const res = await getComplianceArchivoParaVerAction(archivo_id);
+    setOpeningId(null);
+    if ("archivo" in res) setVisor({ archivo: res.archivo, titulo });
+    else setError(res.error);
   };
 
   return (
@@ -164,20 +167,40 @@ function HistorialBody({
                       </p>
                     </div>
                   </div>
-                  {doc.archivo_id && (
-                    <button
-                      type="button"
-                      onClick={() => abrirArchivo(doc.archivo_id!)}
-                      disabled={openingId === doc.archivo_id}
-                      className="inline-flex items-center gap-1.5 h-8 max-md:h-9 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors shrink-0"
-                    >
-                      {openingId === doc.archivo_id ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <ExternalLink size={12} />
-                      )}
-                      Ver PDF
-                    </button>
+                  {/* Todos los papeles de esa presentación, no solo el primero:
+                      un documento puede tener frente y dorso, o el papel viejo y
+                      el de la renovación archivados juntos. */}
+                  {doc.archivos.length > 0 ? (
+                    <div className="flex shrink-0 flex-col gap-1 sm:max-w-[230px]">
+                      {doc.archivos.map((a) => (
+                        <button
+                          key={a.archivo_id}
+                          type="button"
+                          onClick={() =>
+                            void abrirArchivo(
+                              a.archivo_id,
+                              `${requisito.nombre} · vence ${formatFecha(doc.fecha_vencimiento)}`,
+                            )
+                          }
+                          disabled={openingId === a.archivo_id}
+                          title={a.nombre ?? "Ver el papel"}
+                          className="inline-flex items-center gap-1.5 h-8 max-md:h-9 px-3 rounded-md text-xs font-semibold bg-card border border-border text-foreground hover:bg-[#E1F5FE] hover:border-[#0088D1] hover:text-primary transition-colors"
+                        >
+                          {openingId === a.archivo_id ? (
+                            <Loader2 size={12} className="animate-spin shrink-0" />
+                          ) : (
+                            <ExternalLink size={12} className="shrink-0" />
+                          )}
+                          <span className="truncate">{a.nombre ?? "Ver el papel"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    // Que se note la diferencia entre "cargaron la fecha a mano" y
+                    // "está el papel": es la mitad de lo que se viene a mirar acá.
+                    <span className="shrink-0 text-[11px] text-muted-foreground/70">
+                      Sin papel cargado
+                    </span>
                   )}
                 </div>
               </div>
@@ -185,6 +208,13 @@ function HistorialBody({
           ))}
         </ol>
       )}
+
+      <VisorArchivo
+        archivo={visor?.archivo ?? null}
+        titulo={visor?.titulo}
+        open={visor !== null}
+        onOpenChange={(o) => !o && setVisor(null)}
+      />
     </div>
   );
 }

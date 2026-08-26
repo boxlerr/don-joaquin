@@ -5,9 +5,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import {
+  archivoIdsDeAdjuntos,
+  asegurarPortada,
   crearUrlSubidaAdjunto,
+  getAdjuntos,
   vincularAdjuntos,
   type AdjuntoCfg,
+  type AdjuntoExistente,
   type ArchivoMeta,
   type CrearUrlResult,
 } from "@/lib/adjuntos-server";
@@ -17,6 +21,7 @@ import type {
   ComplianceClienteAplica,
   ComplianceEstadoRow,
   ComplianceHistorialDoc,
+  ComplianceNivel,
   ComplianceRequisito,
   UnidadInfo,
 } from "./types";
@@ -67,13 +72,31 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
   await requireArea("compliance", "read");
   const supabase = createAdminClient();
 
-  const [rowsRes, reqRes, unidades, choferes] = await Promise.all([
-    supabase
-      .from("v_compliance_estado")
-      .select("*")
-      .in("cliente_aplica", aplica)
-      .order("nivel", { ascending: true })
-      .order("requisito_codigo", { ascending: true }),
+  const [filas, reqRes, unidades, choferes] = await Promise.all([
+    // Paginado a mano: Supabase corta en 1000 filas y NO avisa — devuelve las
+    // primeras mil como si fueran todas. El checklist ya estaba en 854 y con el
+    // alcance de los acoplados pasa las mil, así que sin esto la pantalla
+    // mostraría un recorte silencioso (el 26/08/2026 llegó a mostrar "1000
+    // documentos exigidos" justo en el número redondo).
+    (async () => {
+      const out: ComplianceEstadoRow[] = [];
+      for (let desde = 0; ; desde += 1000) {
+        const { data, error } = await supabase
+          .from("v_compliance_estado")
+          .select("*")
+          .in("cliente_aplica", aplica)
+          .order("nivel", { ascending: true })
+          .order("requisito_codigo", { ascending: true })
+          .range(desde, desde + 999);
+        if (error) {
+          console.error("getComplianceEstadoAplica: error al traer la vista:", error);
+          break;
+        }
+        out.push(...((data ?? []) as ComplianceEstadoRow[]));
+        if ((data?.length ?? 0) < 1000) break;
+      }
+      return out;
+    })(),
     supabase
       .from("compliance_requisitos")
       .select("*")
@@ -84,8 +107,9 @@ export async function getComplianceEstadoAplica(aplica: ComplianceClienteAplica[
     getChoferesInfo(supabase),
   ]);
 
-  const rows = (rowsRes.data as ComplianceEstadoRow[] | null) ?? [];
-  await adjuntarObservaciones(supabase, rows);
+  const rows = filas;
+  await engancharAcopladosASuChasis(supabase, rows);
+  await adjuntarDetalleDocumento(supabase, rows);
 
   return {
     rows,
@@ -207,11 +231,67 @@ export async function getComplianceEstadoAction(cliente: ComplianceCliente): Pro
 }
 
 /**
- * La vista v_compliance_estado no trae las observaciones del documento vigente.
- * Las traemos aparte por documento_id (agrupado por fuente) y las pegamos a cada
- * fila — así se ven en el checklist sin tener que modificar la vista. Muta `rows`.
+ * Mete los papeles del ACOPLADO en la ficha del chasis que lo lleva enganchado.
+ *
+ * El acoplado es un vehículo aparte —patente propia, VTV propia, y las válvulas
+ * y el disco de ruptura montados sobre la cisterna—, así que en la base es un
+ * alcance propio. Pero quien carga entra por la patente del camión, y el
+ * acoplado "va a seguir así enganchado" (Bárbara, 26/08/2026): mostrarlo en una
+ * sección aparte obligaría a buscar dos veces la misma unidad.
+ *
+ * Entonces la fila viaja como si fuera del camión —mismo alcance, misma ficha—
+ * y se queda con `acoplado_id`/`acoplado_patente`, que es lo que usa la pantalla
+ * para separarla en su propia tira y decir de qué patente es el papel.
+ *
+ * Los acoplados sin chasis enganchado (3 al 26/08) se quedan sin `camion_id`:
+ * la pantalla los agrupa por su propia patente. Muta `rows`.
  */
-async function adjuntarObservaciones(
+async function engancharAcopladosASuChasis(
+  supabase: ReturnType<typeof createAdminClient>,
+  rows: ComplianceEstadoRow[],
+): Promise<void> {
+  const delAcoplado = rows.filter((r) => r.acoplado_id);
+  if (delAcoplado.length === 0) return;
+
+  const { data: vinculos } = await supabase
+    .from("camion_acoplados")
+    .select("acoplado_id, camion_id, camiones(patente)")
+    .is("hasta", null);
+
+  const chasisDe = new Map<string, { id: string; patente: string | null }>();
+  for (const v of (vinculos ?? []) as unknown as Record<string, unknown>[]) {
+    const acopladoId = v.acoplado_id as string | null;
+    const camionId = v.camion_id as string | null;
+    if (!acopladoId || !camionId) continue;
+    const cam = v.camiones as { patente?: string } | { patente?: string }[] | null;
+    const patente = (Array.isArray(cam) ? cam[0] : cam)?.patente ?? null;
+    chasisDe.set(acopladoId, { id: camionId, patente });
+  }
+
+  for (const r of delAcoplado) {
+    // El alcance de la fila pasa a ser el de la unidad: es la ficha donde se
+    // muestra. El dato de la base sigue siendo del acoplado.
+    r.nivel = "unidad" as ComplianceNivel;
+    const chasis = r.acoplado_id ? chasisDe.get(r.acoplado_id) : undefined;
+    if (chasis) {
+      r.camion_id = chasis.id;
+      r.camion_patente = chasis.patente;
+    }
+  }
+}
+
+/**
+ * La vista v_compliance_estado trae la fecha y poco más: ni las observaciones,
+ * ni el número, ni los papeles adjuntos del documento vigente. Todo eso se busca
+ * acá por documento_id (agrupado por fuente) y se pega a cada fila, así el
+ * checklist muestra lo que se cargó sin tener que ensanchar la vista (que además
+ * consume `lib/alertas.ts`). Muta `rows`.
+ *
+ * Los adjuntos salen de la tabla puente, no de `documentos.archivo_id`: un
+ * documento cargado desde la ficha del camión o del chofer deja el PDF vinculado
+ * ahí y la portada vacía, y así el papel figuraba como inexistente en Compliance.
+ */
+async function adjuntarDetalleDocumento(
   supabase: ReturnType<typeof createAdminClient>,
   rows: ComplianceEstadoRow[],
 ): Promise<void> {
@@ -226,9 +306,17 @@ async function adjuntarObservaciones(
     if (set) set.add(r.documento_id);
   }
 
-  const obsPorId = new Map<string, string | null>();
-  const collect = (data: { id: string; observaciones: string | null }[] | null) => {
-    for (const d of data ?? []) obsPorId.set(d.id, d.observaciones ?? null);
+  type Detalle = { observaciones: string | null; numero: string | null };
+  const detallePorId = new Map<string, Detalle>();
+  const collect = (data: { id: string; observaciones: string | null; numero?: string | null }[] | null) => {
+    for (const d of data ?? [])
+      detallePorId.set(d.id, { observaciones: d.observaciones ?? null, numero: d.numero ?? null });
+  };
+
+  // Los archivos de cada documento, por fuente (cada una tiene su tabla puente).
+  const archivosPorId = new Map<string, string[]>();
+  const mergeArchivos = (m: Map<string, string[]>) => {
+    for (const [k, v] of m) archivosPorId.set(k, v);
   };
 
   await Promise.all([
@@ -242,21 +330,87 @@ async function adjuntarObservaciones(
     ids.chofer_documentos.size
       ? supabase
           .from("chofer_documentos")
-          .select("id, observaciones")
+          .select("id, observaciones, numero")
           .in("id", [...ids.chofer_documentos])
           .then((r) => collect(r.data))
       : Promise.resolve(),
     ids.camion_documentos.size
       ? supabase
           .from("camion_documentos")
-          .select("id, observaciones")
+          .select("id, observaciones, numero")
           .in("id", [...ids.camion_documentos])
           .then((r) => collect(r.data))
+      : Promise.resolve(),
+    ids.compliance_documentos.size
+      ? archivoIdsDeAdjuntos(COMPLIANCE_ADJ.compliance, [...ids.compliance_documentos]).then(mergeArchivos)
+      : Promise.resolve(),
+    ids.chofer_documentos.size
+      ? archivoIdsDeAdjuntos(COMPLIANCE_ADJ.chofer, [...ids.chofer_documentos]).then(mergeArchivos)
+      : Promise.resolve(),
+    ids.camion_documentos.size
+      ? archivoIdsDeAdjuntos(COMPLIANCE_ADJ.camion, [...ids.camion_documentos]).then(mergeArchivos)
       : Promise.resolve(),
   ]);
 
   for (const r of rows) {
-    if (r.documento_id) r.observaciones = obsPorId.get(r.documento_id) ?? null;
+    if (!r.documento_id) continue;
+    const d = detallePorId.get(r.documento_id);
+    r.observaciones = d?.observaciones ?? null;
+    r.numero = d?.numero ?? null;
+    const archivos = archivosPorId.get(r.documento_id) ?? [];
+    r.archivos = archivos.length;
+    // La vista mira la portada; si quedó vacía, el papel es igual el primero de
+    // los adjuntos — es el que abren el botón de descarga y el checklist.
+    if (!r.archivo_id && archivos.length) r.archivo_id = archivos[0];
+  }
+}
+
+/**
+ * Pega a cada versión del historial TODOS sus papeles (frente y dorso, documento
+ * + anexo, la renovación archivada junto a la fecha nueva). Salen de la tabla
+ * puente: la portada `archivo_id` es apenas el primero y muchas veces está vacía
+ * — los documentos cargados desde la ficha del camión o del chofer no la
+ * completaban. Muta `docs`.
+ */
+async function adjuntarArchivosHistorial(
+  supabase: ReturnType<typeof createAdminClient>,
+  cfg: ComplianceAdjCfg,
+  docs: ComplianceHistorialDoc[],
+): Promise<void> {
+  const ids = docs.map((d) => d.id);
+  if (!ids.length) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from(cfg.junctionTable)
+    .select(
+      `${cfg.entityColumn}, archivo_id, created_at, archivo:documentos_archivos!archivo_id(nombre_original)`,
+    )
+    .in(cfg.entityColumn, ids)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error(`adjuntarArchivosHistorial: error en ${cfg.junctionTable}:`, error);
+    return;
+  }
+
+  const porDoc = new Map<string, { archivo_id: string; nombre: string | null }[]>();
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const docId = r[cfg.entityColumn] as string | null;
+    const archivoId = r.archivo_id as string | null;
+    if (!docId || !archivoId) continue;
+    const emb = r.archivo as { nombre_original?: string } | { nombre_original?: string }[] | null;
+    const meta = Array.isArray(emb) ? emb[0] : emb;
+    const item = { archivo_id: archivoId, nombre: meta?.nombre_original ?? null };
+    const lista = porDoc.get(docId);
+    if (lista) lista.push(item);
+    else porDoc.set(docId, [item]);
+  }
+
+  for (const d of docs) {
+    d.archivos = porDoc.get(d.id) ?? [];
+    if (!d.archivo_id && d.archivos.length) {
+      d.archivo_id = d.archivos[0].archivo_id;
+      d.nombre_archivo = d.archivos[0].nombre;
+    }
   }
 }
 
@@ -297,7 +451,7 @@ export async function getComplianceHistorialAction(input: {
       .eq("chofer_id", input.chofer_id)
       .eq("tipo_documento_id", req.tipo_documento_id)
       .order("fecha_vencimiento", { ascending: false, nullsFirst: false });
-    return ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
+    const docs = ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
       id: d.id as string,
       periodo: null,
       numero: (d.numero as string | null) ?? null,
@@ -306,9 +460,12 @@ export async function getComplianceHistorialAction(input: {
       observaciones: (d.observaciones as string | null) ?? null,
       archivo_id: (d.archivo_id as string | null) ?? null,
       nombre_archivo: (d.archivo as { nombre_original?: string } | null)?.nombre_original ?? null,
+      archivos: [] as { archivo_id: string; nombre: string | null }[],
       created_at: d.created_at as string,
       cargado_por: nombreUsuario(d.cargado_por as { nombre?: string; apellido?: string } | null),
     }));
+    await adjuntarArchivosHistorial(supabase, COMPLIANCE_ADJ.chofer, docs);
+    return docs;
   }
 
   if (req.tipo_documento_id && req.nivel === "unidad" && input.camion_id) {
@@ -320,7 +477,7 @@ export async function getComplianceHistorialAction(input: {
       .eq("camion_id", input.camion_id)
       .eq("tipo_documento_id", req.tipo_documento_id)
       .order("fecha_vencimiento", { ascending: false, nullsFirst: false });
-    return ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
+    const docs = ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
       id: d.id as string,
       periodo: null,
       numero: (d.numero as string | null) ?? null,
@@ -329,9 +486,12 @@ export async function getComplianceHistorialAction(input: {
       observaciones: (d.observaciones as string | null) ?? null,
       archivo_id: (d.archivo_id as string | null) ?? null,
       nombre_archivo: (d.archivo as { nombre_original?: string } | null)?.nombre_original ?? null,
+      archivos: [] as { archivo_id: string; nombre: string | null }[],
       created_at: d.created_at as string,
       cargado_por: nombreUsuario(d.cargado_por as { nombre?: string; apellido?: string } | null),
     }));
+    await adjuntarArchivosHistorial(supabase, COMPLIANCE_ADJ.camion, docs);
+    return docs;
   }
 
   // ── Caso compliance_documentos ──
@@ -351,7 +511,7 @@ export async function getComplianceHistorialAction(input: {
     nullsFirst: false,
   });
 
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
+  const docs = ((data ?? []) as unknown as Record<string, unknown>[]).map((d) => ({
     id: d.id as string,
     periodo: (d.periodo as string | null) ?? null,
     numero: null,
@@ -360,15 +520,20 @@ export async function getComplianceHistorialAction(input: {
     observaciones: (d.observaciones as string | null) ?? null,
     archivo_id: (d.archivo_id as string | null) ?? null,
     nombre_archivo: (d.archivo as { nombre_original?: string } | null)?.nombre_original ?? null,
+    archivos: [] as { archivo_id: string; nombre: string | null }[],
     created_at: d.created_at as string,
     cargado_por: nombreUsuario(d.cargado_por as { nombre?: string; apellido?: string } | null),
   }));
+  await adjuntarArchivosHistorial(supabase, COMPLIANCE_ADJ.compliance, docs);
+  return docs;
 }
 
 export async function uploadComplianceDocAction(input: {
   requisito_id: string;
   chofer_id?: string | null;
   camion_id?: string | null;
+  /** El acoplado, cuando el papel es de la tolva y no del tractor. */
+  acoplado_id?: string | null;
   periodo?: string | null;
   fecha_emision?: string | null;
   fecha_vencimiento: string;
@@ -384,7 +549,11 @@ export async function uploadComplianceDocAction(input: {
 
   const requisito_id = input.requisito_id;
   const chofer_id = input.chofer_id || null;
-  const camion_id = input.camion_id || null;
+  // Un papel del acoplado NO lleva camion_id: el chasis es sólo dónde se
+  // muestra. Si se guardaran los dos, el documento quedaría colgado de la
+  // unidad y desaparecería el día que desenganchen la tolva.
+  const acoplado_id = input.acoplado_id || null;
+  const camion_id = acoplado_id ? null : input.camion_id || null;
   const periodo = input.periodo || null;
   const fecha_emision = input.fecha_emision || null;
   const fecha_vencimiento = input.fecha_vencimiento;
@@ -404,16 +573,19 @@ export async function uploadComplianceDocAction(input: {
     .single();
   if (!req) return { error: "Requisito no encontrado" };
 
-  if (req.nivel === "chofer" && !chofer_id) return { error: "Chofer requerido para este requisito" };
-  if (req.nivel === "unidad" && !camion_id) return { error: "Camión requerido para este requisito" };
-  if (req.nivel === "empresa" && (chofer_id || camion_id)) {
-    return { error: "Los requisitos de empresa no llevan chofer ni camión" };
+  const nivel = req.nivel as string;
+  if (nivel === "chofer" && !chofer_id) return { error: "Chofer requerido para este requisito" };
+  if (nivel === "unidad" && !camion_id) return { error: "Camión requerido para este requisito" };
+  if (nivel === "acoplado" && !acoplado_id) return { error: "Acoplado requerido para este requisito" };
+  if (nivel === "empresa" && (chofer_id || camion_id || acoplado_id)) {
+    return { error: "Los requisitos de empresa no llevan chofer, camión ni acoplado" };
   }
 
   // Cuando el requisito está mapeado a un tipo_documento existente, el doc se
   // guarda en chofer_documentos / camion_documentos (no en compliance_documentos),
   // así aparece tanto en el legajo como en compliance (v_compliance_estado cruza ambos).
-  const usaLegajo = !!req.tipo_documento_id;
+  // El acoplado no tiene legajo propio: su papel vive en compliance_documentos.
+  const usaLegajo = !!req.tipo_documento_id && nivel !== "acoplado";
 
   // Crear el doc en la tabla que corresponda (archivo_id se completa luego con el
   // primero de los adjuntos, que es el que abre el checklist).
@@ -442,8 +614,9 @@ export async function uploadComplianceDocAction(input: {
     revalidatePath(`/camiones/${camion_id}`);
   } else {
     cfg = COMPLIANCE_ADJ.compliance;
-    const { data, error: dbError } = await supabase.from("compliance_documentos").insert({
-      requisito_id, chofer_id, camion_id, periodo, fecha_emision, fecha_vencimiento,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `acoplado_id` es columna nueva y database.ts todavía no la tiene.
+    const { data, error: dbError } = await (supabase as any).from("compliance_documentos").insert({
+      requisito_id, chofer_id, camion_id, acoplado_id, periodo, fecha_emision, fecha_vencimiento,
       archivo_id: null, observaciones, created_by: user.id,
     }).select("id").single();
     if (dbError || !data) return { error: "Error al guardar el documento" };
@@ -455,18 +628,7 @@ export async function uploadComplianceDocAction(input: {
   if (archivos.length) {
     const r = await vincularAdjuntos(cfg, nuevoDocId, archivos, user.id);
     fallidos = r.fallidos;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: primero } = await (supabase as any)
-      .from(cfg.junctionTable)
-      .select("archivo_id")
-      .eq(cfg.entityColumn, nuevoDocId)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (primero?.archivo_id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from(cfg.docTable).update({ archivo_id: primero.archivo_id }).eq("id", nuevoDocId);
-    }
+    await asegurarPortada(cfg, cfg.docTable, nuevoDocId);
   }
 
   revalidatePath("/compliance");
@@ -564,29 +726,7 @@ export async function setComplianceVencimientoAction(input: {
     // archivo_id es la portada (lo que muestran el checklist y el historial).
     // Solo se completa si el documento no tenía ninguno: renovar suma archivos,
     // no reemplaza el que ya estaba.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: doc } = await (supabase as any)
-      .from(cfg.docTable)
-      .select("archivo_id")
-      .eq("id", input.documento_id)
-      .maybeSingle();
-    if (!doc?.archivo_id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: primero } = await (supabase as any)
-        .from(cfg.junctionTable)
-        .select("archivo_id")
-        .eq(cfg.entityColumn, input.documento_id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      if (primero?.archivo_id) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
-          .from(cfg.docTable)
-          .update({ archivo_id: primero.archivo_id })
-          .eq("id", input.documento_id);
-      }
-    }
+    await asegurarPortada(cfg, cfg.docTable, input.documento_id);
   }
 
   await supabase.from("audit_log").insert({
@@ -677,15 +817,70 @@ export async function getSignedUrlComplianceArchivoAction(
   const supabase = createAdminClient();
   const { data: arch } = await supabase
     .from("documentos_archivos")
-    .select("bucket, path, nombre_original")
+    .select("bucket, path, nombre_original, mime_type")
     .eq("id", archivo_id)
     .single();
   if (!arch) return { error: "Archivo no encontrado" };
   // Con `download` fuerza la descarga con el nombre prolijo (ej. "Juan Pérez - Carnet.pdf");
   // sin él, abre el PDF en el navegador para verlo.
+  //
+  // Una hora de validez, no un minuto: el visor de la aplicación deja el papel
+  // abierto mientras se lo lee, y con 60 segundos el PDF moría en pantalla.
   const { data, error } = await supabase.storage
     .from(arch.bucket)
-    .createSignedUrl(arch.path, 60, opts?.download && arch.nombre_original ? { download: arch.nombre_original } : undefined);
+    .createSignedUrl(arch.path, 3600, opts?.download && arch.nombre_original ? { download: arch.nombre_original } : undefined);
   if (error || !data) return { error: "No se pudo generar el link" };
-  return { url: data.signedUrl };
+  return {
+    url: data.signedUrl,
+    nombre: arch.nombre_original,
+    mime: arch.mime_type,
+  };
+}
+
+/**
+ * El papel de un documento, listo para el visor de la aplicación: la URL para
+ * verlo y la URL para bajarlo con su nombre real, en una sola ida al server.
+ */
+export async function getComplianceArchivoParaVerAction(archivo_id: string): Promise<
+  { archivo: { nombre: string; url: string; downloadUrl: string; mime: string | null } } | { error: string }
+> {
+  await requireArea("compliance", "read");
+  const supabase = createAdminClient();
+  const { data: arch } = await supabase
+    .from("documentos_archivos")
+    .select("bucket, path, nombre_original, mime_type")
+    .eq("id", archivo_id)
+    .single();
+  if (!arch) return { error: "No encontramos el archivo" };
+
+  const [ver, bajar] = await Promise.all([
+    supabase.storage.from(arch.bucket).createSignedUrl(arch.path, 3600),
+    supabase.storage
+      .from(arch.bucket)
+      .createSignedUrl(arch.path, 3600, arch.nombre_original ? { download: arch.nombre_original } : undefined),
+  ]);
+  if (!ver.data) return { error: "No se pudo abrir el archivo" };
+
+  return {
+    archivo: {
+      nombre: arch.nombre_original ?? "Documento",
+      url: ver.data.signedUrl,
+      downloadUrl: bajar.data?.signedUrl ?? ver.data.signedUrl,
+      mime: arch.mime_type,
+    },
+  };
+}
+
+/**
+ * Los papeles que YA tiene un documento cargado. Lo usa la ventana de renovar:
+ * antes mostraba solo el recuadro para subir uno nuevo, así que desde ahí no
+ * había forma de mirar lo que ya estaba guardado.
+ */
+export async function getComplianceDocArchivosAction(input: {
+  documento_id: string;
+  fuente: FuenteVencimiento;
+}): Promise<AdjuntoExistente[]> {
+  await requireArea("compliance", "read");
+  if (!input.documento_id || !FUENTES_VENCIMIENTO.includes(input.fuente)) return [];
+  return getAdjuntos(CFG_POR_FUENTE[input.fuente], input.documento_id);
 }

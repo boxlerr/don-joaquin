@@ -58,6 +58,8 @@ export default async function ComplianceUnifiedPage({
   return (
     <ComplianceUnifiedClient
       canWrite={canWrite}
+      // Para el recorrido guiado: la marca de "ya lo vio" es por persona.
+      userId={user.id}
       documentacion={documentacion}
       organismos={organismos}
       periodos931={periodos931}

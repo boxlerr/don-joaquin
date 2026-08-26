@@ -11,6 +11,7 @@ import { requireArea } from "@/lib/auth";
 import {
   crearUrlSubidaAdjunto,
   vincularAdjuntos,
+  asegurarPortada,
   getAdjuntos,
   deleteAdjunto,
   type AdjuntoCfg,
@@ -664,6 +665,25 @@ export async function getCamionDocumentosAction(camion_id: string) {
   };
 }
 
+/**
+ * El nombre del tipo de documento para el registro de auditoría. Los movimientos
+ * de camión guardaban solo el uuid, así que la pantalla de Auditoría mostraba
+ * "documento actualizado" sin decir cuál — y con 8 documentos por unidad, no
+ * había forma de saber si tocaron la VTV o el seguro.
+ */
+async function nombreTipoDocumento(
+  supabase: ReturnType<typeof createAdminClient>,
+  tipo_documento_id: string | null,
+): Promise<string | null> {
+  if (!tipo_documento_id) return null;
+  const { data } = await supabase
+    .from("tipos_documento")
+    .select("nombre")
+    .eq("id", tipo_documento_id)
+    .maybeSingle();
+  return data?.nombre ?? null;
+}
+
 export async function registrarDocumentoCamionAction(input: {
   camion_id: string;
   tipo_documento_id?: string | null;
@@ -752,6 +772,9 @@ export async function registrarDocumentoCamionAction(input: {
   if (adjuntos.length) {
     const r = await vincularAdjuntos(CAMION_DOC_CFG, nuevoDoc.id, adjuntos, user.id);
     adjuntosFallidos = r.fallidos;
+    // La portada (`archivo_id`) es lo que muestra Compliance: sin esto el papel
+    // queda cargado pero el checklist lo da por no presentado.
+    await asegurarPortada(CAMION_DOC_CFG, "camion_documentos", nuevoDoc.id);
   }
 
   await logAudit({
@@ -762,6 +785,9 @@ export async function registrarDocumentoCamionAction(input: {
     usuarioId: user.id,
     valoresNuevos: {
       tipo_documento_id,
+      // El NOMBRE además del id: en Auditoría se lee "cargó la VTV", no un uuid.
+      // Sin esto, la fila decía qué unidad y qué fecha, pero no qué papel era.
+      tipo_documento: await nombreTipoDocumento(supabase, tipo_documento_id),
       numero: input.numero || null,
       fecha_emision: input.fecha_emision || null,
       fecha_vencimiento: input.fecha_vencimiento || null,
@@ -796,7 +822,7 @@ export async function updateDocumentoCamionAction(input: {
     .from("camion_documentos")
     .update(updates)
     .eq("id", input.doc_id)
-    .select("camion_id")
+    .select("camion_id, tipo_documento_id")
     .single();
   if (error) return { error: "No se pudo actualizar el documento" };
 
@@ -804,6 +830,7 @@ export async function updateDocumentoCamionAction(input: {
   if (input.adjuntos_nuevos?.length) {
     const r = await vincularAdjuntos(CAMION_DOC_CFG, input.doc_id, input.adjuntos_nuevos, user.id);
     adjuntosFallidos = r.fallidos;
+    await asegurarPortada(CAMION_DOC_CFG, "camion_documentos", input.doc_id);
   }
 
   await logAudit({
@@ -812,7 +839,11 @@ export async function updateDocumentoCamionAction(input: {
     entidadTipo: "camion",
     entidadId: updatedDoc?.camion_id ?? null,
     usuarioId: user.id,
-    valoresNuevos: { ...updates, archivos_nuevos: input.adjuntos_nuevos?.length ?? 0 },
+    valoresNuevos: {
+      ...updates,
+      tipo_documento: await nombreTipoDocumento(supabase, updatedDoc?.tipo_documento_id ?? null),
+      archivos_nuevos: input.adjuntos_nuevos?.length ?? 0,
+    },
   });
 
   revalidatePath("/camiones");

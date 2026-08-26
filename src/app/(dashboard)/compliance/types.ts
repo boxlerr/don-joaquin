@@ -43,16 +43,27 @@ export type ComplianceEstadoRow = {
   archivo_id: string | null;
   estado: ComplianceEstado;
   dias_restantes: number | null;
+  /**
+   * Cuando el papel es del ACOPLADO y no del chasis. La fila viaja igual dentro
+   * del alcance "unidad" —se agrupa en la ficha del chasis que lo lleva
+   * enganchado— y estos dos campos son los que dicen de qué patente es.
+   */
+  acoplado_id?: string | null;
+  acoplado_patente?: string | null;
   // Aseguradora del seguro por unidad (Nación / Segurcoop). Null salvo en esa rama.
   aseguradora?: string | null;
   // Observaciones del documento vigente (se adjuntan aparte: la vista no las trae).
   observaciones?: string | null;
+  // Número del documento vigente (póliza, certificado…), misma vía que las observaciones.
+  numero?: string | null;
+  // Cuántos papeles tiene cargados el documento vigente (tabla puente, no la portada).
+  archivos?: number;
 };
 
 /**
  * Ficha de una unidad para la cabecera del checklist. `v_compliance_estado` solo
  * trae `camion_id` + `camion_patente`, así que estos datos se traen aparte de
- * `camiones` (mismo criterio que las observaciones, ver `adjuntarObservaciones`):
+ * `camiones` (mismo criterio que las observaciones, ver `adjuntarDetalleDocumento`):
  * la vista también la consume `lib/alertas.ts` y no conviene ensancharla.
  */
 export type UnidadInfo = {
@@ -102,6 +113,8 @@ export type ComplianceHistorialDoc = {
   observaciones: string | null;
   archivo_id: string | null;
   nombre_archivo: string | null;
+  /** Todos los papeles de esa presentación (frente y dorso, doc + anexo…). */
+  archivos: { archivo_id: string; nombre: string | null }[];
   created_at: string;
   cargado_por: string | null;
 };

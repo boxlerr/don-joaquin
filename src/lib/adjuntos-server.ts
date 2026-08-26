@@ -140,6 +140,78 @@ export async function vincularAdjuntos(
   return { vinculados, fallidos };
 }
 
+/**
+ * Completa la "portada" del documento (`archivo_id`) con el primero de sus
+ * adjuntos, si todavía no tiene ninguna. La portada es lo que miran las vistas y
+ * los listados que muestran un solo papel por documento — `v_compliance_estado`
+ * entre ellas.
+ *
+ * Sin esto, un documento cargado desde la ficha del camión guarda el PDF en la
+ * tabla puente pero en Compliance se ve como si no tuviera papel: fue lo que
+ * pasó con las VTV que se cargaron en agosto. No pisa una portada existente:
+ * renovar suma archivos, no reemplaza el que ya estaba.
+ */
+export async function asegurarPortada(
+  cfg: AdjuntoCfg,
+  docTable: string,
+  entidadId: string,
+): Promise<void> {
+  if (!entidadId) return;
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: doc } = await (supabase as any)
+    .from(docTable)
+    .select("archivo_id")
+    .eq("id", entidadId)
+    .maybeSingle();
+  if (!doc || doc.archivo_id) return;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: primero } = await (supabase as any)
+    .from(cfg.junctionTable)
+    .select("archivo_id")
+    .eq(cfg.entityColumn, entidadId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!primero?.archivo_id) return;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any).from(docTable).update({ archivo_id: primero.archivo_id }).eq("id", entidadId);
+}
+
+/**
+ * Los `archivo_id` de varias entidades, en el orden en que se subieron. Es la
+ * lista completa de papeles de cada documento — la portada es apenas el primero.
+ */
+export async function archivoIdsDeAdjuntos(
+  cfg: AdjuntoCfg,
+  entidadIds: string[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  const ids = [...new Set(entidadIds.filter(Boolean))];
+  if (!ids.length) return out;
+  const supabase = createAdminClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from(cfg.junctionTable)
+    .select(`${cfg.entityColumn}, archivo_id, created_at`)
+    .in(cfg.entityColumn, ids)
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error(`archivoIdsDeAdjuntos: error en ${cfg.junctionTable}:`, error);
+    return out;
+  }
+  for (const r of (data ?? []) as Record<string, string>[]) {
+    const key = r[cfg.entityColumn];
+    if (!key || !r.archivo_id) continue;
+    const lista = out.get(key);
+    if (lista) lista.push(r.archivo_id);
+    else out.set(key, [r.archivo_id]);
+  }
+  return out;
+}
+
 /** Lista los adjuntos de una entidad con URL firmada (1 h) para ver / descargar. */
 export async function getAdjuntos(cfg: AdjuntoCfg, entidadId: string): Promise<AdjuntoExistente[]> {
   if (!entidadId) return [];

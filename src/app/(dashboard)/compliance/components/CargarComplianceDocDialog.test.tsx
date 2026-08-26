@@ -27,6 +27,8 @@ vi.mock("../actions", () => ({
   uploadComplianceDocAction,
   crearUrlSubidaComplianceDocAction: vi.fn(),
   setComplianceEnviarAAction: vi.fn(),
+  // Al renovar, la ventana lista los papeles que ya tiene el documento.
+  getComplianceDocArchivosAction: vi.fn(async () => []),
 }));
 
 const REQUISITO = {
