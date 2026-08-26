@@ -26,6 +26,7 @@ import {
 import HelpTutorialDialog, { type TutorialTab } from "@/components/help/HelpTutorialDialog";
 import MetricCard from "@/components/ui/MetricCard";
 import IlustracionCompliance from "./IlustracionCompliance";
+import ArteTipoDocumento from "./ArteTipoDocumento";
 
 /**
  * La guía de Compliance.
@@ -81,7 +82,7 @@ const TABS: TutorialTab[] = [
         description:
           "Cada documento está en uno de cuatro estados. Los dos del medio son los que más se confunden y no son lo mismo.",
         mockup: <MockEstados />,
-        hint: "“Sin cargar” quiere decir que nunca se subió al sistema — el papel puede existir en un cajón. “Vencido” quiere decir que se subió y ya caducó. Por eso “sin cargar” va en gris y no en rojo.",
+        hint: "“Sin cargar” quiere decir que no hay ni fecha ni papel — el documento puede existir en un cajón. “Vencido” quiere decir que se cargó y ya caducó. Ojo con una tercera: un documento puede estar al día y aun así no tener el papel subido; eso se ve en el primer ícono de la fila, tachado.",
       },
       {
         title: "“Por vencer” no son 30 días para todos",
@@ -108,16 +109,16 @@ const TABS: TutorialTab[] = [
       {
         title: "Las tarjetas por tipo de documento",
         description:
-          "Cada tarjeta es un tipo de papel: dice a quién le corresponde, cuántos hay y qué porcentaje está al día. El color de la barra de la izquierda te dice cómo viene ese tipo.",
+          "Cada tarjeta es un tipo de papel, con su propio dibujo: la oblea de la VTV, la tarjeta del carnet, el casco de la ART. Dice a quién le corresponde, cuántos hay y qué porcentaje está al día; cómo viene lo cuentan el filete de la izquierda, la barra y el pie.",
         mockup: <MockTarjetasTipo />,
         hint: "Tocá una tarjeta y abajo se abre la lista de a QUIÉN le falta ese papel — primero los vencidos y los que están por vencer. Desde ahí mismo lo cargás.",
       },
       {
         title: "La lista de abajo, por chofer y por unidad",
         description:
-          "Debajo está el detalle completo, agrupado en Empresa, Unidades y Choferes. Cada fila se abre y muestra los documentos de esa persona o de ese camión, con su foto o el logo de la marca para encontrarla rápido.",
+          "Debajo está el detalle, en tres tarjetas: Empresa, Unidades y Choferes. Cada una dice cuántos documentos son, qué porcentaje está al día y qué falta, y se abre con «Ver documentos». Adentro hay una ficha por chofer o por camión, con su foto o el logo de la marca.",
         mockup: <MockAgrupado />,
-        hint: "Con un filtro puesto los grupos se abren solos. Si filtrás por un tipo de documento, la lista se muestra derecha con el nombre de cada uno, sin agrupar.",
+        hint: "Dentro de la ficha de una unidad los papeles vienen separados en dos: los del chasis y los del acoplado, cada uno con su patente — las válvulas de seguridad y el disco de ruptura son de la tolva. Y un alcance que no coincide con el filtro no desaparece: queda apagado y en cero.",
       },
       {
         title: "La columna de la derecha",
@@ -156,18 +157,18 @@ const TABS: TutorialTab[] = [
         hint: "Podés arrastrar el archivo a la caja de la derecha. Las fotos se ven en miniatura y cualquier archivo se abre en una pestaña para revisarlo antes de guardar — el nombre no alcanza cuando todo se llama IMG_4821.jpg.",
       },
       {
-        title: "Renovar no borra lo anterior",
+        title: "Los tres botones de cada fila",
         description:
-          "Cuando un documento ya está cargado, el lápiz sirve para ponerle el vencimiento nuevo y adjuntar el papel renovado. Lo viejo no se pierde: queda en el historial, que es el reloj de al lado.",
+          "El primero abre el papel adentro del sistema —no lo descarga ni te saca de la pantalla— y desde ahí lo imprimís o lo bajás. Si aparece tachado y en gris, esa fila tiene la fecha pero nadie subió el documento: tocalo y se abre la ventana para subirlo. El del medio es el historial. El lápiz renueva el vencimiento.",
         mockup: <MockAcciones />,
-        hint: "El historial guarda todas las presentaciones con su fecha y quién la cargó. Es lo que se muestra si alguien pide el papel de hace dos años.",
+        hint: "Al renovar, arriba de la caja para subir vas a ver «Lo que ya está cargado», con los papeles guardados y un ojo para mirarlos. Lo viejo no se pierde: queda en el historial, con la fecha y quién lo cargó.",
       },
       {
         title: "Llevártelo en papel o en Excel",
         description:
           "“Exportar” baja a Excel lo que estés viendo, con los filtros puestos. “Imprimir” arma una versión limpia en papel, sin botones ni menús, para presentar a YPF, a Loma o a un organismo.",
         mockup: <MockExportar />,
-        hint: "Con un filtro puesto aparece además “Exportar estos N”, para bajar solamente el recorte que estás mirando.",
+        hint: "En esa misma barra está “Recorrido”, al lado de este tutorial: en vez de leer, te va señalando cada cosa sobre la pantalla. Y con un filtro puesto aparece “Exportar estos N”, para bajar solamente el recorte que estás mirando.",
       },
     ],
   },
@@ -366,8 +367,8 @@ function MockFiltros() {
 
 function MockTarjetasTipo() {
   const tarjetas = [
-    { arte: "por-vencer" as const, n: "VTV", sub: "Camión · 62", pct: 87, color: "#F59E0B", pie: "5 por vencer · 3 sin cargar", c: AMBAR },
-    { arte: "sin-cargar" as const, n: "Seguro de vida", sub: "Chofer · 78", pct: 0, color: "#94A3B8", pie: "78 sin cargar", c: GRIS },
+    { codigo: "VTV", nivel: "unidad" as const, n: "VTV", sub: "Camión · 62", pct: 87, color: "#F59E0B", pie: "5 por vencer · 3 sin cargar", c: AMBAR },
+    { codigo: "SEGURO_VIDA", nivel: "chofer" as const, n: "Seguro de vida", sub: "Chofer · 78", pct: 0, color: "#94A3B8", pie: "78 sin cargar", c: GRIS },
   ];
   return (
     <div className="grid grid-cols-2 gap-2">
@@ -375,7 +376,7 @@ function MockTarjetasTipo() {
         <div key={t.n} className="relative overflow-hidden rounded-lg border border-border bg-card p-2.5 pl-3.5">
           <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ backgroundColor: t.color }} />
           <div className="flex items-start gap-2">
-            <IlustracionCompliance nombre={t.arte} size={30} />
+            <ArteTipoDocumento codigo={t.codigo} nivel={t.nivel} size={30} />
             <div className="min-w-0">
               <p className="truncate text-[12px] font-semibold text-foreground">{t.n}</p>
               <p className="truncate text-[10px] text-muted-foreground">{t.sub}</p>
@@ -571,19 +572,50 @@ function MockAcciones() {
         <span className="rounded-md bg-[#F0FDF4] px-1.5 py-0.5 text-[9px] font-semibold text-[#166534]">
           Al día
         </span>
+        <span className="grid size-6 place-items-center rounded-md bg-[#E1F5FE] text-primary">
+          <FileText size={12} />
+        </span>
         <span className="grid size-6 place-items-center rounded-md bg-muted/60 text-muted-foreground">
           <History size={12} />
         </span>
-        <span className="grid size-6 place-items-center rounded-md bg-[#E1F5FE] text-primary">
+        <span className="grid size-6 place-items-center rounded-md bg-muted/60 text-muted-foreground">
           <Pencil size={12} />
         </span>
       </div>
-      <div className="mt-2 flex items-center gap-3 border-t border-border pt-2 text-[10px] text-muted-foreground">
+      {/* La misma fila, pero sin el papel subido: es la diferencia que más se
+          pregunta —"está al día pero, ¿está el documento?"— y se ve en el
+          primer ícono. */}
+      <div className="mt-1.5 flex items-center gap-2.5 border-t border-border pt-1.5">
+        <span className="grid size-[18px] place-items-center rounded-[5px] border-[1.5px] border-[#22C55E] bg-[#F0FDF4]">
+          <CheckCircle2 size={11} className="text-[#22C55E]" />
+        </span>
+        <span className="text-[12px] font-medium text-foreground">Seguro del vehículo</span>
+        <span className="ml-auto text-[10px] text-muted-foreground">vence 08/03/2027</span>
+        <span className="rounded-md bg-[#F0FDF4] px-1.5 py-0.5 text-[9px] font-semibold text-[#166534]">
+          Al día
+        </span>
+        <span className="grid size-6 place-items-center rounded-md text-muted-foreground/35">
+          <FileX size={12} />
+        </span>
+        <span className="grid size-6 place-items-center rounded-md bg-muted/60 text-muted-foreground">
+          <History size={12} />
+        </span>
+        <span className="grid size-6 place-items-center rounded-md bg-muted/60 text-muted-foreground">
+          <Pencil size={12} />
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border pt-2 text-[10px] text-muted-foreground">
         <span className="flex items-center gap-1">
-          <History size={11} /> Historial: guarda las presentaciones anteriores
+          <FileText size={11} /> Abre el papel acá adentro
         </span>
         <span className="flex items-center gap-1">
-          <Pencil size={11} /> Lápiz: renovar el vencimiento
+          <FileX size={11} /> Tachado: falta subir el documento
+        </span>
+        <span className="flex items-center gap-1">
+          <History size={11} /> Las presentaciones anteriores
+        </span>
+        <span className="flex items-center gap-1">
+          <Pencil size={11} /> Renovar el vencimiento
         </span>
       </div>
     </div>

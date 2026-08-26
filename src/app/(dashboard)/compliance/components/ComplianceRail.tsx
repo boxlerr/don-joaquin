@@ -162,7 +162,7 @@ export default function ComplianceRail({
     // `sticky` + `self-start`: la columna acompaña el scroll de la lista, que
     // es larga. Con `max-h` y scroll propio no se corta nunca por abajo, aunque
     // la ventana sea baja. El ancho lo pone la grilla del padre.
-    <aside className="hidden w-full self-start space-y-3 xl:sticky xl:top-[5.25rem] xl:block xl:max-h-[calc(100dvh-10rem)] xl:overflow-y-auto xl:overscroll-contain print:hidden">
+    <aside data-tour="rail" className="hidden w-full self-start space-y-3 xl:sticky xl:top-[5.25rem] xl:block xl:max-h-[calc(100dvh-10rem)] xl:overflow-y-auto xl:overscroll-contain print:hidden">
       <Tarjeta titulo="Qué hay que atender">
         <div className="divide-y divide-border">
           <Renglon

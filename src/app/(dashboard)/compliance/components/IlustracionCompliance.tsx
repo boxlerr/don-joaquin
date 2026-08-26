@@ -39,6 +39,12 @@ type Paleta = {
 };
 
 const AZUL: Paleta = { placa: "#E1F5FE", fuerte: "#0088D1", suave: "#BAE6FD" };
+// Los otros dos tonos existen sólo para las tarjetas de alcance, donde los tres
+// niveles van uno al lado del otro y conviene que se distingan de un vistazo.
+// Verde-azulado y no verde a secas: el verde ya significa "al día" en esta
+// pantalla y dos verdes distintos en la misma tarjeta se leen como un estado.
+const TEAL: Paleta = { placa: "#ECFDF5", fuerte: "#0F9488", suave: "#99F6E4" };
+const VIOLETA: Paleta = { placa: "#F5F3FF", fuerte: "#7C3AED", suave: "#DDD6FE" };
 const ROJO: Paleta = { placa: "#FEF2F2", fuerte: "#EF4444", suave: "#FECACA" };
 const AMBAR: Paleta = { placa: "#FFFBEB", fuerte: "#F59E0B", suave: "#FDE68A" };
 const GRIS: Paleta = { placa: "#F1F5F9", fuerte: "#94A3B8", suave: "#E2E8F0" };
@@ -315,16 +321,24 @@ function Dibujo({ nombre, p }: { nombre: IlustracionNombre; p: Paleta }) {
   }
 }
 
+/** Tonos alternativos, sólo para las tarjetas de alcance. */
+export type TonoIlustracion = "azul" | "teal" | "violeta";
+
+const TONOS: Record<TonoIlustracion, Paleta> = { azul: AZUL, teal: TEAL, violeta: VIOLETA };
+
 export default function IlustracionCompliance({
   nombre,
   size = 40,
   className,
+  tono,
 }: {
   nombre: IlustracionNombre;
   size?: number;
   className?: string;
+  /** Fuerza el color. Sin esto manda la paleta del propio dibujo. */
+  tono?: TonoIlustracion;
 }) {
-  const p = PALETA[nombre];
+  const p = tono ? TONOS[tono] : PALETA[nombre];
   return (
     <svg
       viewBox="0 0 48 48"

@@ -19,6 +19,7 @@ import { coincideBusqueda } from "@/lib/texto";
 import { formatFecha } from "@/lib/utils";
 import FiltrosAvanzadosCompliance from "./FiltrosAvanzadosCompliance";
 import IlustracionCompliance, { type IlustracionNombre } from "./IlustracionCompliance";
+import ArteTipoDocumento from "./ArteTipoDocumento";
 import type { ComplianceEstado, ComplianceEstadoRow, ComplianceNivel } from "../types";
 
 /**
@@ -146,13 +147,19 @@ function Campo({
   label,
   children,
   adorno,
+  dataTour,
 }: {
   label: string;
   children: React.ReactNode;
   adorno?: React.ReactNode;
+  /** Marca para el recorrido guiado (`TourGuiado`). */
+  dataTour?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col justify-center rounded-lg border border-border bg-card px-3 py-1.5 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20 sm:h-[52px] sm:flex-1">
+    <div
+      data-tour={dataTour}
+      className="flex min-w-0 flex-col justify-center rounded-lg border border-border bg-card px-3 py-1.5 transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20 sm:h-[52px] sm:flex-1"
+    >
       <span className="text-[11px] leading-none text-muted-foreground">{label}</span>
       <div className="mt-0.5 flex items-center gap-1.5">
         {adorno}
@@ -219,7 +226,7 @@ export function ComplianceFiltros({
 
           {/* Desplegables estilados (no `<select>` nativo) y con buscador cuando la
               lista es larga: los tipos de documento son 20. */}
-          <Campo label="Tipo de documento">
+          <Campo label="Tipo de documento" dataTour="filtro-tipo">
             <Combobox
               value={filtros.requisito}
               onValueChange={(v) => set("requisito", v || "todos")}
@@ -333,7 +340,7 @@ export function ComplianceMetricas({
     // no da para cinco deja la última tarjeta sola con un hueco al lado (se veía
     // "Al día" flotando). Con `flex-1` las de la última fila se estiran y el
     // renglón siempre queda lleno, entren 2, 3, 4 o 5.
-    <div className="flex flex-wrap gap-2.5 sm:gap-3 print:hidden">
+    <div data-tour="metricas" className="flex flex-wrap gap-2.5 sm:gap-3 print:hidden">
       <div className={`flex min-w-0 flex-1 basis-[9.5rem] ${marca("vigente")}`}>
         <MetricCard
           art={<IlustracionCompliance nombre="al-dia" size={42} />}
@@ -562,7 +569,7 @@ export function ComplianceCategorias({
     (pendientes.length > 0 ? pendientes.length : filasDelElegido.length) - aListar.length;
 
   return (
-    <section className="rounded-[10px] border border-border bg-card print:hidden">
+    <section data-tour="por-tipo" className="rounded-[10px] border border-border bg-card print:hidden">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-border px-4 py-3">
         <h2 className="text-[13px] font-semibold text-foreground">Por tipo de documento</h2>
         <span className="text-[11px] text-muted-foreground">Tocá uno para ver a quién le falta</span>
@@ -595,7 +602,11 @@ export function ComplianceCategorias({
               />
 
               <div className="flex items-start gap-2.5">
-                <IlustracionCompliance nombre={ui.arte} size={34} />
+                {/* El dibujo es del TIPO de documento, no del estado: con once
+                    tipos en 0% eran once veces el mismo papelito gris y había
+                    que leer el título para saber cuál era cuál. El estado ya lo
+                    cuentan el filete de la izquierda, la barra y el pie. */}
+                <ArteTipoDocumento codigo={c.codigo} nivel={c.nivel} size={38} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-semibold text-foreground">{c.nombre}</p>
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
