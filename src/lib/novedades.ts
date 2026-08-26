@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "nueva-pantalla-taller-carga-el-trabajo-como",
+    fecha: "2026-08-26",
+    tipo: "nuevo",
+    ver: "mantenimiento_servicios",
+    titulo: "Nueva pantalla Taller: cargá el trabajo como un mensaje",
+    detalle: "Sacás la foto, escribís qué se hizo con la patente y el nombre como los mandás por WhatsApp, y el sistema lo entiende solo. Abajo queda la lista de lo último cargado.",
+    href: "/taller",
+  },
+  {
     id: "nueva-seccion-prevision",
     fecha: "2026-08-25",
     tipo: "nuevo",
