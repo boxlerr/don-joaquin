@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/auth";
 import { generarAlertas } from "@/lib/alertas";
 import { getPendientesNoLeidasIds } from "@/lib/alertas-lecturas";
+import { RESUMEN_OCULTAS_CLAVE } from "@/lib/resumen-diario";
+import { ALERTA_COLUMNAS } from "@/app/(dashboard)/configuracion/notificaciones/constants";
 import { revalidatePath } from "next/cache";
 
 // El estado leído/descartado es POR USUARIO: vive en `alerta_lecturas`, NO en
@@ -123,4 +125,74 @@ export async function borrarTodasLeidas() {
 
   revalidatePath("/notificaciones");
   revalidatePath("/");
+}
+
+/**
+ * Qué categorías NO quiere ver esta persona en el resumen del día.
+ *
+ * Pedido de Nico (27/08/2026): "a él no le importan los documentos, pero a
+ * Anabela no le importan los cheques o préstamos". Los dos tienen el mismo rol,
+ * así que por permisos son la misma persona: esto no es un permiso, es una
+ * preferencia, y la elige cada uno desde el propio pop-up.
+ *
+ * Se guarda lo APAGADO (no lo prendido) en un solo parámetro con forma
+ * `{ usuarioId: ["cheques_vencidos", …] }`, igual que la matriz del mail. Así una
+ * categoría nueva le aparece a todos sin que nadie tenga que ir a tildarla.
+ *
+ * Va con el cliente admin —y no con la sesión— a propósito: `parametros_sistema`
+ * es tabla de configuración y por RLS sólo la escriben los administradores. Acá
+ * cada uno escribe SU renglón, que se toma de `requireUser()`; del cliente sólo
+ * llega la lista de categorías, y se descarta cualquier clave que no exista.
+ */
+export async function guardarCategoriasResumen(ocultas: string[]): Promise<void> {
+  const user = await requireUser();
+  const validas = new Set(ALERTA_COLUMNAS.map((c) => c.key));
+  const limpias = [...new Set((ocultas ?? []).filter((k) => validas.has(k)))];
+
+  const supabase = createAdminClient();
+  const { data: actual } = await supabase
+    .from("parametros_sistema")
+    .select("id, valor")
+    .eq("clave", RESUMEN_OCULTAS_CLAVE)
+    .maybeSingle();
+
+  let mapa: Record<string, string[]> = {};
+  if (actual?.valor) {
+    try {
+      const parsed = JSON.parse(actual.valor);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        mapa = parsed as Record<string, string[]>;
+      }
+    } catch {
+      /* JSON roto: se reescribe entero, y de paso queda arreglado */
+    }
+  }
+
+  // Sin nada apagado no se deja el renglón vacío: "ve todo" es la ausencia de fila.
+  if (limpias.length === 0) delete mapa[user.id];
+  else mapa[user.id] = limpias;
+
+  const valor = JSON.stringify(mapa);
+  const ahora = new Date().toISOString();
+
+  if (actual?.id) {
+    await supabase
+      .from("parametros_sistema")
+      .update({ valor, updated_by: user.id, updated_at: ahora })
+      .eq("id", actual.id);
+  } else {
+    await supabase.from("parametros_sistema").insert({
+      clave: RESUMEN_OCULTAS_CLAVE,
+      valor,
+      tipo_dato: "json",
+      categoria: "notificaciones",
+      // No editable a mano: son preferencias de cada persona, no un ajuste del
+      // sistema. Se cambian desde el resumen del día, con los nombres a la vista.
+      editable: false,
+      descripcion:
+        "Resumen del día: categorías que cada persona eligió no ver en el pop-up.",
+      updated_by: user.id,
+      updated_at: ahora,
+    });
+  }
 }

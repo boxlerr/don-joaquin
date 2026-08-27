@@ -99,7 +99,9 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
         <div className="absolute right-0 top-10 z-50 w-80 max-w-[calc(100vw-1.5rem)] bg-card rounded-xl border border-border shadow-lg overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <span className="text-sm font-semibold text-foreground">Notificaciones</span>
-            {items.length > 0 && (
+            {/* Sólo si hay alguna que se pueda marcar: con un único aviso en vivo
+                —el cheque por depositar— el botón no habría apagado nada. */}
+            {items.some((i) => i.marcable !== false) && (
               <button
                 type="button"
                 onClick={() => {
@@ -165,14 +167,19 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
                         {content}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => ctx?.marcarVista(item.id)}
-                      className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-muted-foreground/70 hover:text-primary hover:bg-[#E1F5FE] transition-all shrink-0 mt-0.5"
-                      aria-label="Marcar como vista"
-                    >
-                      <Check size={12} />
-                    </button>
+                    {/* El aviso en vivo no se marca leído: se apaga haciendo lo
+                        que pide (depositar o ceder el cheque). Ofrecer el tilde
+                        sería ofrecer un botón que no hace nada. */}
+                    {item.marcable !== false && (
+                      <button
+                        type="button"
+                        onClick={() => ctx?.marcarVista(item.id)}
+                        className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 rounded text-muted-foreground/70 hover:text-primary hover:bg-[#E1F5FE] transition-all shrink-0 mt-0.5"
+                        aria-label="Marcar como vista"
+                      >
+                        <Check size={12} />
+                      </button>
+                    )}
                   </div>
                 );
               })

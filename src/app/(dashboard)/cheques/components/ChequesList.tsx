@@ -327,11 +327,17 @@ export default function ChequesList({
   hoy,
   en7dias,
   historial,
+  vistaInicial,
+  hastaAviso,
 }: {
   cheques: ChequeRow[];
   bancos: BancoOption[];
   libradores: LibradorOption[];
   canWrite: boolean;
+  /** Cifra abierta al entrar, desde `?vista=` (la manda el resumen del día). */
+  vistaInicial?: VistaResumen | null;
+  /** Hoy + los días de aviso configurados: el corte de la vista `avisos`. */
+  hastaAviso?: string;
   /** Hoy en ISO, calculado en el servidor para que las cifras no dependan del reloj del navegador. */
   hoy: string;
   /** Hoy + 7 días: la ventana de "por vencer". */
@@ -340,12 +346,18 @@ export default function ChequesList({
   historial: TransicionCheque[];
 }) {
   const router = useRouter();
-  const [origenTab, setOrigenTab] = useState<OrigenTab>("recibido");
+  // Se puede entrar con una cifra ya abierta: el resumen del día manda acá con
+  // `?vista=avisos` para mostrar exactamente los cheques que contó. Viene como
+  // prop desde el server (y no de `useSearchParams`) para que el primer render
+  // del server y el del navegador coincidan.
+  const [origenTab, setOrigenTab] = useState<OrigenTab>(
+    vistaInicial ? origenDeVista(vistaInicial) : "recibido",
+  );
   const [estadoFiltro, setEstadoFiltro] = useState<ChequeEstado | "">("");
   /** "YYYY-MM" o "" para todos los meses. */
   const [mesFiltro, setMesFiltro] = useState("");
-  /** Cuál de las cuatro cifras de arriba está abierta. `null` = ninguna. */
-  const [vista, setVista] = useState<VistaResumen | null>(null);
+  /** Cuál de las cifras de arriba está abierta. `null` = ninguna. */
+  const [vista, setVista] = useState<VistaResumen | null>(vistaInicial ?? null);
   const [bancoId, setBancoId] = useState("");
   const [search, setSearch] = useState("");
   const [transicion, setTransicion] = useState<{
@@ -445,7 +457,7 @@ export default function ChequesList({
       if (origenTab !== "todos" && c.origen !== origenTab) return false;
       if (estadoFiltro && c.estado !== estadoFiltro) return false;
       if (mesFiltro && c.fecha_vencimiento.slice(0, 7) !== mesFiltro) return false;
-      if (vista && !pertenece(c, vista, hoy, en7dias)) return false;
+      if (vista && !pertenece(c, vista, hoy, en7dias, hastaAviso)) return false;
       if (bancoId) {
         const id = c.banco ? bancosByNombre.get(c.banco.nombre) : null;
         if (id !== bancoId) return false;
@@ -456,7 +468,7 @@ export default function ChequesList({
         search,
       );
     });
-  }, [cheques, origenTab, estadoFiltro, mesFiltro, vista, hoy, en7dias, bancoId, search, bancosByNombre]);
+  }, [cheques, origenTab, estadoFiltro, mesFiltro, vista, hoy, en7dias, hastaAviso, bancoId, search, bancosByNombre]);
 
   const mensajeVacio =
     cheques.length === 0
@@ -531,6 +543,7 @@ export default function ChequesList({
     por_vencer: "los que vencen en los próximos 7 días",
     vencidos: "los cheques vencidos",
     nuestros: "los cheques nuestros sin debitar",
+    avisos: "los cheques que el sistema está avisando",
   };
 
   return (

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import {
   MapPin,
   AlertTriangle,
+  Bell,
   Receipt,
   FileText,
   Briefcase,
@@ -14,11 +15,6 @@ import {
   CheckCircle2,
   Trophy,
   TriangleAlert,
-  Cake,
-  Award,
-  Settings,
-  Unlock,
-  Wallet,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser, hasSeccion } from "@/lib/auth";
@@ -38,7 +34,15 @@ import ConsumoCombustible from "./components/ConsumoCombustible";
 import DiaPedidoQuickAction from "./DiaPedidoQuickAction";
 import { computeRanking, computeTotalesPeriodo, resolverRango } from "@/app/(dashboard)/choferes/ranking/lib";
 import PeriodoSelector from "@/app/(dashboard)/choferes/ranking/PeriodoSelector";
-import { alertaHref, categoriaDeAlerta, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
+import { alertaHref, diasRestantes } from "@/app/(dashboard)/notificaciones/utils";
+import { getResumenDiario } from "@/lib/resumen-diario";
+import {
+  colorCategoria,
+  destinoDeGrupo,
+  ICONO_CATEGORIA,
+  NOMBRE_CORTO,
+  tinte,
+} from "@/lib/alertas-ui";
 
 interface Props {
   /** searchParams ya resueltos por la page (rango del período del resumen). */
@@ -94,6 +98,7 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
     camionDocsRes,
     choferDocsRes,
     ausenciasProximas,
+    resumenAvisos,
   ] = await Promise.all([
     // Misma definición que el filtro "Sin facturar" del panel de /viajes
     // (excluye vacíos y cancelados) para que el contador coincida con esa vista.
@@ -138,6 +143,11 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
     supabase.from("camion_documentos").select("tipo_documento_id, fecha_vencimiento"),
     supabase.from("chofer_documentos").select("tipo_documento_id, fecha_vencimiento"),
     getAusenciasProximasAction(DIAS_DISPONIBILIDAD),
+    // El MISMO resumen que muestra el pop-up de la mañana: documentos y cheques
+    // calculados en vivo, y ya filtrado por lo que esta persona puede ver (las
+    // secciones confidenciales — préstamos, impuestos, cheques — quedan afuera
+    // para quien no las tenga). Ver `visiblePara` en lib/alertas-visibilidad.ts.
+    currentUser ? getResumenDiario(currentUser) : null,
   ]);
 
   // Estado leído/descartado POR USUARIO: las alertas de tabla que ESTE usuario ya
@@ -168,8 +178,6 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
   // documento está vencido o le quedan <= 7 días. Los que están entre 8 y el
   // `dias_alerta_vencimiento` del tipo cuentan como **advertencia**.
   const DIAS_CRITICO = 7;
-  let docVencidos = 0;
-  let docProximos = 0;
   let docCriticos = 0;
   for (const d of [...(camionDocsRes.data ?? []), ...(choferDocsRes.data ?? [])]) {
     // Si el tipo no está activo, lo ignoramos (mismo criterio que /notificaciones).
@@ -179,8 +187,6 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
     if (diasRest === null) continue;
     const vencido = diasRest < 0;
     const proximo = !vencido && diasRest <= diasAlerta;
-    if (vencido) docVencidos++;
-    else if (proximo) docProximos++;
     if (vencido || (proximo && diasRest <= DIAS_CRITICO)) docCriticos++;
   }
 
@@ -223,47 +229,19 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
   }
   const totalCamiones = camionesRows.length;
 
-  // Desglose por categoría (documentación, cheques, viajes, personal, sistema).
-  // Para no contar dos veces las alertas de documentos, ignoramos las del tipo
-  // `vencimiento_doc_*` de la tabla (mismo criterio que /notificaciones, donde
-  // las reemplaza por las calculadas en vivo desde camion_documentos / chofer_documentos).
-  const dbAlertasOtras = alertasVisibles.filter(
-    (a) => a.tipo !== "vencimiento_doc_camion" && a.tipo !== "vencimiento_doc_chofer",
-  );
-
-  const catCounts: Record<string, number> = {
-    documentacion: docVencidos + docProximos,
-    cheques: 0,
-    viajes: 0,
-    personal_cumple: 0,
-    personal_aniversario: 0,
-    personal_prueba: 0,
-    sistema: 0,
-  };
-  for (const a of dbAlertasOtras) {
-    const cat = categoriaDeAlerta(a.tipo, a.entidad_tipo);
-    if (cat === "personal") {
-      // Subdividimos "personal" para que se vean cumple / aniversario / prueba
-      // por separado, que es lo que pide explícitamente el feedback.
-      if (a.entidad_tipo === "choferes_periodo_prueba") catCounts.personal_prueba++;
-      else if (a.entidad_tipo?.endsWith("_aniversario")) catCounts.personal_aniversario++;
-      else catCounts.personal_cumple++;
-    } else if (cat === "documentacion") {
-      // vencimiento_compliance (SICOP/Secondi) cae acá; sumamos al bucket de docs.
-      catCounts.documentacion++;
-    } else {
-      catCounts[cat] = (catCounts[cat] ?? 0) + 1;
-    }
-  }
-
-  const alertCount =
-    catCounts.documentacion +
-    catCounts.cheques +
-    catCounts.viajes +
-    catCounts.personal_cumple +
-    catCounts.personal_aniversario +
-    catCounts.personal_prueba +
-    catCounts.sistema;
+  // Las categorías del panel salen del MISMO resumen que el pop-up del día
+  // (`resumenAvisos.grupos`), y no de los cinco cajones que se armaban acá.
+  // Pedido de Julián (27/08/2026): *"en el dashboard tiene que ver más cosas de
+  // vencimientos de cheques, impuestos, documentos, préstamos, etc."*. Con el
+  // mapeo viejo, Impuestos, Préstamos, Compliance y Mantenimiento caían todos
+  // juntos en "Sistema" —un cajón que no dice qué tiene adentro— y los cheques
+  // se contaban desde filas de `alertas` con el texto congelado, que es
+  // exactamente lo que el cálculo en vivo vino a reemplazar.
+  //
+  // Y trae de arriba el filtro de confidencialidad: quien no tiene la sección de
+  // préstamos no ve ni la categoría. Si se la activan, aparece sola.
+  const gruposAviso = resumenAvisos?.grupos ?? [];
+  const alertCount = resumenAvisos?.total ?? 0;
   const firstAlert = alertasVisibles[0];
   const resolverHref = firstAlert ? (alertaHref(firstAlert) ?? "/notificaciones") : "/notificaciones";
   // Sin facturación, el monto se anula ANTES de pasar a la tabla (client
@@ -380,46 +358,38 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
                     Se requiere atención
                   </p>
                   <div className="flex-1 divide-y divide-border/60 px-2 sm:px-3">
-                    {(
-                      [
-                        { id: "documentacion", label: "Documentación", Icon: FileText, count: catCounts.documentacion, warn: true },
-                        { id: "personal_prueba", label: "Fin de prueba", Icon: Unlock, count: catCounts.personal_prueba, warn: false },
-                        { id: "personal_cumple", label: "Cumpleaños", Icon: Cake, count: catCounts.personal_cumple, warn: false },
-                        { id: "personal_aniversario", label: "Aniversarios", Icon: Award, count: catCounts.personal_aniversario, warn: false },
-                        { id: "cheques", label: "Cheques", Icon: Wallet, count: catCounts.cheques, warn: false },
-                        { id: "viajes", label: "Viajes", Icon: Truck, count: catCounts.viajes, warn: false },
-                        { id: "sistema", label: "Sistema", Icon: Settings, count: catCounts.sistema, warn: false },
-                      ] as const
-                    )
-                      .filter((c) => c.count > 0)
-                      .map((c) => {
-                        // "personal_*" son subcategorías del filtro real "personal".
-                        const base = c.id.startsWith("personal_") ? "personal" : c.id;
-                        return (
-                          <a
-                            key={c.id}
-                            href={`/notificaciones?categoria=${base}`}
-                            className="flex items-center gap-3 px-2 py-2 transition-colors hover:bg-muted/50"
-                            title={`${c.label}: ${c.count} alerta${c.count !== 1 ? "s" : ""}`}
+                    {gruposAviso.map((g) => {
+                      const Icono = ICONO_CATEGORIA[g.key] ?? Bell;
+                      const color = colorCategoria(g.key);
+                      return (
+                        <a
+                          key={g.key}
+                          href={destinoDeGrupo(g)}
+                          className="flex items-center gap-3 px-2 py-2 transition-colors hover:bg-muted/50"
+                          title={`${g.nombre}: ${g.total} aviso${g.total !== 1 ? "s" : ""}`}
+                        >
+                          <span
+                            className="flex size-7 shrink-0 items-center justify-center rounded-md"
+                            style={{ backgroundColor: tinte(color), color }}
                           >
-                            <span
-                              className={`flex size-7 shrink-0 items-center justify-center rounded-md ${
-                                c.warn ? "bg-[#F59E0B]/12 text-[#D97706]" : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              <c.Icon size={14} strokeWidth={2} />
+                            <Icono size={14} strokeWidth={2} />
+                          </span>
+                          <span className="flex-1 truncate text-[13px] font-semibold text-foreground">
+                            {NOMBRE_CORTO[g.key] ?? g.nombre}
+                          </span>
+                          {/* Lo vencido va aparte del total: "3 de 21" dice algo
+                              muy distinto que "21", y es lo que hay que mirar. */}
+                          {g.vencidos > 0 && (
+                            <span className="shrink-0 text-[11px] font-bold tabular-nums text-[#D97706]">
+                              {g.vencidos} vencido{g.vencidos !== 1 ? "s" : ""}
                             </span>
-                            <span className="flex-1 text-[13px] font-semibold text-foreground">{c.label}</span>
-                            <span
-                              className={`text-[13px] font-extrabold tabular-nums ${
-                                c.warn ? "text-[#D97706]" : "text-foreground"
-                              }`}
-                            >
-                              {c.count}
-                            </span>
-                          </a>
-                        );
-                      })}
+                          )}
+                          <span className="w-7 shrink-0 text-right text-[13px] font-extrabold tabular-nums text-foreground">
+                            {g.total}
+                          </span>
+                        </a>
+                      );
+                    })}
                   </div>
                   <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border px-4 py-2.5 sm:px-5 sm:py-3">
                     <a

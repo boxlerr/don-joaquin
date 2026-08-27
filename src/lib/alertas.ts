@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { traerTodo } from "@/lib/supabase/traer-todo";
 import { procesarNotificacionesCriticas } from "@/lib/notificaciones";
+import { chequeReclama } from "@/lib/alertas-live";
 import { ENTIDAD_TIPOS_CADUCAN, HITOS_PERIODO_PRUEBA } from "@/lib/alertas-routing";
 import {
   documentoRenovado,
@@ -446,14 +447,20 @@ export async function generarAlertas() {
   // nuestros todavía sin debitar (plata que sale). Filtrar sólo por "cartera"
   // dejaba a los propios sin avisar NUNCA: es un estado que un cheque nuestro
   // jamás tiene, así que uno que vencía mañana no disparaba nada.
+  //
+  // Qué estado sigue reclamando lo decide `chequeReclama`, compartido con el
+  // cálculo en vivo: `entregado` es "se lo dimos al proveedor" en uno nuestro y
+  // "ya lo cedimos" en uno recibido, y sólo el primero tiene algo pendiente.
   const { data: cheques } = await supabase
     .from("cheques")
-    .select("id, librador_nombre, importe, fecha_vencimiento, origen, entregado_a")
+    .select("id, estado, librador_nombre, importe, fecha_vencimiento, origen, entregado_a")
     .in("estado", ["cartera", "emitido", "entregado"])
     .lte("fecha_vencimiento", enChequeStr)
     .gte("fecha_vencimiento", hoyStr);
 
   for (const cheque of cheques ?? []) {
+    if (!chequeReclama((cheque as { origen?: string }).origen, (cheque as { estado: string }).estado))
+      continue;
     // Un cheque que cambia de fecha es un aviso nuevo, igual que un documento.
     const key = `vencimiento_cheque:${cheque.id}:cheques:${cheque.fecha_vencimiento}`;
     if (existentesSet.has(key)) continue;

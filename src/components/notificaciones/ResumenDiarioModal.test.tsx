@@ -8,6 +8,13 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
 }));
 
+// La preferencia se guarda con una Server Action: acá sólo interesa que se llame
+// con lo que quedó elegido — el guardado tiene sus propias pruebas en lib.
+const { guardarCategoriasResumen } = vi.hoisted(() => ({
+  guardarCategoriasResumen: vi.fn(async () => {}),
+}));
+vi.mock("@/app/(dashboard)/notificaciones/actions", () => ({ guardarCategoriasResumen }));
+
 /**
  * El pop-up del día aparece solo una vez por jornada. Lo que se prueba acá es la
  * OTRA puerta: el botón "Resumen del día" de la campana, que lo vuelve a abrir a
@@ -163,8 +170,8 @@ describe("ResumenDiarioModal — reapertura a pedido", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/alertas?mode=diario", expect.anything());
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    // La tarjeta muestra el nombre corto ("Documentos") para no caer en tres
-    // renglones; el nombre entero queda en el nombre accesible.
+    // La tarjeta de la categoría, con su nombre corto y el número de vencidos.
+    // El nombre entero queda en el nombre accesible.
     expect(
       screen.getByRole("button", { name: /^Vencimiento de documentación: 4 vencidos de 6$/ }),
     ).toBeInTheDocument();
@@ -245,7 +252,11 @@ describe("ResumenDiarioModal — cumpleaños", () => {
     await abrirAMano();
 
     expect(screen.getByText("Bustos Marcelo")).toBeInTheDocument();
-    expect(screen.getByText("Cumpleaños")).toBeInTheDocument();
+    // El motivo de la persona. (El título de la tarjeta también dice
+    // "Cumpleaños", así que se busca dentro del renglón.)
+    expect(
+      screen.getByText("Bustos Marcelo").parentElement!.textContent,
+    ).toContain("Cumpleaños");
     // "Mañana", no "Vence mañana": un cumpleaños no vence. La fecha sale del
     // `fecha` del aviso, así que el texto no depende del día en que corra el test.
     expect(screen.getByText("Mañana · sáb 8/8")).toBeInTheDocument();
@@ -294,7 +305,9 @@ describe("ResumenDiarioModal — cumpleaños", () => {
     await abrirAMano();
 
     await act(async () => {
-      screen.getByText("Cumpleaños y aniversarios").closest("button")!.click();
+      screen
+        .getByRole("button", { name: /^Cumpleaños y aniversarios:/ })
+        .click();
     });
 
     // NO a /choferes: el listado de legajos no muestra ninguna fecha.
@@ -302,7 +315,7 @@ describe("ResumenDiarioModal — cumpleaños", () => {
   });
 });
 
-describe("ResumenDiarioModal — el pie", () => {
+describe("ResumenDiarioModal — el bloque de vencimientos", () => {
   async function abrirConResumen() {
     localStorage.setItem("dj_resumen_dia_u1", hoy());
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respuesta(RESUMEN)));
@@ -313,49 +326,162 @@ describe("ResumenDiarioModal — el pie", () => {
   }
 
   /**
-   * El costado de "Poné todo al día" eran cuatro botones a los módulos. No
-   * agregaban nada —cada renglón ya lleva a su aviso y el pie tiene "Ver
-   * todas"— y el detalle vivía en una tira aparte que empujaba el cartel hasta
-   * obligar a scrollear. Ahora ese espacio muestra lo más atrasado.
+   * El detalle vive DENTRO de la tarjeta de cada categoría.
+   *
+   * Antes era una tira al pie que mezclaba categorías por urgencia: un
+   * préstamo, una ausencia, un impuesto, otro préstamo. Julián lo dijo así el
+   * 27/08/2026: *"está todo desordenado, el 'poné todo al día' me marea"*. La
+   * ilustración quedó, arriba del bloque, con el total de lo atrasado.
    */
-  it("al lado de 'Poné todo al día' va lo más atrasado, no botones a los módulos", async () => {
+  it("cada tarjeta dice de qué se trata lo suyo", async () => {
     await abrirConResumen();
 
     expect(screen.getByText("Poné todo al día")).toBeInTheDocument();
-    // Los renglones del detalle, con el nombre separado del tipo de documento.
-    expect(screen.getByText("Acosta Pablo")).toBeInTheDocument();
-    expect(screen.getByText("Libreta sanitaria")).toBeInTheDocument();
-
-    for (const boton of [
-      "Todas las alertas",
-      "Legajos del personal",
-      "Papeles de la flota",
-      "Compliance",
-    ]) {
-      expect(screen.queryByText(boton)).toBeNull();
-    }
+    // Los avisos más urgentes de Documentos, adentro de su tarjeta.
+    expect(screen.getByText("Salto Maximiliano")).toBeInTheDocument();
+    expect(screen.getByText("Grassi Bruno")).toBeInTheDocument();
+    // Lo que sobra se cuenta sobre lo MISMO que el número de arriba: la tarjeta
+    // dice "4 vencidos" y muestra los 4, así que no hay vencidos de más que
+    // anunciar (los 2 que faltan para el total no están vencidos).
+    expect(screen.queryByText(/vencidos? más$/)).toBeNull();
+    // La de cumpleaños, que no tiene nada vencido, sí cuenta lo que le sobra.
+    expect(screen.getByText("y 1 más")).toBeInTheDocument();
+    // El pie dice a dónde va y con qué recorte: el mismo número de arriba.
+    expect(screen.getByText(/Ver los 4 vencidos/)).toBeInTheDocument();
   });
 
-  // Van en tests separados a propósito: tocar cualquiera de los dos NAVEGA y
-  // cierra el pop-up, así que después del primer click ya no queda nada que
-  // clickear.
-  it("el renglón lleva a su aviso", async () => {
+  it("la tarjeta lleva a su pantalla, ya filtrada", async () => {
     await abrirConResumen();
 
     await act(async () => {
-      screen.getByText("Acosta Pablo").closest("button")!.click();
+      screen.getByRole("button", { name: /^Vencimiento de documentación/ }).click();
     });
 
-    expect(push).toHaveBeenCalledWith("/choferes/acosta");
+    // Camiones y choferes son dos pantallas: la única que los muestra juntos,
+    // con su fecha, es la de avisos filtrada por documentación.
+    expect(push).toHaveBeenCalledWith("/notificaciones?categoria=documentacion");
   });
+});
 
-  it("el 'y N más' lleva al listado completo", async () => {
-    await abrirConResumen();
+/**
+ * De qué se trata cada aviso, DENTRO de su categoría.
+ *
+ * El 27/08/2026 Nico avisó que un echeq que vencía ese día no salía por ningún
+ * lado: estaba contado en la tarjeta de Cheques y en ninguna parte decía cuál
+ * era. Ahora cada tarjeta lista sus avisos más urgentes.
+ */
+describe("ResumenDiarioModal — el detalle de cada categoría", () => {
+  const CON_HOY: ResumenDiario = {
+    total: 6,
+    vencidos: 4,
+    grupos: [
+      {
+        key: "vencimiento_docs",
+        nombre: "Vencimiento de documentación",
+        total: 4,
+        vencidos: 4,
+        atraso: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+        items: [-200, -147, -90, -60].map((dias, i) => ({
+          id: `v${i}`,
+          titulo: `Licencia — Vencido ${i}`,
+          diasRestantes: dias,
+          fecha: "2026-01-01",
+          entidadId: `doc-${i}`,
+          href: "/choferes",
+        })),
+        restantes: 0,
+      },
+      {
+        key: "cheques_vencidos",
+        nombre: "Cheques",
+        total: 2,
+        vencidos: 0,
+        atraso: null,
+        items: [
+          {
+            id: "chequevenc-1",
+            titulo: "Cheque para depositar hoy — Loma Negra",
+            diasRestantes: 0,
+            fecha: "2026-08-27",
+            entidadId: "ch-1",
+            href: "/cheques",
+          },
+        ],
+        restantes: 1,
+      },
+    ],
+  };
+
+  it("el cheque que vence hoy entra aunque haya vencidos de hace meses", async () => {
+    localStorage.setItem("dj_resumen_dia_u1", hoy());
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respuesta(CON_HOY)));
 
     await act(async () => {
-      screen.getByText(/^y \d+ .* más$/).closest("button")!.click();
+      render(<ResumenDiarioModal userId="u1" nombre="Nicolás" />);
+    });
+    await abrirAMano();
+
+    // El cheque de hoy se lee en la celda de su categoría, con nombre y cuándo.
+    expect(screen.getAllByText(/Cheque para depositar hoy/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Loma Negra").length).toBeGreaterThan(0);
+    // Y los documentos vencidos, en la suya: cada categoría cuenta lo suyo.
+    expect(screen.getAllByText(/Vencido 0/).length).toBeGreaterThan(0);
+  });
+
+});
+
+/**
+ * Elegir qué ver (pedido de Nico, 27/08/2026: "a él no le importan los
+ * documentos, a Anabela no le importan los cheques o préstamos").
+ */
+describe("ResumenDiarioModal — elegir qué ver", () => {
+  it("lo que llega apagado no se dibuja y no cuenta en los números", async () => {
+    localStorage.setItem("dj_resumen_dia_u1", hoy());
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(respuesta({ ...RESUMEN, ocultas: ["rrhh_eventos"] })),
+    );
+
+    await act(async () => {
+      render(<ResumenDiarioModal userId="u1" nombre="Nicolás" />);
+    });
+    await abrirAMano();
+
+    // Los cumpleaños se dibujan por persona: si el grupo se apagó, no queda nadie.
+    expect(screen.queryByText("Bustos Marcelo")).toBeNull();
+    // Y los números del encabezado se recalculan sobre lo que queda: de los 8
+    // avisos quedan 6 (se apagaron los 2 cumpleaños), 4 vencidos y 2 a tiempo.
+    // Si siguiera diciendo 8, el que miente es el cartel.
+    const cifras = screen.getAllByText(/^Pendientes$|^Vencidos$|^A tiempo$/);
+    expect(cifras).toHaveLength(3);
+    expect(cifras[0]!.previousSibling).toHaveTextContent("6");
+    expect(cifras[1]!.previousSibling).toHaveTextContent("4");
+    expect(cifras[2]!.previousSibling).toHaveTextContent("2");
+  });
+
+  it("desde el panel se apaga una categoría y desaparece en el momento", async () => {
+    localStorage.setItem("dj_resumen_dia_u1", hoy());
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(respuesta(RESUMEN)));
+
+    await act(async () => {
+      render(<ResumenDiarioModal userId="u1" nombre="Nicolás" />);
+    });
+    await abrirAMano();
+    expect(screen.getByText("Documentos")).toBeInTheDocument();
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Elegir qué ver" }).click();
+    });
+    const tilde = screen.getByRole("checkbox", { name: /Vencimiento de Documentos/ });
+    expect(tilde).toBeChecked();
+
+    await act(async () => {
+      tilde.click();
     });
 
-    expect(push).toHaveBeenCalledWith("/notificaciones");
+    expect(guardarCategoriasResumen).toHaveBeenCalledWith(["vencimiento_docs"]);
+    expect(screen.queryByText("Documentos")).toBeNull();
+    // La categoría apagada sigue en el panel, para poder volver a prenderla.
+    expect(screen.getByRole("checkbox", { name: /Vencimiento de Documentos/ })).not.toBeChecked();
   });
 });

@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { alertaHref, type AlertaItem, type Severidad } from "@/app/(dashboard)/notificaciones/utils";
 import type { CurrentUser } from "@/lib/auth";
+import { getChequeAlertasLive } from "@/lib/alertas-live";
 import { visiblePara } from "@/lib/alertas-visibilidad";
 
 /**
@@ -23,9 +24,14 @@ import { visiblePara } from "@/lib/alertas-visibilidad";
  */
 
 // Tipos calculados EN VIVO en /notificaciones (ids sintéticos `docvenc-*` /
-// `chequevenc-*`, no están en la tabla `alertas`). No son "marcables" y por
-// construcción no entran al conteo ni al toaster: así el badge puede llegar a 0
-// cuando el usuario marca todo leído.
+// `chequevenc-*`, no están en la tabla `alertas`). No son "marcables", así que
+// se los deja afuera del conteo para que el badge pueda llegar a 0 cuando el
+// usuario marca todo leído.
+//
+// La excepción es el cheque en cartera que vence hoy o que ya venció: ése sí
+// entra al conteo y al toaster (ver `chequesEnLaCampana` más abajo). No rompe la
+// regla del badge en cero porque se apaga solo apenas el cheque se deposita o se
+// cede — no hace falta que nadie lo marque.
 //
 // Los cheques entraron acá porque su fila de la tabla se escribe UNA vez y el
 // texto queda congelado: el dedup impide regenerarla, así que la campana decía
@@ -43,6 +49,13 @@ export type ResumenItem = {
   titulo: string;
   mensaje: string;
   href: string | null;
+  /**
+   * `false` en los avisos calculados en vivo: no son filas de `alertas`, así que
+   * no se pueden marcar leídos. Se apagan haciendo lo que piden. La campana los
+   * dibuja sin el tilde para no ofrecer un botón que no hace nada (mismo criterio
+   * que `AlertaItem.marcable` en /notificaciones).
+   */
+  marcable?: boolean;
 };
 
 type LecturaRow = { alerta_id: string; leida_en: string | null; descartada_en: string | null };
@@ -113,7 +126,7 @@ export async function getResumenUsuario(
   limit = 8,
 ): Promise<{ count: number; items: ResumenItem[]; allIds: string[] }> {
   const supabase = createAdminClient();
-  const [{ data: alertas }, lecturas] = await Promise.all([
+  const [{ data: alertas }, lecturas, chequesLive] = await Promise.all([
     supabase
       .from("alertas")
       .select("id, tipo, severidad, titulo, mensaje, fecha_disparo, entidad_tipo, entidad_id")
@@ -121,6 +134,9 @@ export async function getResumenUsuario(
       .not("tipo", "in", `(${DOC_LIVE.join(",")})`)
       .order("fecha_disparo", { ascending: false }),
     getLecturasMap(supabase, usuario.id),
+    // La ÚNICA excepción a "en la campana sólo entran filas de la tabla": el
+    // cheque en cartera que vence hoy o que ya venció. Ver `chequesEnLaCampana`.
+    getChequeAlertasLive(supabase, { soloHitos: false }),
   ]);
 
   type Row = {
@@ -147,15 +163,72 @@ export async function getResumenUsuario(
     return b.fecha_disparo.localeCompare(a.fecha_disparo);
   });
 
-  const items: ResumenItem[] = ordenadas.slice(0, limit).map((a) => ({
-    id: a.id,
-    severidad: a.severidad,
-    titulo: a.titulo,
-    mensaje: a.mensaje,
-    href: alertaHref({ tipo: a.tipo, entidad_tipo: a.entidad_tipo, entidad_id: a.entidad_id }),
-  }));
+  const cheques = chequesEnLaCampana(chequesLive, puedeVer);
 
-  return { count: noLeidas.length, items, allIds: ordenadas.map((a) => a.id) };
+  // Los cheques van PRIMERO y no se recortan: son uno o dos, y son lo único de
+  // esta lista que se pierde si el día pasa sin que nadie lo mire.
+  const items: ResumenItem[] = [
+    ...cheques,
+    ...ordenadas.slice(0, Math.max(0, limit - cheques.length)).map((a) => ({
+      id: a.id,
+      severidad: a.severidad,
+      titulo: a.titulo,
+      mensaje: a.mensaje,
+      href: alertaHref({ tipo: a.tipo, entidad_tipo: a.entidad_tipo, entidad_id: a.entidad_id }),
+      marcable: true,
+    })),
+  ];
+
+  return {
+    count: noLeidas.length + cheques.length,
+    items,
+    allIds: [...cheques.map((c) => c.id), ...ordenadas.map((a) => a.id)],
+  };
+}
+
+/**
+ * Los cheques que SÍ suenan la campana.
+ *
+ * Pedido de Nico (27/08/2026): *"hay cargado en sistema un echeq que vence y no
+ * sale una alerta como para acordarnos que hay que depositarlo. Y esa alerta
+ * estaría bueno que siga saliendo hasta que nosotros le pongamos que lo
+ * depositamos o lo cedimos"*. Tenía razón por partida doble: los avisos de
+ * cheque se calculan en vivo y por eso estaban excluidos de la campana (ver
+ * DOC_LIVE arriba), y en el pop-up del día quedaban reducidos a un número.
+ *
+ * Entra sólo lo que cumple las dos condiciones que hacen que valga la pena
+ * insistir:
+ *
+ *  1. Es un cheque RECIBIDO todavía EN CARTERA: hay una acción concreta —
+ *     depositarlo o cederlo— y no la va a hacer nadie más.
+ *  2. Ya no tiene margen: vence hoy o se pasó de fecha.
+ *
+ * Lo demás (el que vence en cinco días, los nuestros por debitarse) sigue como
+ * estaba: en la pantalla, en el pop-up y en el mail, pero sin campana.
+ *
+ * No son marcables —no existen en la tabla `alertas`— y eso acá es la
+ * característica, no una limitación: el aviso se apaga cuando el cheque cambia
+ * de estado, que es exactamente lo que se pidió. Por eso el badge puede seguir
+ * llegando a cero: cuando el cheque se deposita, este aviso desaparece solo.
+ */
+function chequesEnLaCampana(
+  live: Awaited<ReturnType<typeof getChequeAlertasLive>>,
+  puedeVer: (a: { tipo: string; entidad_tipo?: string | null }) => boolean,
+): ResumenItem[] {
+  return live
+    .filter((a) => a.depositoPendiente && puedeVer(a))
+    .map((a) => ({
+      id: a.id,
+      severidad: a.severidad,
+      titulo: a.titulo,
+      mensaje: a.mensaje,
+      href: alertaHref({
+        tipo: a.tipo,
+        entidad_tipo: a.entidad_tipo,
+        entidad_id: a.id.replace(/^chequevenc-/, ""),
+      }),
+      marcable: false,
+    }));
 }
 
 /**

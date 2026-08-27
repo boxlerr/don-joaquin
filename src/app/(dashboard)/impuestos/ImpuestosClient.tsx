@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { EstadoImpuesto, FiltroEstado } from "./filtros";
 import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, Check, ChevronRight, ChevronLeft, Paperclip,
@@ -54,8 +55,7 @@ const POR_PAGINA = 25;
 // Estado de un impuesto — una sola definición para todo el archivo
 // ---------------------------------------------------------------------------
 
-type EstadoImpuesto = "presentado" | "vencido" | "por_vencer" | "pendiente";
-type FiltroEstado = "todos" | EstadoImpuesto;
+
 
 function diasRestantes(fechaISO: string): number {
   const [y, m, d] = fechaISO.split("-").map(Number);
@@ -204,9 +204,17 @@ const SOLAPAS: { id: FiltroEstado; label: string }[] = [
 export default function ImpuestosClient({
   impuestos,
   canWrite,
+  estadoInicial,
 }: {
   impuestos: ImpuestoRow[];
   canWrite: boolean;
+  /**
+   * Solapa abierta al entrar, desde `?estado=` — así el resumen del día puede
+   * mandar directo a los vencidos en vez de dejar la lista entera y que haya que
+   * rearmar a mano el filtro que produjo el número. Llega como prop desde el
+   * server (y no de `useSearchParams`) para que el primer render coincida.
+   */
+  estadoInicial?: FiltroEstado;
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<DialogState>({ mode: "closed" });
@@ -218,7 +226,7 @@ export default function ImpuestosClient({
 
   // Filtros, orden y página
   const [busqueda, setBusqueda] = useState("");
-  const [estado, setEstado] = useState<FiltroEstado>("todos");
+  const [estado, setEstado] = useState<FiltroEstado>(estadoInicial ?? "todos");
   const [organismo, setOrganismo] = useState("todos");
   const [orden, setOrden] = useState<CampoOrden>("vencimiento");
   const [dir, setDir] = useState<Direccion>("asc");

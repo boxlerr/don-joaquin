@@ -12,10 +12,20 @@
  * los cheques bajo un título que hablaba de los propios.
  */
 
+import { chequeReclama } from "@/lib/alertas-live";
 import type { ChequeEstado, ChequeOrigen } from "./transiciones";
 
-/** Cuál de las cuatro cifras. `null` = sin recorte, se ve todo. */
-export type VistaResumen = "cartera" | "por_vencer" | "vencidos" | "nuestros";
+/**
+ * Cuál de las cuatro cifras. `null` = sin recorte, se ve todo.
+ *
+ * `avisos` no es una cifra de la pantalla: es el recorte con el que se entra
+ * desde el resumen del día ("Cheques 3 vencidos de 21" → /cheques?vista=avisos).
+ * Son exactamente los cheques que el sistema puede llegar a avisar —los que
+ * todavía piden algo— y no un estado ni una ventana de fechas. Sin esto, tocar
+ * la tarjeta caía en la lista completa y había que rearmar a mano el filtro que
+ * produjo el número, que es justo lo que las cifras abribles vinieron a evitar.
+ */
+export type VistaResumen = "cartera" | "por_vencer" | "vencidos" | "nuestros" | "avisos";
 
 export type ChequeParaResumen = {
   origen: ChequeOrigen;
@@ -28,24 +38,53 @@ export type ChequeParaResumen = {
  * Si un cheque entra en una de las cifras.
  *
  * «En cartera» es sólo lo que nos deben: un cheque nuestro es plata que sale y
- * se cuenta aparte. «Por vencer» y «Vencidos» son recortes de la cartera por
- * fecha, no estados propios.
+ * se cuenta aparte. «Por vencer» es un recorte de la cartera por fecha, no un
+ * estado propio. «Vencidos», en cambio, es de los dos lados: lo que se pasó de
+ * fecha y sigue sin resolverse, sea plata que entra o que sale.
  */
 export function pertenece(
   c: ChequeParaResumen,
   vista: VistaResumen,
   hoyISO: string,
   en7diasISO: string,
+  /**
+   * Hasta cuándo mira el aviso (hoy + `dias_alerta_cheque`). Sólo lo usa la
+   * vista `avisos`, y es lo que hace que la lista muestre EXACTAMENTE los que
+   * contó la tarjeta del resumen: sin este corte decía "21" y abría 38, porque
+   * traía también los que vencen dentro de tres meses.
+   */
+  hastaAvisoISO?: string,
 ): boolean {
   if (vista === "nuestros") {
     return c.origen === "propio" && (c.estado === "emitido" || c.estado === "entregado");
+  }
+
+  // Los que siguen reclamando algo, de los dos lados. Misma regla que usan los
+  // avisos (`chequeReclama`), para que la lista muestre exactamente lo que la
+  // tarjeta contó: uno recibido reclama mientras está en cartera; uno nuestro,
+  // hasta que el banco lo debita.
+  if (vista === "avisos") {
+    if (!chequeReclama(c.origen, c.estado)) return false;
+    // Vencido siempre entra; lo que todavía no venció, sólo si ya está dentro de
+    // la ventana de aviso.
+    if (c.fecha_vencimiento < hoyISO) return true;
+    return hastaAvisoISO ? c.fecha_vencimiento <= hastaAvisoISO : true;
+  }
+
+  // VENCIDOS es de los DOS lados, y por eso se resuelve antes del recorte por
+  // cartera. Miraba sólo los recibidos, así que el 27/08/2026 la pantalla
+  // mostraba "Vencidos $0,00 · 0 sin gestionar" mientras había tres cheques
+  // NUESTROS pasados de fecha y sin debitar —uno de $3.000.000 de hacía 43
+  // días—. Un cheque nuestro que venció y no se debitó es exactamente lo que
+  // hay que ir a mirar al banco.
+  if (vista === "vencidos") {
+    return chequeReclama(c.origen, c.estado) && c.fecha_vencimiento < hoyISO;
   }
 
   const enCartera = c.origen === "recibido" && c.estado === "cartera";
   if (!enCartera) return false;
 
   if (vista === "cartera") return true;
-  if (vista === "vencidos") return c.fecha_vencimiento < hoyISO;
   // Por vencer: de hoy en adelante y dentro de la ventana. Un cheque que ya
   // venció NO está "por vencer" — ya es del cuadro de al lado.
   return c.fecha_vencimiento >= hoyISO && c.fecha_vencimiento <= en7diasISO;
@@ -58,18 +97,30 @@ export function cifra(
   vista: VistaResumen,
   hoyISO: string,
   en7diasISO: string,
+  hastaAvisoISO?: string,
 ): CifraResumen {
   let total = 0;
   let cantidad = 0;
   for (const c of cheques) {
-    if (!pertenece(c, vista, hoyISO, en7diasISO)) continue;
+    if (!pertenece(c, vista, hoyISO, en7diasISO, hastaAvisoISO)) continue;
     total += Number(c.importe) || 0;
     cantidad += 1;
   }
   return { total, cantidad };
 }
 
-/** El lado del listado que corresponde a cada cifra, para posicionar la solapa. */
-export function origenDeVista(vista: VistaResumen): ChequeOrigen {
+/**
+ * El lado del listado que corresponde a cada cifra, para posicionar la solapa.
+ * `avisos` mezcla los dos lados a propósito, así que se queda en "todos".
+ */
+export function origenDeVista(vista: VistaResumen): ChequeOrigen | "todos" {
+  // `avisos` y `vencidos` mezclan los dos lados a propósito.
+  if (vista === "avisos" || vista === "vencidos") return "todos";
   return vista === "nuestros" ? "propio" : "recibido";
+}
+
+/** El `?vista=` de la URL, si es una de las nuestras. */
+export function vistaDeParam(valor: string | undefined | null): VistaResumen | null {
+  const vistas: VistaResumen[] = ["cartera", "por_vencer", "vencidos", "nuestros", "avisos"];
+  return vistas.includes(valor as VistaResumen) ? (valor as VistaResumen) : null;
 }

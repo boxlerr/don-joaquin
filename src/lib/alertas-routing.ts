@@ -19,6 +19,14 @@ export const PRESTAMOS_COL = "prestamos_vencimiento";
  * fecha, no un contador de cosas por hacer.
  */
 export const RRHH_EVENTOS_COL = "rrhh_eventos";
+/**
+ * Ausencias programadas y saldo de vacaciones. Tiene nombre propio por lo mismo
+ * que `RRHH_EVENTOS_COL`: el pop-up del día la dibuja como PERSONAS —silueta,
+ * nombre y el día— y no como un contador. Julián, 27/08/2026: *"falta
+ * información en las vacaciones, fechas y tal como en cumpleaños y fotos; tiene
+ * que ser así de completo, es incluso más importante"*.
+ */
+export const AUSENCIAS_COL = "ausencias_vacaciones";
 
 /**
  * Efemérides: los eventos de calendario del personal. Se guardan con
@@ -181,8 +189,8 @@ const ENTIDAD_A_COLUMNA: Record<string, string> = {
   ...Object.fromEntries(ENTIDAD_TIPOS_EFEMERIDE.map((t) => [t, RRHH_EVENTOS_COL])),
 
   // RRHH — disponibilidad
-  chofer_ausencia: "ausencias_vacaciones",
-  choferes_vacaciones_saldo: "ausencias_vacaciones",
+  chofer_ausencia: AUSENCIAS_COL,
+  choferes_vacaciones_saldo: AUSENCIAS_COL,
 };
 
 export const COLUMNAS_TODAS = [
@@ -251,6 +259,19 @@ export const COLUMNAS_ABIERTAS_DE_OTROS = [
 export function esAlertaPrestamo(a: { entidad_tipo?: string | null }): boolean {
   const t = a.entidad_tipo ?? "";
   return t.startsWith("prestamo_cuota") || t === "prestamos_tope_mensual";
+}
+
+/**
+ * El aviso de una cuota que venció ayer y todavía puede estar debitada sin que
+ * se vea en el banco (ver `DIAS_GRACIA_CUOTA` en lib/alertas-obsoletas.ts).
+ *
+ * No es una cuota impaga y no se cuenta como vencida: el 27/08/2026 el pop-up
+ * mostraba "Préstamos: 1 vencido" y /prestamos, al lado, decía "Cuotas vencidas
+ * sin pagar: 0 — Todo al día". Las dos cosas eran ciertas y por eso el número
+ * estaba mal: el aviso existe para acordarse de TILDAR, no para reclamar.
+ */
+export function esAvisoEnGracia(a: { entidad_tipo?: string | null }): boolean {
+  return (a.entidad_tipo ?? "") === "prestamo_cuota:gracia";
 }
 
 /**

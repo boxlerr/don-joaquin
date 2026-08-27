@@ -152,6 +152,14 @@ export default function NotificacionesProvider({
 
   const marcarVista = useCallback(
     async (id: string) => {
+      // Los avisos en vivo (hoy: el cheque en cartera que vence hoy o que ya
+      // venció) no son filas de `alertas` y no se pueden marcar leídos: se apagan
+      // depositando o cediendo el cheque. Sacarlo de la lista y bajar el badge
+      // sería una mentira de un segundo, hasta que el poll lo devuelva.
+      if (items.some((i) => i.id === id && i.marcable === false)) {
+        dismissToast(id);
+        return;
+      }
       // Optimista: sale de la lista, baja el badge, se cierra su toast y queda como
       // "ya avisada". El badge sólo baja la primera vez que se marca ese id (evita
       // doble-decremento por doble-click); el poll del finally reconcilia con el server.
@@ -167,13 +175,16 @@ export default function NotificacionesProvider({
         await poll();
       }
     },
-    [poll, userId],
+    [items, poll, userId],
   );
 
   const marcarTodas = useCallback(async () => {
     const ids = items.map((i) => i.id);
-    setItems([]);
-    setCount(0);
+    // Los que no se pueden marcar quedan: "marcar todas" no los apaga porque no
+    // hay nada que marcar — el cheque sigue esperando que alguien lo deposite.
+    const quedan = items.filter((i) => i.marcable === false);
+    setItems(quedan);
+    setCount(quedan.length);
     addToasted(userId, ids);
     try {
       await marcarTodasVistas();

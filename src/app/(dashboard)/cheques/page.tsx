@@ -6,8 +6,16 @@ import { requireSeccion, hasSeccion } from "@/lib/auth";
 import AddChequeDialog from "./components/AddChequeDialog";
 import ChequesList, { type ChequeRow } from "./components/ChequesList";
 import type { ChequeOrigen } from "./transiciones";
+import { vistaDeParam } from "./resumen";
 import ExportChequesButton from "./components/ExportChequesButton";
 import HelpTutorialButton from "./help-tutorial-button";
+
+/** Suma días a un ISO (YYYY-MM-DD) sin que el huso mueva la fecha. */
+function sumarDias(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y!, m! - 1, d! + n));
+  return dt.toISOString().split("T")[0]!;
+}
 
 function formatARS(n: number): string {
   return n.toLocaleString("es-AR", {
@@ -16,10 +24,18 @@ function formatARS(n: number): string {
   });
 }
 
-export default async function ChequesPage() {
+export default async function ChequesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vista?: string }>;
+}) {
   const user = await requireSeccion("cheques", "read");
   const canWrite = hasSeccion(user, "cheques", "write");
   const supabase = createAdminClient();
+  // Se puede llegar con una cifra ya abierta (?vista=avisos desde el resumen del
+  // día). Se valida acá: un valor cualquiera en la URL no tiene por qué llegar
+  // hasta el estado del listado.
+  const vistaInicial = vistaDeParam((await searchParams).vista);
 
   const hoy = new Date().toISOString().split("T")[0];
   // eslint-disable-next-line react-hooks/purity -- server component: se ejecuta una vez por request
@@ -32,6 +48,7 @@ export default async function ChequesPage() {
     { data: cheques },
     { data: libradores },
     { data: historial },
+    { data: paramAviso },
   ] = await Promise.all([
     supabase.from("bancos").select("id, nombre").eq("estado", "activo").order("nombre"),
     supabase
@@ -52,7 +69,18 @@ export default async function ChequesPage() {
       .from("cheque_historial_estado")
       .select("cheque_id, estado_nuevo, fecha")
       .order("fecha", { ascending: true }),
+    // Con cuántos días de anticipación avisa el sistema. Es el mismo corte que
+    // usa el aviso (`dias_alerta_cheque`), y hace falta acá para que la vista
+    // "los que el sistema está avisando" muestre exactamente los que contó.
+    supabase
+      .from("parametros_sistema")
+      .select("valor")
+      .eq("clave", "dias_alerta_cheque")
+      .maybeSingle(),
   ]);
+
+  const diasAviso = Number(paramAviso?.valor);
+  const hastaAviso = sumarDias(hoy, Number.isFinite(diasAviso) && diasAviso > 0 ? diasAviso : 30);
 
   const rows: ChequeRow[] = (cheques ?? []).map((c) => ({
     id: c.id,
@@ -104,6 +132,8 @@ export default async function ChequesPage() {
         hoy={hoy}
         en7dias={en7dias}
         historial={(historial ?? []) as never}
+        vistaInicial={vistaInicial}
+        hastaAviso={hastaAviso}
       />
     </div>
   );

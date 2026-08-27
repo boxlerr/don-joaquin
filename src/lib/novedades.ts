@@ -90,6 +90,42 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-cheque-que-vence-hoy-ahora-te-avisa",
+    fecha: "2026-08-27",
+    tipo: "arreglo",
+    ver: "cheques",
+    titulo: "El cheque que vence hoy ahora te avisa hasta que lo depositás o lo cedés",
+    detalle: "Antes quedaba escondido en un número y seguía apareciendo aunque el cheque ya se hubiera cedido. Ahora suena la campana, sale con el importe y el librador, y se apaga solo cuando lo marcás depositado o entregado.",
+    href: "/cheques",
+  },
+  {
+    id: "la-cifra-de-vencidos-ahora-incluye-los",
+    fecha: "2026-08-27",
+    tipo: "arreglo",
+    ver: "cheques",
+    titulo: "La cifra de vencidos ahora incluye los cheques nuestros sin debitar",
+    detalle: "Decía \"0 sin gestionar\" aunque hubiera cheques nuestros pasados de fecha, porque sólo miraba los recibidos.",
+    href: "/cheques",
+  },
+  {
+    id: "el-resumen-de-la-manana-dice-que-es-cada",
+    fecha: "2026-08-27",
+    tipo: "mejora",
+    ver: "todos",
+    titulo: "El resumen de la mañana dice qué es cada aviso y a quién le toca",
+    detalle: "Cada categoría muestra sus avisos con el nombre, de qué se trata y hace cuánto, y tocarla abre la pantalla filtrada por ese mismo número. Las vacaciones se ven como los cumpleaños, con la foto y el día.",
+    href: "/notificaciones",
+  },
+  {
+    id: "elegi-que-queres-ver-en-el-resumen-de-la",
+    fecha: "2026-08-27",
+    tipo: "nuevo",
+    ver: "todos",
+    titulo: "Elegí qué querés ver en el resumen de la mañana",
+    detalle: "En el pop-up del día, abajo a la izquierda, \"Elegir qué ver\": destildás las categorías que no usás y dejan de aparecerte. Los avisos siguen estando en Notificaciones.",
+    href: "/notificaciones",
+  },
+  {
     id: "el-taller-abre-rapido-aunque-tenga-fotos",
     fecha: "2026-08-27",
     tipo: "mejora",

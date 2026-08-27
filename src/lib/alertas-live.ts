@@ -30,6 +30,13 @@ export type AlertaLive = {
   severidad: Severidad;
   fecha_vencimiento: string | null;
   entidad_tipo: string | null;
+  /**
+   * Cheque recibido, todavía en cartera, que vence hoy o ya venció: hay que
+   * depositarlo o cederlo y NADIE más lo va a resolver. Es el único aviso en
+   * vivo que llega a la campana (ver `lib/alertas-lecturas.ts`), porque es el
+   * único que se apaga solo apenas alguien hace algo con el cheque.
+   */
+  depositoPendiente?: boolean;
 };
 
 // Umbral crítico (mismo que la vista): dentro de estos días o ya vencido → crítica.
@@ -167,6 +174,32 @@ export async function getDocAlertasLive(
 }
 
 /**
+ * ¿Este cheque sigue reclamando algo?
+ *
+ * Es la mitad que faltaba de la regla. Antes se miraba sólo el estado
+ * (`cartera`, `emitido`, `entregado`) sin mirar de qué lado está el cheque, y
+ * `entregado` quiere decir dos cosas opuestas según el origen:
+ *
+ *  - En uno NUESTRO significa que se lo dimos al proveedor y todavía no se
+ *    debitó: hay que tener el dinero el día que vence. Sigue reclamando.
+ *  - En uno RECIBIDO significa que ya lo cedimos a un tercero. Se terminó: no
+ *    hay que depositarlo ni hay nada que hacer con él.
+ *
+ * Sin esta distinción, los cheques de Loma Negra que ya se habían cedido
+ * seguían saliendo como "vencidos" para siempre —cuatro de los cinco vencidos
+ * del 27/08/2026 eran eso— y tapaban al único que sí había que depositar ese
+ * día. Es literalmente lo que pidió Nico: que el aviso salga hasta que digamos
+ * que lo depositamos o lo cedimos, y ahí recién se apague.
+ */
+export function chequeReclama(origen: string | null | undefined, estado: string): boolean {
+  // Nuestro: desde que se emite hasta que el banco lo debita.
+  if (origen === "propio") return estado === "emitido" || estado === "entregado";
+  // Recibido: mientras siga en cartera. Depositado, cedido (entregado),
+  // acreditado, rechazado o anulado ya no piden nada.
+  return estado === "cartera";
+}
+
+/**
  * Alertas de cheques en cartera próximos a vencer o vencidos, en vivo. Escala a
  * "vencido" (la generación original solo miraba los que aún no habían vencido).
  *
@@ -184,7 +217,9 @@ export async function getChequeAlertasLive(
     ventanaCheque(supabase),
     supabase
       .from("cheques")
-      .select("id, librador_nombre, importe, fecha_vencimiento, origen, entregado_a")
+      .select("id, estado, librador_nombre, importe, fecha_vencimiento, origen, entregado_a")
+      // El filtro fino es `chequeReclama` (depende del origen); acá sólo se
+      // descartan de entrada los estados que no reclaman en ningún caso.
       .in("estado", ["cartera", "emitido", "entregado"])
       .not("fecha_vencimiento", "is", null),
   ]);
@@ -194,12 +229,14 @@ export async function getChequeAlertasLive(
   const out: AlertaLive[] = [];
   for (const c of (cheques ?? []) as {
     id: string;
+    estado: string;
     librador_nombre: string;
     importe: number;
     fecha_vencimiento: string;
     origen?: string | null;
     entregado_a?: string | null;
   }[]) {
+    if (!chequeReclama(c.origen, c.estado)) continue;
     const dias = diasRestantes(c.fecha_vencimiento);
     if (dias === null) continue;
 
@@ -210,7 +247,22 @@ export async function getChequeAlertasLive(
     // Un cheque nuestro no "se cobra": se debita. Es plata que sale, y el aviso
     // tiene que decirlo con esas palabras o se lee como si entrara.
     const esPropio = c.origen === "propio";
-    const contraparte = esPropio ? c.entregado_a || "sin destinatario" : c.librador_nombre;
+    const destinatario = (esPropio ? c.entregado_a : c.librador_nombre)?.trim() || null;
+    // Sin nombre cargado manda el IMPORTE, que es lo que identifica al cheque.
+    // Antes decía "sin destinatario" y el renglón del resumen quedaba encabezado
+    // por esas dos palabras, como si el aviso fuera sobre eso: el cheque nuestro
+    // de $3.000.000 del 15/07 se leía "sin destinatario · Cheque nuestro sin
+    // debitar" y no había forma de saber cuál era.
+    const contraparte = destinatario ?? importeLabel;
+    // Y el mensaje directamente no nombra a nadie cuando no hay a quién nombrar,
+    // en vez de repetir el importe dos veces en la misma frase.
+    const aQuien = destinatario ? ` entregado a ${destinatario}` : "";
+    const deQuien = destinatario ? ` de ${destinatario}` : "";
+
+    // El que hay que depositar o ceder hoy mismo (o que ya se pasó de fecha).
+    // El aviso lo dice con esas dos palabras porque son las dos únicas cosas que
+    // lo apagan: mientras el cheque siga en cartera, vuelve a salir.
+    const depositoPendiente = !esPropio && dias <= 0;
 
     out.push({
       id: `chequevenc-${c.id}`,
@@ -221,21 +273,24 @@ export async function getChequeAlertasLive(
           ? `Cheque nuestro sin debitar — ${contraparte}`
           : `Cheque nuestro por debitarse — ${contraparte}`
         : vencido
-          ? `Cheque vencido — ${contraparte}`
-          : `Cheque próximo a vencer — ${contraparte}`,
+          ? `Cheque vencido sin depositar — ${contraparte}`
+          : dias === 0
+            ? `Cheque para depositar hoy — ${contraparte}`
+            : `Cheque próximo a vencer — ${contraparte}`,
       mensaje: esPropio
         ? vencido
-          ? `Cheque nuestro de ${importeLabel} entregado a ${contraparte} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue sin debitarse.`
+          ? `Cheque nuestro de ${importeLabel}${aQuien} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue sin debitarse.`
           : dias === 0
-            ? `Cheque nuestro de ${importeLabel} entregado a ${contraparte} se debita hoy.`
-            : `Cheque nuestro de ${importeLabel} entregado a ${contraparte} se debita en ${dias} día${plural(dias)}.`
+            ? `Cheque nuestro de ${importeLabel}${aQuien} se debita hoy.`
+            : `Cheque nuestro de ${importeLabel}${aQuien} se debita en ${dias} día${plural(dias)}.`
         : vencido
-          ? `Cheque de ${importeLabel} de ${contraparte} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))}.`
+          ? `Cheque de ${importeLabel}${deQuien} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue en cartera: depositalo o cedelo.`
           : dias === 0
-            ? `Cheque de ${importeLabel} de ${contraparte} vence hoy.`
-            : `Cheque de ${importeLabel} de ${contraparte} vence en ${dias} día${plural(dias)}.`,
+            ? `Cheque de ${importeLabel}${deQuien} vence hoy: depositalo o cedelo.`
+            : `Cheque de ${importeLabel}${deQuien} vence en ${dias} día${plural(dias)}.`,
       fecha_vencimiento: c.fecha_vencimiento,
       entidad_tipo: "cheques",
+      depositoPendiente,
     });
   }
   return out;

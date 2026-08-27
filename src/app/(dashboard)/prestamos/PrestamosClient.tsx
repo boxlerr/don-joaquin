@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState, useTransition } from "react";
+import type { FocoLista } from "./filtros";
 import { useRouter } from "next/navigation";
 import {
   PiggyBank,
@@ -168,7 +169,7 @@ const TEAL = "#0D9488";
  * Qué recorte está mirando la lista de vencimientos de la derecha.
  * `proximos` es el estado sin filtro: lo que cae en los próximos 30 días.
  */
-type FocoLista = "proximos" | "vencidas" | "manana" | "semana" | "mes";
+
 
 /** Escalas de tiempo del gráfico de carga de pagos. */
 type VistaGrafico = "dia" | "semana" | "mes";
@@ -286,11 +287,18 @@ export default function PrestamosClient({
   prestamos,
   canWrite,
   topes = TOPES_DEFAULT,
+  focoInicial,
 }: {
   prestamos: PrestamoRow[];
   canWrite: boolean;
   /** A partir de cuánta plata por día/semana/mes hay que avisar en rojo. */
   topes?: TopesConfig;
+  /**
+   * Con qué lista se entra, desde `?foco=` — el resumen del día manda a las
+   * cuotas vencidas en vez de dejar la pantalla entera. Viene como prop desde el
+   * server para que el primer render del navegador coincida con el del server.
+   */
+  focoInicial?: FocoLista;
 }) {
   const [topesOpen, setTopesOpen] = useState(false);
   const [fechasOpen, setFechasOpen] = useState(false);
@@ -313,7 +321,7 @@ export default function PrestamosClient({
   const hoy = new Date().toISOString().slice(0, 10);
   const [mesSel, setMesSel] = useState(hoy.slice(0, 7));
   /** El recorte de la lista de vencimientos: lo ponen las tarjetas de arriba. */
-  const [foco, setFoco] = useState<FocoLista>("proximos");
+  const [foco, setFoco] = useState<FocoLista>(focoInicial ?? "proximos");
   /** Un solo gráfico con tres escalas de tiempo (pedido: verlo de todas las formas). */
   const [vista, setVista] = useState<VistaGrafico>("semana");
   /** Desplazamiento de la ventana del gráfico: -1 = anterior, +1 = siguiente. */

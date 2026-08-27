@@ -119,11 +119,12 @@ describe("ResumenDiarioModal — novedades del sistema", () => {
       render(<ResumenDiarioModal userId="u1" nombre="Julián" />);
     });
 
-    expect(screen.getByText(/Vencimiento de documentación/i)).toBeTruthy();
+    // La tarjeta muestra el nombre corto; el entero, en el nombre accesible.
+    expect(screen.getByText("Documentos")).toBeTruthy();
     expect(localStorage.getItem("dj_resumen_dia_u1")).toBe(hoy());
   });
 
-  it("una novedad se muestra una sola vez: al día siguiente ya no está", async () => {
+  it("una novedad se anuncia una sola vez, pero la última queda a la vista", async () => {
     // El corazón del pedido "¿y cuándo haya muchas?": la lista no se repite
     // todas las mañanas hasta que se cae de la ventana.
     conResumen(RESUMEN);
@@ -131,15 +132,19 @@ describe("ResumenDiarioModal — novedades del sistema", () => {
       render(<ResumenDiarioModal userId="u1" nombre="Julián" />);
     });
     expect(screen.getByText("Novedades del sistema")).toBeTruthy();
+    expect(screen.getByText(/cambio nuevo|cambios nuevos/)).toBeTruthy();
     cleanup();
 
-    // "Mañana": el pop-up del día vuelve a salir, las novedades no.
+    // "Mañana": el pop-up del día vuelve a salir. La novedad ya no se anuncia
+    // como nueva, pero el bloque sigue mostrando la última: sin eso el cartel se
+    // quedaba sin nada que contar (Julián, 27/08/2026).
     localStorage.removeItem("dj_resumen_dia_u1");
     await act(async () => {
       render(<ResumenDiarioModal userId="u1" nombre="Julián" />);
     });
-    expect(screen.queryByText("Novedades del sistema")).toBeNull();
-    expect(screen.getByText(/Ver las novedades del sistema/i)).toBeTruthy();
+    expect(screen.getByText("Novedades del sistema")).toBeTruthy();
+    expect(screen.getByText("Lo último que cambió")).toBeTruthy();
+    expect(screen.queryByText(/cambios? nuevos?/)).toBeNull();
   });
 
   it("un día sin vencimientos pero con novedades igual abre el pop-up", async () => {

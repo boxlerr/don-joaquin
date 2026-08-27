@@ -2,6 +2,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
 import { getPrestamosAction, getTopesAction } from "./actions";
 import PrestamosClient from "./PrestamosClient";
+import { focoDeParam } from "./filtros";
 import HelpTutorialButton from "./help-tutorial-button";
 import ExportPrestamosButton from "./export-prestamos-button";
 import AddPrestamoDialog from "./AddPrestamoDialog";
@@ -12,11 +13,17 @@ import AddPrestamoDialog from "./AddPrestamoDialog";
  * Avisa los vencimientos y muestra cuánto hay que pagar por semana, para
  * planificar pagos y financiación de cheques. Sección confidencial.
  */
-export default async function PrestamosPage() {
+export default async function PrestamosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ foco?: string }>;
+}) {
   const user = await requireSeccion("prestamos", "read");
   const canWrite = hasSeccion(user, "prestamos", "write");
 
   const [prestamos, topes] = await Promise.all([getPrestamosAction(), getTopesAction()]);
+  // Se puede entrar directo a una lista (?foco=vencidas, desde el resumen del día).
+  const focoInicial = focoDeParam((await searchParams).foco);
   // Las grafías de banco que ya se usan: alimentan el desplegable del alta y de
   // la edición, y evitan que se dupliquen por mayúsculas o acentos.
   const bancos = [...new Set(prestamos.map((p) => p.banco))];
@@ -37,7 +44,7 @@ export default async function PrestamosPage() {
         }
       />
 
-      <PrestamosClient prestamos={prestamos} canWrite={canWrite} topes={topes} />
+      <PrestamosClient prestamos={prestamos} canWrite={canWrite} topes={topes} focoInicial={focoInicial} />
     </div>
   );
 }
