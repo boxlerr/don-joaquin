@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { destinoDeGrupo } from "./alertas-ui";
+import { destinoDeGrupo, textoSobre } from "./alertas-ui";
 
 /**
  * A dónde lleva cada tarjeta del resumen del día.
@@ -51,5 +51,26 @@ describe("destinoDeGrupo", () => {
       destinoDeGrupo({ key: "otros_avisos", vencidos: 0, items: [item("/camiones"), item("/choferes")] }),
     ).toBe("/notificaciones");
     expect(destinoDeGrupo({ items: [] })).toBe("/notificaciones");
+  });
+});
+
+/**
+ * El ícono de la categoría va sobre su color pleno: el glifo tiene que leerse
+ * ahí encima, sea cual sea el color que le toque a la categoría.
+ */
+describe("textoSobre", () => {
+  it("blanco sobre los colores del menú, que son medios u oscuros", () => {
+    expect(textoSobre("#D97706")).toBe("#FFFFFF"); // ámbar de Finanzas
+    expect(textoSobre("#6366F1")).toBe("#FFFFFF"); // índigo de Flota
+    expect(textoSobre("#047857")).toBe("#FFFFFF"); // verde de RRHH
+  });
+
+  it("oscuro sobre un color claro, que si no el ícono desaparece", () => {
+    expect(textoSobre("#FDE68A")).toBe("#1E293B");
+    expect(textoSobre("#FFFFFF")).toBe("#1E293B");
+  });
+
+  it("un valor que no es hex no rompe: blanco y sigue", () => {
+    expect(textoSobre("rgb(1,2,3)")).toBe("#FFFFFF");
   });
 });

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, AlertOctagon, AlertTriangle, Info, Bell, ChevronRight } from "lucide-react";
 import type { ToastData } from "./toastStore";
 import { useNotificaciones } from "./useNotificaciones";
+import { colorCategoria, ICONO_CATEGORIA, textoSobre } from "@/lib/alertas-ui";
 
 // Duración de auto-cierre por severidad. Las críticas NO se cierran solas: el
 // usuario las descarta a mano (más molestas a propósito, como pidió el cliente).
@@ -48,8 +49,15 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
   const closedRef = useRef(false);
 
   const sev = SEV[toast.severidad];
-  const Icon = toast.variant === "resumen" ? Bell : sev.Icon;
-  const autoMs = AUTO_MS[toast.severidad];
+  // El ícono y el color de la CATEGORÍA cuando el aviso trae una: son los mismos
+  // del resumen del día y del menú, así el cartel se reconoce antes de leerlo.
+  // Sin categoría (el toast de resumen, o un aviso viejo) manda la severidad.
+  const cat = toast.categoria ? ICONO_CATEGORIA[toast.categoria] : undefined;
+  const Icon = toast.variant === "resumen" ? Bell : (cat ?? sev.Icon);
+  const colorCat = toast.categoria ? colorCategoria(toast.categoria) : null;
+  // Los insistentes no se cierran solos, aunque su severidad diga otra cosa: se
+  // apagan haciendo lo que piden.
+  const autoMs = toast.insistente ? null : AUTO_MS[toast.severidad];
 
   // Tiempo restante real: el hover PAUSA (no reinicia) la cuenta regresiva.
   const remainingRef = useRef(autoMs ?? 0);
@@ -91,15 +99,23 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
-      className={`pointer-events-auto relative w-full sm:w-80 overflow-hidden rounded-xl border border-border ${sev.border} border-l-4 bg-card shadow-lg motion-safe:animate-[toast-in_0.22s_ease-out]`}
+      className={`pointer-events-auto relative w-full overflow-hidden rounded-xl border border-border border-l-4 bg-card shadow-lg motion-safe:animate-[toast-in_0.22s_ease-out] ${
+        toast.insistente ? "sm:w-96" : "sm:w-80"
+      } ${colorCat ? "" : sev.border}`}
+      style={colorCat ? { borderLeftColor: colorCat } : undefined}
     >
       <button
         type="button"
         onClick={handleClick}
         className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
       >
-        <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${sev.iconBg}`}>
-          <Icon size={16} className={sev.iconColor} />
+        <span
+          className={`mt-0.5 flex shrink-0 items-center justify-center rounded-lg ${
+            toast.insistente ? "h-10 w-10" : "h-8 w-8"
+          } ${colorCat ? "" : sev.iconBg}`}
+          style={colorCat ? { backgroundColor: colorCat, color: textoSobre(colorCat) } : undefined}
+        >
+          <Icon size={toast.insistente ? 19 : 16} className={colorCat ? undefined : sev.iconColor} />
         </span>
         <span className="min-w-0 flex-1 pr-5">
           <span className="block text-sm font-semibold text-foreground truncate">{toast.titulo}</span>
@@ -107,6 +123,13 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
           {toast.variant === "single" && toast.href && (
             <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-medium text-primary/80">
               Ir <ChevronRight size={12} />
+            </span>
+          )}
+          {/* Que no se lea como un cartel más que se cierra solo: éste vuelve
+              mañana y pasado hasta que alguien haga lo que pide. */}
+          {toast.insistente && (
+            <span className="mt-1.5 block text-[11px] leading-snug text-muted-foreground/80">
+              Este aviso sigue apareciendo hasta que se resuelva.
             </span>
           )}
         </span>
@@ -128,8 +151,14 @@ export default function ToastCard({ toast, onDismiss }: { toast: ToastData; onDi
         // Barra montada una sola vez; el hover la PAUSA (animation-play-state) en
         // vez de remontarla, así queda en sync con el tiempo restante real.
         <span
-          className={`absolute bottom-0 left-0 h-0.5 ${sev.bar} motion-safe:animate-[toast-progress_linear_forwards] motion-reduce:hidden`}
-          style={{ animationDuration: `${autoMs}ms`, animationPlayState: paused ? "paused" : "running" }}
+          className={`absolute bottom-0 left-0 h-0.5 motion-safe:animate-[toast-progress_linear_forwards] motion-reduce:hidden ${
+            colorCat ? "" : sev.bar
+          }`}
+          style={{
+            animationDuration: `${autoMs}ms`,
+            animationPlayState: paused ? "paused" : "running",
+            backgroundColor: colorCat ?? undefined,
+          }}
         />
       )}
     </div>

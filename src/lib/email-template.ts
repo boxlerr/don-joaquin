@@ -40,6 +40,19 @@ const SEV_STYLE: Record<SeveridadEmail, { label: string; bg: string; border: str
  * su nombre, así el mail se reconoce de un vistazo antes de leerlo. Las claves
  * son las columnas de la matriz de notificaciones, para que lo que se configura
  * y lo que llega por mail sean la misma cosa.
+ *
+ * LOS COLORES SALEN DEL MENÚ. Cada categoría toma el color del grupo del sidebar
+ * donde vive su pantalla (`GRUPO_COLOR` en lib/areas-ui.ts): cheques, impuestos
+ * y préstamos son ámbar porque están bajo FINANZAS; compliance es cyan;
+ * cumpleaños y ausencias, verdes de RRHH; documentos y mantenimiento, índigo de
+ * FLOTA. Pedido de Julián (27/08/2026): *"los colores, ¿pueden ser más fieles a
+ * su sección del sidebar?"*. No es cosmético — es la misma idea que ya seguían
+ * las etiquetas de las novedades: el aviso se tiñe como el lugar al que hay que
+ * ir. Las que comparten grupo llevan tonos distintos de la misma familia para
+ * seguir distinguiéndose entre sí.
+ *
+ * `bg` y `borde` se derivan del color mezclándolo con blanco (12% y 30%). Van en
+ * hex y no en rgba porque el correo también lo lee Outlook.
  */
 export const CATEGORIA_ESTILO: Record<
   string,
@@ -47,67 +60,67 @@ export const CATEGORIA_ESTILO: Record<
 > = {
   vencimiento_docs: {
     label: "Documentación",
-    color: "#075985", bg: "#E0F2FE", borde: "#BAE6FD",
+    color: "#6366F1", bg: "#ECEDFD", borde: "#D0D1FB",
     icono: "📄", cta: "Ver documentación",
   },
   cheques_vencidos: {
     label: "Cheques",
-    color: "#065F46", bg: "#D1FAE5", borde: "#A7F3D0",
+    color: "#D97706", bg: "#FAEFE1", borde: "#F4D6B4",
     icono: "🧾", cta: "Ver cheques",
   },
   viaticos_sin_rendir: {
     label: "Viáticos",
-    color: "#92400E", bg: "#FEF3C7", borde: "#FDE68A",
+    color: "#EA580C", bg: "#FCEBE2", borde: "#F9CDB6",
     icono: "💵", cta: "Ver viáticos",
   },
   gastos_pendientes: {
     label: "Gastos",
-    color: "#6D28D9", bg: "#EDE9FE", borde: "#DDD6FE",
+    color: "#CA8A04", bg: "#F9F1E1", borde: "#EFDCB4",
     icono: "🧮", cta: "Ver gastos",
   },
   cambios_caja: {
     label: "Caja",
-    color: "#0F766E", bg: "#CCFBF1", borde: "#99F6E4",
+    color: "#A16207", bg: "#F4ECE1", borde: "#E3D0B5",
     icono: "🏦", cta: "Ver caja",
   },
   nuevo_viaje: {
     label: "Viajes",
-    color: "#0277BD", bg: "#E1F5FE", borde: "#B3E5FC",
+    color: "#0088D1", bg: "#E0F1F9", borde: "#B2DBF1",
     icono: "🚚", cta: "Ver viajes",
   },
   vencimiento_compliance: {
     label: "Compliance",
-    color: "#155E75", bg: "#CFFAFE", borde: "#A5F3FC",
+    color: "#0E7490", bg: "#E2EEF2", borde: "#B7D5DE",
     icono: "🛡️", cta: "Ver compliance",
   },
   prestamos_vencimiento: {
     label: "Préstamos",
-    color: "#3730A3", bg: "#E0E7FF", borde: "#C7D2FE",
+    color: "#92400E", bg: "#F2E8E2", borde: "#DEC6B7",
     icono: "🏛️", cta: "Ver préstamos",
   },
   impuestos: {
     label: "Impuestos",
-    color: "#9A3412", bg: "#FFEDD5", borde: "#FED7AA",
+    color: "#B45309", bg: "#F6EAE1", borde: "#E8CBB5",
     icono: "🧾", cta: "Ver impuestos",
   },
   mantenimiento: {
     label: "Mantenimiento",
-    color: "#3F6212", bg: "#ECFCCB", borde: "#D9F99D",
+    color: "#4338CA", bg: "#E8E7F9", borde: "#C7C3EF",
     icono: "🔧", cta: "Ver mantenimiento",
   },
   rrhh_eventos: {
     label: "Personal",
-    color: "#9D174D", bg: "#FCE7F3", borde: "#FBCFE8",
+    color: "#059669", bg: "#E1F2ED", borde: "#B4E0D2",
     icono: "🎂", cta: "Ver personal",
   },
   ausencias_vacaciones: {
     label: "Ausencias y vacaciones",
-    color: "#5B21B6", bg: "#F3E8FF", borde: "#E9D5FF",
+    color: "#047857", bg: "#E1EFEB", borde: "#B4D6CD",
     icono: "🌴", cta: "Ver ausencias",
   },
   otros_avisos: {
     label: "Otros avisos",
-    color: "#334155", bg: "#F1F5F9", borde: "#E2E8F0",
+    color: "#475569", bg: "#E9EBED", borde: "#C8CCD2",
     icono: "🔔", cta: "Ver aviso",
   },
 };

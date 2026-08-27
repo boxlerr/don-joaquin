@@ -26,6 +26,7 @@ import {
   ICONO_CATEGORIA,
   NOMBRE_CORTO,
   SUBTITULO_CATEGORIA,
+  textoSobre,
   tinte,
 } from "@/lib/alertas-ui";
 import type { Novedad } from "@/lib/novedades";
@@ -1088,7 +1089,7 @@ function Tile({ categoria, chico }: { categoria: string; chico?: boolean }) {
   return (
     <span
       className={`grid shrink-0 place-items-center rounded-xl ${chico ? "size-9" : "size-10 lg:size-11"}`}
-      style={{ backgroundColor: color, color: "#fff" }}
+      style={{ backgroundColor: color, color: textoSobre(color) }}
       aria-hidden
     >
       <Icono size={chico ? 17 : 19} />

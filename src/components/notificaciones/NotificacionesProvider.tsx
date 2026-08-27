@@ -11,6 +11,7 @@ import {
 import { marcarAlertaVista, marcarTodasVistas } from "@/app/(dashboard)/notificaciones/actions";
 import type { ResumenItem } from "@/lib/alertas-lecturas";
 import { pushToast, dismissToast } from "./toastStore";
+import { prepararSonido, sonarAviso } from "@/lib/sonido-aviso";
 import { addToasted, getToastedSet, isBootstrapped, setBootstrapped } from "./seenStore";
 
 export type NotificacionesCtx = {
@@ -73,11 +74,21 @@ export default function NotificacionesProvider({
 
       // Escribimos en el set ANTES de pushear (evita doble-toast entre polls/pestañas).
       addToasted(userId, nuevas.map((i) => i.id));
+      // Un solo sonido por tanda, aunque entren tres avisos juntos: tres "ding"
+      // seguidos no avisan tres veces, molestan una. Suena sólo por lo que no se
+      // puede postergar —lo crítico y lo que hay que resolver a mano—, que es lo
+      // que pidió Julián para el cheque que vence: "que salte tipo red social y
+      // además pueda tener un sonido" (27/08/2026).
+      if (nuevas.some((i) => i.severidad === "critica" || i.marcable === false)) {
+        sonarAviso();
+      }
       for (const it of nuevas) {
         pushToast({
           key: it.id,
           variant: "single",
           severidad: it.severidad,
+          categoria: it.categoria,
+          insistente: it.marcable === false,
           titulo: it.titulo,
           mensaje: it.mensaje,
           href: it.href,
@@ -107,6 +118,12 @@ export default function NotificacionesProvider({
       setLoading(false);
     }
   }, [aplicarReglaToast]);
+
+  // El navegador no deja sonar nada hasta que la persona toque algo: esto
+  // aprovecha su primer click para dejar el audio listo. Ver lib/sonido-aviso.ts.
+  useEffect(() => {
+    prepararSonido();
+  }, []);
 
   // Reloj único: se reprograma según backoff y se pausa con la pestaña oculta.
   useEffect(() => {

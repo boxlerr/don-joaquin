@@ -90,6 +90,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "los-avisos-que-no-pueden-esperar-ahora",
+    fecha: "2026-08-27",
+    tipo: "nuevo",
+    ver: "todos",
+    titulo: "Los avisos que no pueden esperar ahora suenan",
+    detalle: "Cuando entra uno —un cheque que vence hoy, algo vencido— salta un cartel en la esquina y suena. Se apaga con el altavoz de la campana, y esa elección queda guardada en esa computadora.",
+    href: "/notificaciones",
+  },
+  {
+    id: "cada-aviso-lleva-el-color-de-su-seccion-del",
+    fecha: "2026-08-27",
+    tipo: "mejora",
+    ver: "todos",
+    titulo: "Cada aviso lleva el color de su sección del menú",
+    detalle: "Los cheques van en el ámbar de Finanzas, compliance en su celeste, cumpleaños y vacaciones en el verde de RRHH. El mismo color en el resumen de la mañana, en la campana y en el correo.",
+    href: "/notificaciones",
+  },
+  {
     id: "el-cheque-que-vence-hoy-ahora-te-avisa",
     fecha: "2026-08-27",
     tipo: "arreglo",

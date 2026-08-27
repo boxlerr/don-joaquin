@@ -17,6 +17,14 @@ export type ToastData = {
   href: string | null;
   // Sólo en "single": id real de la alerta para marcarla leída al click.
   alertaId?: string;
+  /** Columna de la matriz: da el ícono y el color, los mismos del resumen. */
+  categoria?: string;
+  /**
+   * Avisos que no se pueden "marcar como leídos" y sólo se apagan haciendo lo
+   * que piden (hoy: el cheque en cartera que vence hoy o que ya venció). Se
+   * dibujan más grandes y no se cierran solos.
+   */
+  insistente?: boolean;
 };
 
 const MAX_VISIBLE = 3;

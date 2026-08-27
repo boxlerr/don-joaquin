@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { alertaHref, type AlertaItem, type Severidad } from "@/app/(dashboard)/notificaciones/utils";
 import type { CurrentUser } from "@/lib/auth";
 import { getChequeAlertasLive } from "@/lib/alertas-live";
+import { alertaColumnaDe } from "@/lib/alertas-routing";
 import { visiblePara } from "@/lib/alertas-visibilidad";
 
 /**
@@ -56,6 +57,13 @@ export type ResumenItem = {
    * que `AlertaItem.marcable` en /notificaciones).
    */
   marcable?: boolean;
+  /**
+   * La columna de la matriz a la que pertenece (`cheques_vencidos`,
+   * `impuestos`…). Viaja para que la campana y el cartel emergente puedan
+   * pintarse con el color y el ícono de la categoría, los mismos del resumen del
+   * día y del menú.
+   */
+  categoria?: string;
 };
 
 type LecturaRow = { alerta_id: string; leida_en: string | null; descartada_en: string | null };
@@ -176,6 +184,10 @@ export async function getResumenUsuario(
       mensaje: a.mensaje,
       href: alertaHref({ tipo: a.tipo, entidad_tipo: a.entidad_tipo, entidad_id: a.entidad_id }),
       marcable: true,
+      categoria: alertaColumnaDe({
+        tipo: a.tipo as Parameters<typeof alertaColumnaDe>[0]["tipo"],
+        entidad_tipo: a.entidad_tipo,
+      }),
     })),
   ];
 
@@ -228,6 +240,7 @@ function chequesEnLaCampana(
         entidad_id: a.id.replace(/^chequevenc-/, ""),
       }),
       marcable: false,
+      categoria: alertaColumnaDe({ tipo: a.tipo, entidad_tipo: a.entidad_tipo }),
     }));
 }
 

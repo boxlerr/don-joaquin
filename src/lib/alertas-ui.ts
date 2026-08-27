@@ -181,3 +181,22 @@ export const SUBTITULO_CATEGORIA: Record<string, string> = {
   mantenimiento: "Services e insumos",
   otros_avisos: "Sin categoría propia",
 };
+
+/**
+ * Blanco o casi-negro, el que se lea sobre ese color.
+ *
+ * El ícono de la categoría va sobre su color pleno, y la paleta sale del menú
+ * (`GRUPO_COLOR`): hoy son todos tonos medios u oscuros y el blanco anda, pero
+ * el día que entre uno claro —un amarillo, un lima— un glifo blanco encima
+ * desaparece. Se decide con la luminancia relativa (WCAG), no a ojo.
+ */
+export function textoSobre(color: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!m) return "#FFFFFF";
+  const canal = (i: number) => {
+    const v = parseInt(m[1]!.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luz = 0.2126 * canal(0) + 0.7152 * canal(2) + 0.0722 * canal(4);
+  return luz > 0.45 ? "#1E293B" : "#FFFFFF";
+}
