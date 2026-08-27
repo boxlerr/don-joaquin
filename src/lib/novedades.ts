@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-taller-abre-rapido-aunque-tenga-fotos",
+    fecha: "2026-08-27",
+    tipo: "mejora",
+    ver: "mantenimiento_servicios",
+    titulo: "El Taller abre rápido aunque tenga fotos",
+    detalle: "Las fotos de la lista ahora se bajan achicadas. Antes se bajaba la foto entera de la cámara —casi 3 MB cada una— para mostrarla del tamaño de una estampilla, y con datos del celular eso dejaba la pantalla trabada unos segundos.",
+    href: "/taller",
+  },
+  {
     id: "ya-podes-scrollear-la-lista-de-camiones-en",
     fecha: "2026-08-27",
     tipo: "arreglo",

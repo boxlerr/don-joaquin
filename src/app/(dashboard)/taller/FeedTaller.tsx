@@ -197,14 +197,19 @@ export default function FeedTaller({
                       >
                         {t.fotos.length > 0 && (
                           <div className="mb-2.5 flex gap-2 overflow-x-auto">
+                            {/* Sin `unoptimized`: una foto de cámara son 2,6 MB
+                                y 3024x4032 px, y acá entra en 112 px de alto.
+                                Bajarlas enteras para dibujar la miniatura
+                                dejaba el teléfono trabado varios segundos
+                                apenas se abría la pantalla. */}
                             {t.fotos.map((f) => (
                               <Image
                                 key={f}
                                 src={f}
                                 alt=""
-                                width={200}
-                                height={200}
-                                unoptimized
+                                width={112}
+                                height={112}
+                                sizes="112px"
                                 className="h-28 w-auto shrink-0 rounded-lg border border-border object-cover"
                               />
                             ))}

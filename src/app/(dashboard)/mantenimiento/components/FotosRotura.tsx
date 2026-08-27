@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { FileText, ImagePlus, Loader2, Paperclip, Trash2, X } from "lucide-react";
 import VisorArchivo, { type ArchivoParaVer } from "@/components/ui/VisorArchivo";
 import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
@@ -198,10 +199,15 @@ export default function FotosRotura({
                     className="block"
                     aria-label={`Ver ${a.nombre_original}`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
+                    {/* Achicada por el servidor. La original —2,6 MB de una
+                        foto de cámara— se baja recién al abrirla en el visor,
+                        que es cuando hace falta verla de verdad. */}
+                    <Image
                       src={a.url}
                       alt={a.nombre_original}
+                      width={160}
+                      height={160}
+                      sizes="160px"
                       className="h-40 w-auto rounded-lg border border-border object-cover transition-opacity hover:opacity-90"
                     />
                   </button>
