@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useScrollTactil } from "@/hooks/useScrollTactil";
 import Link from "next/link";
 import { Check, ExternalLink, Loader2, PencilLine, Truck, User, Wrench, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -96,6 +97,10 @@ function CuerpoTrabajo({
   canWrite: boolean;
   onCambio?: () => void;
 }) {
+  // Mismo problema que el selector: adentro del panel, el dedo no movía nada.
+  const [cuerpo, setCuerpo] = useState<HTMLDivElement | null>(null);
+  useScrollTactil(cuerpo);
+
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -146,7 +151,7 @@ function CuerpoTrabajo({
         <SheetTitle className="text-base">{cuando(trabajo.fecha, trabajo.cargadoEn)}</SheetTitle>
       </SheetHeader>
 
-      <div className="min-h-0 flex-1 touch-pan-y space-y-4 overflow-y-auto overscroll-contain px-4 pb-8 pt-4">
+      <div ref={setCuerpo} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-8 pt-4">
         <FotosRotura roturaId={trabajo.id} canWrite={canWrite} onCambio={avisarCambioDeFotos} />
 
         {editando ? (

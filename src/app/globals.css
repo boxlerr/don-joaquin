@@ -154,13 +154,19 @@ body {
    real lo dan los propios componentes (ver los `max-md:` de button.tsx), no un
    pseudo-elemento invisible: uno de esos se solaparía con el botón de al lado
    y terminaría robándole el toque. */
-button,
-[role="button"],
-a,
-label,
-select,
-summary {
-  touch-action: manipulation;
+/* Va en `base` a propósito: las utilidades `touch-*` de Tailwind viven en
+   `@layer utilities`, y una regla SIN capa le gana a cualquier capa sin importar
+   la especificidad. Suelta, un `touch-pan-y` puntual sobre un botón no haría
+   nada y el que lo escribiera se volvería loco buscando por qué. */
+@layer base {
+  button,
+  [role="button"],
+  a,
+  label,
+  select,
+  summary {
+    touch-action: manipulation;
+  }
 }
 
 /* El flash gris de Safari al tocar cualquier cosa ensucia toda la navegación. */

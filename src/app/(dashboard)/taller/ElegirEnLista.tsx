@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Search, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { coincideEnAlguno } from "@/lib/texto";
+import { useScrollTactil } from "@/hooks/useScrollTactil";
 
 /**
  * Elegir una opción de una lista larga, con el dedo.
@@ -37,12 +38,12 @@ export type OpcionLista = {
  * la lista no tiene nada que correr y el problema es el layout; si el de
  * adentro es más grande y aun así no se mueve, el problema es el gesto.
  */
-function Medidor({ lista }: { lista: React.RefObject<HTMLUListElement | null> }) {
+function Medidor({ lista }: { lista: HTMLUListElement | null }) {
   const [txt, setTxt] = useState("midiendo…");
 
   useEffect(() => {
     const medir = () => {
-      const l = lista.current;
+      const l = lista;
       if (!l) return;
       const vv = window.visualViewport;
       setTxt(
@@ -87,7 +88,13 @@ export default function ElegirEnLista({
   textoVacio?: string;
 }) {
   const [busca, setBusca] = useState("");
-  const listaRef = useRef<HTMLUListElement>(null);
+  // El nodo por estado y no por ref: el diálogo monta la lista en un paso
+  // posterior, y un ref todavía vacío deja al hook sin enganchar (pasó).
+  const [lista, setLista] = useState<HTMLUListElement | null>(null);
+
+  // El dedo mueve la lista aunque el navegador no quiera. Ver el hook: en el
+  // teléfono el scroll nativo no respondía ni con todo el CSS en su lugar.
+  useScrollTactil(lista, abierto);
   // Sólo si se pide por la URL: es una herramienta para depurar en el teléfono
   // de otro, no algo que alguien tenga que ver sin haberlo pedido.
   const medir =
@@ -164,14 +171,16 @@ export default function ElegirEnLista({
             )}
           </div>
         </div>
+        {/* Igual que el `<nav>` del menú lateral, que en el mismo teléfono se
+            desliza sin problema: `flex-1` + `overflow-y-auto` y nada más. Se le
+            fueron sacando el `touch-pan-y` y el `overscroll-contain` que se
+            habían puesto a tientas: el menú anda sin ellos, y seguir sumando
+            propiedades sobre algo que no se puede reproducir es adivinar.
+            `min-h-0` sí queda: sin eso el flex no la deja encogerse y la lista
+            mide lo que miden las 150 opciones. */}
+        {medir && <Medidor lista={lista} />}
 
-        {/* `min-h-0` para que el flex la deje encogerse (sin eso mide lo que
-            miden las 40 opciones), `overscroll-contain` para que el tirón no se
-            escape a la página de atrás y `touch-pan-y` para que el dedo mueva
-            la lista y no otra cosa. */}
-        {medir && <Medidor lista={listaRef} />}
-
-        <ul ref={listaRef} className="min-h-0 flex-1 touch-pan-y divide-y divide-border/60 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
+        <ul ref={setLista} className="min-h-0 flex-1 divide-y divide-border/60 overflow-y-auto pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
           {/* Quitar lo elegido va PRIMERO y siempre: es la salida de quien tocó
               por error, y buscarla al final de 40 opciones no es una salida. */}
           <li>
