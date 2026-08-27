@@ -108,14 +108,19 @@ export default function VisorArchivo({
   );
 
   // Flechas del teclado, que es como se mira una tanda de fotos en la compu.
+  //
+  // Va en fase de CAPTURA (el `true` del final). El diálogo detiene las teclas
+  // antes de que lleguen a la ventana —se comprobó en producción: con el visor
+  // abierto, un keydown despachado adentro nunca llegaba a `window`— así que un
+  // listener común no se enteraba nunca y las flechas no hacían nada.
   useEffect(() => {
     if (!open || !hayVarios) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") mover(-1);
       if (e.key === "ArrowRight") mover(1);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [open, hayVarios, mover]);
 
   // Arrastrar con el dedo. El taller mira estas fotos desde el teléfono: sin

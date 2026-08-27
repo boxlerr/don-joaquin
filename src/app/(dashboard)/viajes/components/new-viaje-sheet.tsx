@@ -242,6 +242,22 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
      origen, destino, kmConCarga, kmVacios, rutaVia, tonelaje, montoFlete, tarifaId],
   );
 
+  /**
+   * El tipo de carga, traducido a lo que espera el servidor.
+   *
+   * Vacío si no puso nada; el id cuando eligió uno de la lista; y el centinela
+   * `nuevo:<nombre>` cuando escribió uno que no existe todavía — el servidor ya
+   * sabe darlo de alta (lo usa la carga rápida desde hace meses).
+   */
+  const tipoCargaId = useMemo(() => {
+    const texto = tipoCarga.trim();
+    if (!texto) return "";
+    const yaExiste = data.tipos_carga.find(
+      (t) => t.label.trim().toLowerCase() === texto.toLowerCase(),
+    );
+    return yaExiste ? yaExiste.id : `nuevo:${texto}`;
+  }, [tipoCarga, data.tipos_carga]);
+
   const borrador = useBorrador({
     pantalla: "viajes-nuevo",
     valor: valorBorrador,
@@ -254,7 +270,10 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
   const recuperarBorrador = () => {
     const b = borrador.recuperar();
     if (!b) return;
-    setTipoCarga(b.tipoCarga);
+    // Los borradores guardados antes del 27/08 tienen el id y no el nombre:
+    // sin esto, recuperar uno viejo llenaba el campo con un uuid.
+    const guardado = data.tipos_carga.find((t) => t.id === b.tipoCarga);
+    setTipoCarga(guardado ? guardado.label : b.tipoCarga);
     setSelectedClienteId(b.clienteId);
     setSelectedChoferId(b.choferId);
     setSelectedCamionId(b.camionId);
@@ -728,25 +747,33 @@ export default function NewViajeSheet({ data }: { data: ViajeFormData }) {
               </div>
             )}
 
-            {/* Tipo de Carga */}
-            <SelectField
-              label="Tipo de carga *"
-              name="tipo_carga_id"
-              options={data.tipos_carga}
-              required
+            {/* Tipo de carga — se escribe o se elige, y puede quedar vacío.
+                Antes era una lista cerrada y obligatoria: para cargar un viaje
+                había que encontrar el material en siete opciones o frenar. El
+                catálogo nunca va a estar completo, así que lo que se escriba
+                vale; si es un tipo nuevo, queda dado de alta para la próxima. */}
+            <PlaceCombobox
+              label="Tipo de carga"
+              name="tipo_carga_nombre"
+              placeholder="Escribí o elegí el tipo de carga…"
               icon={Package}
-              error={state?.fieldErrors?.tipo_carga_id}
+              options={data.tipos_carga}
+              value={tipoCarga}
               onValueChange={setTipoCarga}
+              error={state?.fieldErrors?.tipo_carga_id}
+              hint="Opcional. Si no está en la lista, escribilo igual."
             />
+            {/* Lo que viaja al servidor: el id si eligió uno de la lista, el
+                centinela si escribió uno nuevo, y vacío si no puso nada. */}
+            <input type="hidden" name="tipo_carga_id" value={tipoCargaId} />
 
-            {/* Descripcion si es otros */}
-            {tipoCarga === "otros" && (
+            {/* Descripción, cuando el tipo elegido es el genérico "Otros" */}
+            {tipoCarga.trim().toLowerCase() === "otros" && (
               <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                 <InputFieldWithIcon
-                  label="Descripción de la carga *"
+                  label="Descripción de la carga"
                   name="descripcion_otros"
                   placeholder="Especificá el tipo de carga..."
-                  required
                   icon={FileText}
                 />
               </div>

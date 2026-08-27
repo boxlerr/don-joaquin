@@ -786,7 +786,10 @@ const viajeSchema = z
     cliente_id: z.string().uuid("Cliente inválido."),
     chofer_id: z.string().uuid("Chofer inválido."),
     camion_id: z.string().uuid("Camión inválido."),
-    tipo_carga_id: z.string().min(1, "Tipo de carga requerido."),
+    // Opcional (27/08/2026). Antes frenaba el alta de un viaje por un dato que
+    // muchas veces se sabe después, y que además casi nunca cambia la
+    // liquidación. Sin nada elegido, el viaje queda como "Otros".
+    tipo_carga_id: z.string().optional().default(""),
     ruta_id: z.string().uuid("Circuito inválido.").optional().nullable(),
     origen_nombre: z.string().optional().nullable(),
     destino_nombre: z.string().optional().nullable(),
@@ -1008,6 +1011,9 @@ async function resolveTipoCargaId(
   supabase: ReturnType<typeof createAdminClient>,
   tipoCargaId: string,
 ): Promise<string> {
+  // La columna es NOT NULL: no elegir nada no puede dejar el viaje a medias, y
+  // "Otros" es exactamente lo que significa acá — todavía no se dijo cuál es.
+  if (!tipoCargaId.trim()) return getOrCreateTipoCargaOtros(supabase);
   if (tipoCargaId === "otros") return getOrCreateTipoCargaOtros(supabase);
   if (tipoCargaId.startsWith(TIPO_CARGA_NUEVO_PREFIX)) {
     return getOrCreateTipoCargaByNombre(

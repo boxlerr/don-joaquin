@@ -35,7 +35,7 @@ export async function getDatosTallerAction(): Promise<DatosTaller> {
   const supabase = createAdminClient();
 
   const [camiones, acoplados, choferes] = await Promise.all([
-    supabase.from("camiones").select("id, patente").order("patente"),
+    supabase.from("camiones").select("id, patente, chofer_actual_id").order("patente"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from("acoplados").select("id, patente").order("patente"),
     supabase
@@ -46,15 +46,22 @@ export async function getDatosTallerAction(): Promise<DatosTaller> {
   ]);
 
   const unidades: UnidadTaller[] = [
-    ...((camiones.data ?? []) as { id: string; patente: string }[]).map((c) => ({
+    ...(
+      (camiones.data ?? []) as { id: string; patente: string; chofer_actual_id: string | null }[]
+    ).map((c) => ({
       id: c.id,
       patente: c.patente,
       tipo: "camion" as const,
+      // Con quién anda ese camión hoy. Es lo que permite ofrecer el chofer solo
+      // al elegir la unidad, igual que en el resto del sistema.
+      choferActualId: c.chofer_actual_id,
     })),
     ...((acoplados.data ?? []) as { id: string; patente: string }[]).map((a) => ({
       id: a.id,
       patente: a.patente,
       tipo: "acoplado" as const,
+      // Un acoplado no tiene chofer propio: anda con el camión que lo enganche.
+      choferActualId: null,
     })),
   ];
 
@@ -172,14 +179,14 @@ export async function getFeedTallerAction(filtros: FeedFiltros = {}): Promise<Fe
   const { data: adj } = ids.length
     ? await supabase
         .from("rotura_archivos")
-        .select("rotura_id, archivo:documentos_archivos!archivo_id(bucket, path)")
+        .select("rotura_id, archivo:documentos_archivos!archivo_id(bucket, path, mime_type)")
         .in("rotura_id", ids)
     : { data: [] };
 
   const planos = ((adj ?? []) as { rotura_id: string; archivo: unknown }[]).map((r) => ({
     rotura_id: r.rotura_id,
     archivo: (Array.isArray(r.archivo) ? r.archivo[0] : r.archivo) as
-      | { bucket: string; path: string }
+      | { bucket: string; path: string; mime_type: string | null }
       | null,
   }));
   const urls = await urlesFirmadas(planos.map((p) => p.archivo));
@@ -187,6 +194,11 @@ export async function getFeedTallerAction(filtros: FeedFiltros = {}): Promise<Fe
   const fotosPorId = new Map<string, string[]>();
   for (const p of planos) {
     if (!p.archivo) continue;
+    // Sólo las fotos. Un trabajo puede tener adjunta la factura del repuesto, y
+    // un PDF dibujado como si fuera una imagen es un recuadro gris vacío en la
+    // lista: se vio en producción con el guardabarros del 18 de junio. Los
+    // comprobantes se ven en el detalle, con su nombre y su ícono.
+    if (!(p.archivo.mime_type ?? "").startsWith("image/")) continue;
     // `claveArchivo` y no una plantilla a mano: el mapa se indexa con
     // `bucket:path` y esta línea armaba `bucket/path`, así que NUNCA encontraba
     // la URL y el feed se dibujaba sin una sola foto.

@@ -198,13 +198,34 @@ export default function TallerClient({
   );
 
   const unidadId = unidadManual !== undefined ? unidadManual : (lectura.unidad?.id ?? null);
-  const personaId = personaManual !== undefined ? personaManual : (lectura.persona?.id ?? null);
-
   const unidad = datos.unidades.find((u) => u.id === unidadId) ?? null;
+
+  // El chofer que anda con ese camión. Al elegir la unidad se ofrece solo, como
+  // en el resto del sistema: el que rompió algo casi siempre es el que lo
+  // maneja, y hacer que lo busque en una lista de 78 apellidos es pedirle a la
+  // pantalla que no ayude. Es un atajo, no una imposición: se puede sacar con
+  // la X o cambiar por otro, y si se saca no vuelve solo.
+  // Sólo si sigue estando en la lista: un chofer que se dio de baja todavía
+  // figura como titular del camión, y ponerlo solo guardaría contra alguien que
+  // la pantalla no muestra — el peor de los dos mundos.
+  const choferDeLaUnidad =
+    unidad?.choferActualId && datos.personas.some((p) => p.id === unidad.choferActualId)
+      ? unidad.choferActualId
+      : null;
+
+  const personaId =
+    personaManual !== undefined
+      ? personaManual
+      : (lectura.persona?.id ?? choferDeLaUnidad ?? null);
+
   const persona = datos.personas.find((p) => p.id === personaId) ?? null;
 
   const unidadDetectada = unidadManual === undefined && lectura.unidad != null;
   const personaDetectada = personaManual === undefined && lectura.persona != null;
+  // Vino del camión y no de lo que se escribió: se dice, porque un nombre que
+  // aparece sin que nadie lo haya puesto se lee como un error del sistema.
+  const personaDelCamion =
+    personaManual === undefined && lectura.persona == null && persona != null;
 
   const opcionesUnidad: OpcionLista[] = useMemo(
     () =>
@@ -404,6 +425,7 @@ export default function TallerClient({
               icono={User}
               valor={persona ? `${persona.apellido}, ${persona.nombre}`.replace(/^,\s*/, "") : null}
               detectado={personaDetectada}
+              sub={personaDelCamion ? `es el chofer de ${unidad?.patente ?? "esta unidad"}` : null}
               vacio="Tocá para elegir el chofer"
               onTocar={() => setAbrirPersona(true)}
               onQuitar={() => setPersonaManual(null)}

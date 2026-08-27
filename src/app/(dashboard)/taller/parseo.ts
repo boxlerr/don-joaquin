@@ -32,6 +32,8 @@ export type UnidadTaller = {
   id: string;
   patente: string;
   tipo: "camion" | "acoplado";
+  /** El chofer que tiene asignado hoy, para poder ofrecerlo solo. */
+  choferActualId?: string | null;
 };
 
 export type PersonaTaller = {

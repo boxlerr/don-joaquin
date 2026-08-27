@@ -90,6 +90,33 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "al-elegir-el-camion-ya-te-pone-el-chofer",
+    fecha: "2026-08-27",
+    tipo: "mejora",
+    ver: "mantenimiento_servicios",
+    titulo: "Al elegir el camión ya te pone el chofer",
+    detalle: "En el Taller, cuando elegís la unidad se completa solo el chofer que la maneja, igual que en el resto del sistema. Si esta vez fue otro, lo cambiás; y si no va ninguno, lo sacás con la X.",
+    href: "/taller",
+  },
+  {
+    id: "el-tipo-de-carga-ya-no-es-obligatorio-y-lo",
+    fecha: "2026-08-27",
+    tipo: "mejora",
+    ver: "viajes",
+    titulo: "El tipo de carga ya no es obligatorio y lo podés escribir",
+    detalle: "En «Nuevo viaje» podés dejarlo vacío, o escribir el material aunque no esté en la lista: si es uno nuevo queda cargado para la próxima. Antes había que encontrarlo entre siete opciones o no se podía guardar el viaje.",
+    href: "/viajes",
+  },
+  {
+    id: "las-facturas-ya-no-se-ven-como-un-cuadro",
+    fecha: "2026-08-27",
+    tipo: "arreglo",
+    ver: "mantenimiento_servicios",
+    titulo: "Las facturas ya no se ven como un cuadro vacío",
+    detalle: "En «Lo cargado», un trabajo con una factura adjunta mostraba un recuadro gris. Ahora la lista muestra las fotos y el comprobante se abre desde el detalle. De paso, las flechas del teclado ya pasan de una foto a la siguiente.",
+    href: "/taller",
+  },
+  {
     id: "las-fotos-se-abren-grandes-y-las-podes-bajar",
     fecha: "2026-08-27",
     tipo: "mejora",
