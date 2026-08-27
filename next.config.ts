@@ -20,9 +20,16 @@ const hostDelStorage = (() => {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: {
-    remotePatterns: hostDelStorage
-      ? [{ protocol: "https", hostname: hostDelStorage, pathname: "/storage/v1/object/**" }]
-      : [],
+    // Si la env no estuviera al compilar, la lista NO puede quedar vacía: sin
+    // patrón, Next rechaza la imagen y el Taller se llenaría de miniaturas
+    // rotas en producción. El comodín de Supabase es el paracaídas.
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: hostDelStorage ?? "*.supabase.co",
+        pathname: "/storage/v1/object/**",
+      },
+    ],
     // Las URLs del Storage vienen firmadas y vencen a la hora, así que la
     // versión achicada se vuelve a generar cada tanto. Media hora de caché
     // alcanza para que abrir y volver a abrir la pantalla no la rehaga.
