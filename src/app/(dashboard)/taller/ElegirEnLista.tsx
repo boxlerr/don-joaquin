@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Search, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { coincideEnAlguno } from "@/lib/texto";
@@ -24,6 +24,49 @@ export type OpcionLista = {
   secundario?: string;
 };
 
+
+/**
+ * Un medidor para cuando el scroll no anda y el teléfono no es el de uno.
+ *
+ * Se enciende SOLO con `/taller?debug=scroll`; sin eso no existe. Nace de un
+ * bug que no se podía reproducir: en el iPhone la lista no se dejaba deslizar,
+ * y en la computadora andaba perfecto. Sin ver los números del aparato de al
+ * lado, arreglarlo es adivinar — y adivinar ya costó un intento.
+ *
+ * Muestra el alto real de la lista contra el de su contenido: si son iguales,
+ * la lista no tiene nada que correr y el problema es el layout; si el de
+ * adentro es más grande y aun así no se mueve, el problema es el gesto.
+ */
+function Medidor({ lista }: { lista: React.RefObject<HTMLUListElement | null> }) {
+  const [txt, setTxt] = useState("midiendo…");
+
+  useEffect(() => {
+    const medir = () => {
+      const l = lista.current;
+      if (!l) return;
+      const vv = window.visualViewport;
+      setTxt(
+        [
+          `ventana ${window.innerHeight}`,
+          `visible ${vv ? Math.round(vv.height) : "?"}`,
+          `lista ${l.clientHeight}/${l.scrollHeight}`,
+          `corrida ${Math.round(l.scrollTop)}`,
+          l.scrollHeight > l.clientHeight ? "PUEDE correr" : "NO tiene qué correr",
+        ].join(" · "),
+      );
+    };
+    medir();
+    const t = setInterval(medir, 300);
+    return () => clearInterval(t);
+  }, [lista]);
+
+  return (
+    <p className="shrink-0 bg-amber-100 px-3 py-1.5 font-mono text-[11px] leading-tight text-amber-900">
+      {txt}
+    </p>
+  );
+}
+
 export default function ElegirEnLista({
   abierto,
   onCerrar,
@@ -44,6 +87,11 @@ export default function ElegirEnLista({
   textoVacio?: string;
 }) {
   const [busca, setBusca] = useState("");
+  const listaRef = useRef<HTMLUListElement>(null);
+  // Sólo si se pide por la URL: es una herramienta para depurar en el teléfono
+  // de otro, no algo que alguien tenga que ver sin haberlo pedido.
+  const medir =
+    typeof window !== "undefined" && window.location.search.includes("debug=scroll");
 
   const filtradas = useMemo(() => {
     if (!busca.trim()) return opciones;
@@ -75,7 +123,20 @@ export default function ElegirEnLista({
           arrastrabas sobre los camiones y no se movía nada. En la compu no se
           notaba, porque la rueda va siempre al elemento que está abajo del
           cursor. Lo reportó Julián el 27/08. */}
-      <SheetContent side="bottom" className="overflow-hidden p-0">
+      {/* Altura FIJA y en `svh`, no `h-auto` + `max-h-dvh`.
+          
+          En el iPhone, `dvh` cuenta también la franja que tapa la barra
+          flotante de Safari, y el panel se ancla a `bottom: 0` del viewport de
+          layout —o sea, por debajo de esa barra—. Resultado: el panel se
+          calculaba más alto de lo que se ve, la lista se estiraba con él y el
+          sobrante quedaba abajo, tapado y fuera de alcance. `svh` es la altura
+          del viewport CHICO (con las barras desplegadas): lo que se ve seguro,
+          esté la barra donde esté. Y con la altura fija el flex reparte sin
+          ambigüedad, así que a la lista le queda exactamente el resto. */}
+      <SheetContent
+        side="bottom"
+        className="overflow-hidden p-0 data-[side=bottom]:h-[85svh] data-[side=bottom]:max-h-[85svh]"
+      >
         <SheetHeader className="shrink-0 border-b border-border px-4 pb-3 pt-4">
           <SheetTitle className="text-base">{titulo}</SheetTitle>
         </SheetHeader>
@@ -108,7 +169,9 @@ export default function ElegirEnLista({
             miden las 40 opciones), `overscroll-contain` para que el tirón no se
             escape a la página de atrás y `touch-pan-y` para que el dedo mueva
             la lista y no otra cosa. */}
-        <ul className="min-h-0 flex-1 touch-pan-y divide-y divide-border/60 overflow-y-auto overscroll-contain pb-6">
+        {medir && <Medidor lista={listaRef} />}
+
+        <ul ref={listaRef} className="min-h-0 flex-1 touch-pan-y divide-y divide-border/60 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
           {/* Quitar lo elegido va PRIMERO y siempre: es la salida de quien tocó
               por error, y buscarla al final de 40 opciones no es una salida. */}
           <li>

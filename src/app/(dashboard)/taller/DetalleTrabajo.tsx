@@ -70,7 +70,7 @@ export default function DetalleTrabajo({
 }) {
   return (
     <Sheet open={trabajo !== null} onOpenChange={(v) => !v && onCerrar()}>
-      <SheetContent side="bottom" className="overflow-hidden p-0">
+      <SheetContent side="bottom" className="overflow-hidden p-0 data-[side=bottom]:max-h-[85svh]">
         {/* `key` por trabajo: al pasar de uno a otro el cuerpo se rearma de
             cero. Sin eso, quedarse en modo edición con el texto del anterior es
             la forma más rápida de pisar el registro equivocado. */}
