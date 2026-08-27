@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Loader2, Search, Truck, User, X } from "lucide-react";
+import { Loader2, PencilLine, Search, Truck, User, X } from "lucide-react";
 import DetalleTrabajo, { descripcionDe } from "./DetalleTrabajo";
 import { getFeedTallerAction, type FeedResultado, type TrabajoFeed } from "./actions";
 
@@ -56,11 +56,14 @@ export default function FeedTaller({
   inicial,
   hoy,
   refrescar,
+  canWrite = false,
 }: {
   inicial: FeedResultado;
   hoy: string;
   /** Cambia cuando se carga un trabajo nuevo: vuelve al principio. */
   refrescar: number;
+  /** Si puede corregir lo cargado (el texto y las fotos). */
+  canWrite?: boolean;
 }) {
   const [busca, setBusca] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -68,6 +71,9 @@ export default function FeedTaller({
   const [datos, setDatos] = useState<FeedResultado>(inicial);
   const [cargando, setCargando] = useState(false);
   const [detalle, setDetalle] = useState<TrabajoFeed | null>(null);
+  // Sube cuando se corrige algo desde el detalle: la tarjeta de atrás todavía
+  // muestra el texto viejo y el sello "editado" no estaría.
+  const [correcciones, setCorrecciones] = useState(0);
 
   // Se espera a que termine de escribir: una consulta por tecla con 150 filas
   // es una consulta por tecla de más.
@@ -84,7 +90,7 @@ export default function FeedTaller({
   useEffect(() => {
     if (primeraVez.current) {
       primeraVez.current = false;
-      if (!debounced && !unidad && refrescar === 0) return;
+      if (!debounced && !unidad && refrescar === 0 && correcciones === 0) return;
     }
     let cancelado = false;
     setCargando(true);
@@ -94,7 +100,7 @@ export default function FeedTaller({
     return () => {
       cancelado = true;
     };
-  }, [debounced, unidad, refrescar]);
+  }, [debounced, unidad, refrescar, correcciones]);
 
   const verMas = async () => {
     setCargando(true);
@@ -244,6 +250,18 @@ export default function FeedTaller({
                             <span>cargó {t.quien}</span>
                           </>
                         )}
+                        {/* Que se vea desde la lista, sin abrir: enterarse de
+                            que un registro fue corregido sólo al abrirlo es no
+                            enterarse. Adentro dice qué decía antes. */}
+                        {t.editado && (
+                          <>
+                            <span aria-hidden>·</span>
+                            <span className="inline-flex items-center gap-1 italic">
+                              <PencilLine size={11} />
+                              editado
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </li>
@@ -266,7 +284,12 @@ export default function FeedTaller({
         </div>
       )}
 
-      <DetalleTrabajo trabajo={detalle} onCerrar={() => setDetalle(null)} />
+      <DetalleTrabajo
+        trabajo={detalle}
+        canWrite={canWrite}
+        onCerrar={() => setDetalle(null)}
+        onCambio={() => setCorrecciones((n) => n + 1)}
+      />
     </section>
   );
 }

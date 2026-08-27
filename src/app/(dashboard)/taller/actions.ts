@@ -1,9 +1,11 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { logAudit } from "@/lib/audit";
 import { requireArea } from "@/lib/auth";
 import { hoyArgentina } from "@/lib/fecha-ar";
-import { urlesFirmadas } from "@/lib/storage-urls";
+import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 import { revalidatePath } from "next/cache";
 import { addRoturaAction, type AdjuntoArchivoMeta } from "../mantenimiento/actions";
 import { leerBajas } from "./parseo";
@@ -80,6 +82,8 @@ export type TrabajoFeed = {
   persona: string | null;
   fotos: string[];
   quien: string | null;
+  /** Si alguien lo tocó después de cargarlo. El detalle cuenta qué cambió. */
+  editado: boolean;
 };
 
 export type FeedFiltros = {
@@ -183,12 +187,32 @@ export async function getFeedTallerAction(filtros: FeedFiltros = {}): Promise<Fe
   const fotosPorId = new Map<string, string[]>();
   for (const p of planos) {
     if (!p.archivo) continue;
-    const url = urls.get(`${p.archivo.bucket}/${p.archivo.path}`);
+    // `claveArchivo` y no una plantilla a mano: el mapa se indexa con
+    // `bucket:path` y esta línea armaba `bucket/path`, así que NUNCA encontraba
+    // la URL y el feed se dibujaba sin una sola foto.
+    const url = urls.get(claveArchivo(p.archivo));
     if (!url) continue;
     const arr = fotosPorId.get(p.rotura_id) ?? [];
     arr.push(url);
     fotosPorId.set(p.rotura_id, arr);
   }
+
+  // Cuáles fueron editados después de cargarse. Una consulta para toda la
+  // tanda: el sello "editado" tiene que verse en la lista, porque tener que
+  // abrir cada trabajo para saber si lo tocaron es no enterarse nunca.
+  const { data: tocados } = ids.length
+    ? await supabase
+        .from("audit_log")
+        .select("entidad_id")
+        .eq("entidad_tipo", "rotura_goma")
+        .in("entidad_id", ids)
+        .in("accion", ["actualizar", "foto_agregada", "foto_eliminada"])
+    : { data: [] };
+  const editados = new Set(
+    ((tocados ?? []) as { entidad_id: string | null }[])
+      .map((t) => t.entidad_id)
+      .filter((x): x is string => !!x),
+  );
 
   const trabajos: TrabajoFeed[] = filas.map((f) => {
     const ch = uno(f.chofer);
@@ -207,6 +231,7 @@ export async function getFeedTallerAction(filtros: FeedFiltros = {}): Promise<Fe
       persona: ch ? `${ch.apellido ?? ""} ${ch.nombre ?? ""}`.trim() || null : null,
       fotos: fotosPorId.get(f.id) ?? [],
       quien: us ? `${us.nombre ?? ""} ${us.apellido ?? ""}`.trim() || null : null,
+      editado: editados.has(f.id),
     };
   });
 
@@ -267,6 +292,73 @@ export async function cargarTrabajoTallerAction(input: {
   });
 
   if ("error" in res && res.error) return { error: res.error };
+
+  revalidatePath("/taller");
+  revalidatePath("/mantenimiento");
+  return { ok: true };
+}
+
+/**
+ * Corregir el mensaje de un trabajo ya cargado.
+ *
+ * El texto se carga desde el teléfono, muchas veces con la unidad todavía
+ * arriba del elevador: que después no se pueda arreglar un renglón mal escrito
+ * obliga a cargar el trabajo dos veces, y dos trabajos donde hubo uno rompe el
+ * costo por chofer.
+ *
+ * Ahora bien: un registro del taller es un papel de trabajo, y la corrección
+ * tiene que poder distinguirse de la reescritura. Por eso **queda guardado lo
+ * que decía antes** (`audit_log`) y el detalle lo muestra. Editar se puede;
+ * editar sin que se note, no.
+ */
+export async function editarTrabajoTallerAction(input: {
+  id: string;
+  texto: string;
+}): Promise<{ ok: true } | { error: string }> {
+  await requireArea("mantenimiento", "write");
+
+  const texto = (input.texto ?? "").trim();
+  if (!input.id) return { error: "No se sabe qué trabajo hay que corregir." };
+  if (!texto) return { error: "Escribí qué se hizo. El mensaje no puede quedar vacío." };
+
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const {
+    data: { user },
+  } = await authClient.auth.getUser();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: antes } = await (supabase as any)
+    .from("roturas_gomas")
+    .select("observaciones")
+    .eq("id", input.id)
+    .maybeSingle();
+
+  // Si no cambió nada, no se registra: una edición que dice "de X a X" en el
+  // historial es ruido que tapa las que sí importan.
+  const anterior = (antes?.observaciones ?? "") as string;
+  if (anterior.trim() === texto) return { ok: true };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("roturas_gomas")
+    .update({ observaciones: texto })
+    .eq("id", input.id);
+
+  if (error) {
+    console.error("Error al corregir el trabajo del taller:", error);
+    return { error: "No se pudo guardar la corrección." };
+  }
+
+  await logAudit({
+    client: supabase,
+    accion: "actualizar",
+    entidadTipo: "rotura_goma",
+    entidadId: input.id,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: { observaciones: anterior },
+    valoresNuevos: { observaciones: texto },
+  });
 
   revalidatePath("/taller");
   revalidatePath("/mantenimiento");

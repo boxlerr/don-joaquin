@@ -533,7 +533,7 @@ export default function MantenimientoClient({
                       </div>
                       {roturaAbierta === r.id && (
                         <div className="-mx-4 mt-3 border-t border-border">
-                          <RoturaDetalle rotura={r} />
+                          <RoturaDetalle rotura={r} canWrite={canWrite} />
                         </div>
                       )}
                     </div>
@@ -639,7 +639,7 @@ export default function MantenimientoClient({
                     roturaAbierta === r.id ? (
                       <TableRow key={`${r.id}-detalle`} className="hover:bg-transparent">
                         <TableCell colSpan={canWrite ? 8 : 7} className="p-0">
-                          <RoturaDetalle rotura={r} />
+                          <RoturaDetalle rotura={r} canWrite={canWrite} />
                         </TableCell>
                       </TableRow>
                     ) : null,

@@ -90,6 +90,42 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "las-fotos-se-abren-grandes-y-las-podes-bajar",
+    fecha: "2026-08-27",
+    tipo: "mejora",
+    ver: "mantenimiento_servicios",
+    titulo: "Las fotos se abren grandes y las podés bajar",
+    detalle: "Tocá cualquier foto del Taller o de una rotura: se abre adentro del sistema, pasás a la siguiente con la flecha o corriéndola con el dedo, y la bajás con su nombre. Antes cada foto abría una pestaña aparte y había que volver.",
+    href: "/taller",
+  },
+  {
+    id: "ya-podes-corregir-un-trabajo-del-taller",
+    fecha: "2026-08-27",
+    tipo: "nuevo",
+    ver: "mantenimiento_servicios",
+    titulo: "Ya podés corregir un trabajo del taller",
+    detalle: "Abrí el trabajo y tocá «Corregir» para arreglar lo que dice, sumar una foto o sacar la que salió mal. Queda anotado que se editó, quién fue y qué decía antes, así una corrección nunca tapa lo original.",
+    href: "/taller",
+  },
+  {
+    id: "las-fotos-del-taller-ya-se-ven-en-la-lista",
+    fecha: "2026-08-27",
+    tipo: "arreglo",
+    ver: "mantenimiento_servicios",
+    titulo: "Las fotos del Taller ya se ven en la lista",
+    detalle: "En «Lo cargado» los trabajos se veían siempre sin fotos, aunque las tuvieran: sólo aparecían al abrir la rotura en Mantenimiento.",
+    href: "/taller",
+  },
+  {
+    id: "las-fotos-ya-no-titilan-mientras-escribis",
+    fecha: "2026-08-27",
+    tipo: "arreglo",
+    ver: "mantenimiento_servicios",
+    titulo: "Las fotos ya no titilan mientras escribís",
+    detalle: "En el celular, cada letra que escribías en «qué se hizo» hacía parpadear las fotos recién sacadas. Con varias fotos y un mensaje largo, la página se podía llegar a cerrar sola.",
+    href: "/taller",
+  },
+  {
     id: "las-fotos-ya-no-se-te-pegan-al-trabajo",
     fecha: "2026-08-26",
     tipo: "arreglo",

@@ -947,6 +947,16 @@ export async function updateRoturaAction(
 
   const { costo: costoFinal, marca: marcaFinal } = await resolverInsumoRotura(supabase, data);
 
+  // Cómo estaba ANTES, para que la auditoría pueda contestar qué decía. Sin
+  // esto el registro guardaba sólo el valor nuevo, que es exactamente el que ya
+  // se ve en la pantalla: no servía para auditar nada.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: antes } = await (supabase as any)
+    .from("roturas_gomas")
+    .select(SELECT_ROTURA)
+    .eq("id", id)
+    .maybeSingle();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from("roturas_gomas")
@@ -985,10 +995,12 @@ export async function updateRoturaAction(
     entidadTipo: "rotura_goma",
     entidadId: id,
     usuarioId: user?.id ?? null,
+    valoresAnteriores: antes ?? null,
     valoresNuevos: data,
   });
 
   revalidatePath("/mantenimiento");
+  revalidatePath("/taller");
   return { success: true };
 }
 
@@ -1060,6 +1072,8 @@ export type AdjuntoArchivo = {
   id: string;
   nombre_original: string;
   url: string;
+  /** URL que baja el archivo con su nombre real en vez del uuid del path. */
+  downloadUrl: string;
   tamano_bytes: number;
   mime_type: string | null;
   created_at: string;
@@ -1094,10 +1108,15 @@ function mapAdjunto(
 ): AdjuntoArchivo | null {
   const archivo = Array.isArray(row.archivo) ? row.archivo[0] : row.archivo;
   if (!archivo) return null;
+  const url = urls.get(claveArchivo(archivo)) ?? "";
   return {
     id: row.id,
     nombre_original: archivo.nombre_original,
-    url: urls.get(claveArchivo(archivo)) ?? "",
+    url,
+    // `&download=<nombre>` fuerza la descarga con el nombre real: sin esto el
+    // archivo baja llamándose como el uuid del path y en la carpeta de
+    // Descargas no se distingue una foto de otra.
+    downloadUrl: url ? `${url}&download=${encodeURIComponent(archivo.nombre_original)}` : "",
     tamano_bytes: archivo.tamano_bytes ?? 0,
     mime_type: archivo.mime_type,
     created_at: row.created_at,
@@ -1181,13 +1200,55 @@ export async function getArchivosRoturaAction(rotura_id: string): Promise<Adjunt
   return (data ?? []).map((r) => mapAdjunto(urls, r)).filter((a): a is AdjuntoArchivo => a !== null);
 }
 
+/**
+ * Suma fotos o comprobantes a una rotura que ya existe.
+ *
+ * Hasta ahora la única forma de agregarle una foto a algo ya cargado era entrar
+ * al diálogo de edición y volver a mandar TODOS los campos: para sumar una foto
+ * se reescribía la fila entera, y cualquier error de tipeo en el camino pisaba
+ * datos buenos. Esto toca solamente los adjuntos.
+ */
+export async function agregarArchivosRoturaAction(
+  rotura_id: string,
+  archivos: AdjuntoArchivoMeta[],
+) {
+  await requireArea("mantenimiento", "write");
+  if (!rotura_id || !archivos?.length) return { error: "No hay ningún archivo para agregar." };
+  const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
+
+  await vincularArchivos(supabase, archivos, user?.id ?? null, (archivoId) =>
+    supabase
+      .from("rotura_archivos")
+      .insert({ rotura_id, archivo_id: archivoId, created_by: user?.id ?? null }),
+  );
+
+  // Sumar una foto también es tocar el registro: queda anotado quién y cuál,
+  // que es de lo que se trata poder auditar una edición.
+  await logAudit({
+    client: supabase,
+    accion: "foto_agregada",
+    entidadTipo: "rotura_goma",
+    entidadId: rotura_id,
+    usuarioId: user?.id ?? null,
+    valoresNuevos: { archivos: archivos.map((a) => a.nombre_original) },
+  });
+
+  revalidatePath("/mantenimiento");
+  revalidatePath("/taller");
+  return { success: true };
+}
+
 /** Elimina un adjunto puntual de una rotura (fila puente + metadato + objeto). */
 export async function deleteArchivoRoturaAction(adjunto_id: string) {
   await requireArea("mantenimiento", "write");
   const supabase = createAdminClient();
+  const authClient = await createClient();
+  const { data: { user } } = await authClient.auth.getUser();
   const { data: adjunto, error: getErr } = await supabase
     .from("rotura_archivos")
-    .select("archivo:documentos_archivos!archivo_id(id, bucket, path)")
+    .select("rotura_id, archivo:documentos_archivos!archivo_id(id, bucket, path, nombre_original)")
     .eq("id", adjunto_id)
     .single();
   if (getErr || !adjunto) return { error: "Archivo no encontrado" };
@@ -1195,8 +1256,95 @@ export async function deleteArchivoRoturaAction(adjunto_id: string) {
   const { error: delErr } = await supabase.from("rotura_archivos").delete().eq("id", adjunto_id);
   if (delErr) return { error: "No se pudo eliminar el archivo" };
   await eliminarArchivoFisico(supabase, archivo);
+
+  // La foto se va del Storage y no vuelve. Lo único que queda de ella es este
+  // renglón: sin él, una foto borrada a propósito es indistinguible de una que
+  // nunca se sacó.
+  await logAudit({
+    client: supabase,
+    accion: "foto_eliminada",
+    entidadTipo: "rotura_goma",
+    entidadId: adjunto.rotura_id,
+    usuarioId: user?.id ?? null,
+    valoresAnteriores: { archivo: archivo?.nombre_original ?? null },
+  });
+
   revalidatePath("/mantenimiento");
+  revalidatePath("/taller");
   return { success: true };
+}
+
+/**
+ * Lo que se editó de una rotura, para mostrarlo en su detalle.
+ *
+ * Pedido de Julián (27/08): *"si se edita que aparezca que fue editado con lo
+ * que decía antes para poder auditar cualquier edit a posta que se haga"*. La
+ * información ya se venía guardando en `audit_log`; lo que no había era manera
+ * de verla sin entrar a la base. Un registro que sólo puede auditar quien tiene
+ * la contraseña de Supabase no lo audita nadie.
+ *
+ * Se devuelve sólo lo que cambió DESPUÉS de cargado (`crear` queda afuera): el
+ * detalle ya muestra el estado actual, y lo que hace falta saber es qué se le
+ * tocó y qué decía antes.
+ */
+export type EdicionRotura = {
+  id: string;
+  cuando: string;
+  quien: string | null;
+  accion: "actualizar" | "foto_agregada" | "foto_eliminada";
+  /** Qué decía el texto antes de esta edición. */
+  textoAnterior: string | null;
+  /** Qué dice el texto después de esta edición. */
+  textoNuevo: string | null;
+  /** Nombres de las fotos agregadas o eliminadas. */
+  archivos: string[];
+};
+
+export async function getHistorialRoturaAction(rotura_id: string): Promise<EdicionRotura[]> {
+  await requireArea("mantenimiento", "read");
+  if (!rotura_id) return [];
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("audit_log")
+    .select(
+      "id, created_at, accion, valores_anteriores, valores_nuevos, usuario:usuarios!audit_log_usuario_id_fkey(nombre, apellido)",
+    )
+    .eq("entidad_tipo", "rotura_goma")
+    .eq("entidad_id", rotura_id)
+    .in("accion", ["actualizar", "foto_agregada", "foto_eliminada"])
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error al cargar el historial de la rotura:", error);
+    return [];
+  }
+
+  const texto = (v: unknown): string | null => {
+    if (!v || typeof v !== "object") return null;
+    const obs = (v as Record<string, unknown>).observaciones;
+    return typeof obs === "string" ? obs : null;
+  };
+  const nombres = (v: unknown): string[] => {
+    if (!v || typeof v !== "object") return [];
+    const campo = (v as Record<string, unknown>).archivos ?? (v as Record<string, unknown>).archivo;
+    if (typeof campo === "string") return [campo];
+    if (Array.isArray(campo)) return campo.filter((x): x is string => typeof x === "string");
+    return [];
+  };
+
+  return (data ?? []).map((r) => {
+    const u = Array.isArray(r.usuario) ? r.usuario[0] : r.usuario;
+    return {
+      id: r.id,
+      cuando: r.created_at,
+      quien: u ? `${u.nombre ?? ""} ${u.apellido ?? ""}`.trim() || null : null,
+      accion: r.accion as EdicionRotura["accion"],
+      textoAnterior: texto(r.valores_anteriores),
+      textoNuevo: texto(r.valores_nuevos),
+      archivos: [...nombres(r.valores_anteriores), ...nombres(r.valores_nuevos)],
+    };
+  });
 }
 
 // ── Servicios / mantenimientos ───────────────────────────────────────────────

@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { Camera, Check, ChevronRight, ImagePlus, Loader2, Truck, User, X, Sparkles } from "lucide-react";
 import { useAdjuntos } from "@/components/ui/AdjuntosDocumentos";
 import {
@@ -40,6 +39,33 @@ import { leerMensaje } from "./parseo";
 
 /** 56px: es el mínimo con el que un dedo acierta sin apuntar. */
 const BOTON = "h-14 rounded-xl text-base font-semibold";
+
+/**
+ * Las miniaturas de las fotos que todavía no se subieron.
+ *
+ * Antes la miniatura se dibujaba con `URL.createObjectURL(f)` escrito dentro
+ * del render. Eso creaba un blob NUEVO en cada render, y el paso 2 hace
+ * renderizar en cada tecla: la foto se descartaba y se volvía a decodificar
+ * letra por letra. En el teléfono se ve como un titileo mientras se escribe
+ * —lo reportó Julián el 27/08— y de paso ninguna de esas URLs se liberaba
+ * nunca: dos fotos de cámara y un mensaje largo dejaban cientos de megas
+ * colgados en la pestaña.
+ *
+ * Acá la URL se crea una sola vez por tanda de archivos y se revoca cuando la
+ * tanda cambia. `pendientes` sólo cambia de identidad al agregar o quitar una
+ * foto, así que escribir ya no toca las imágenes.
+ */
+export function useMiniaturas(archivos: File[]): string[] {
+  // `pendientes` sólo cambia de identidad al agregar o quitar una foto, así que
+  // escribir en el paso 2 ya no vuelve a crear nada.
+  const urls = useMemo(() => archivos.map((f) => URL.createObjectURL(f)), [archivos]);
+
+  // Y cuando la tanda cambia (o se cierra la pantalla), las de antes se
+  // liberan: son las fotos enteras de la cámara guardadas en memoria.
+  useEffect(() => () => urls.forEach((u) => URL.revokeObjectURL(u)), [urls]);
+
+  return urls;
+}
 
 /** El número del paso, para que se lea como una lista y no como un formulario. */
 function Paso({ n, titulo, nota }: { n: number; titulo: string; nota?: string }) {
@@ -163,6 +189,8 @@ export default function TallerClient({
     deleteArchivo: deleteArchivoRoturaAction,
     onError: setError,
   });
+
+  const miniaturas = useMiniaturas(adj.pendientes);
 
   const lectura = useMemo(
     () => leerMensaje(texto, datos.unidades, datos.personas),
@@ -297,16 +325,14 @@ export default function TallerClient({
                 {adj.pendientes.length === 1 ? "" : "s"} para subir
               </p>
             )}
-            {adj.pendientes.length > 0 && (
+            {miniaturas.length > 0 && (
               <ul className="mt-1.5 flex flex-wrap gap-2">
-                {adj.pendientes.map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="relative">
-                    <Image
-                      src={URL.createObjectURL(f)}
+                {miniaturas.map((url, i) => (
+                  <li key={url} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
                       alt=""
-                      width={84}
-                      height={84}
-                      unoptimized
                       className="size-20 rounded-lg border border-border object-cover"
                     />
                     <button
@@ -452,7 +478,7 @@ export default function TallerClient({
         textoVacio="No sé de quién es"
       />
 
-      <FeedTaller inicial={feedInicial} hoy={hoy} refrescar={recargas} />
+      <FeedTaller inicial={feedInicial} hoy={hoy} refrescar={recargas} canWrite={canWrite} />
     </div>
   );
 }
