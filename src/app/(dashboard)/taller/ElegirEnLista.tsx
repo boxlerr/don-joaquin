@@ -67,12 +67,20 @@ export default function ElegirEnLista({
         }
       }}
     >
-      <SheetContent side="bottom" className="p-0">
-        <SheetHeader className="border-b border-border px-4 pb-3 pt-4">
+      {/* `overflow-hidden` acá y el scroll SOLO en la lista.
+          
+          Con el panel scrolleable por fuera y la lista scrolleable por dentro
+          quedaban dos contenedores de scroll anidados, y en el teléfono el
+          gesto se le asignaba al de afuera —que no tiene nada que correr—:
+          arrastrabas sobre los camiones y no se movía nada. En la compu no se
+          notaba, porque la rueda va siempre al elemento que está abajo del
+          cursor. Lo reportó Julián el 27/08. */}
+      <SheetContent side="bottom" className="overflow-hidden p-0">
+        <SheetHeader className="shrink-0 border-b border-border px-4 pb-3 pt-4">
           <SheetTitle className="text-base">{titulo}</SheetTitle>
         </SheetHeader>
 
-        <div className="border-b border-border px-4 py-3">
+        <div className="shrink-0 border-b border-border px-4 py-3">
           <div className="flex h-12 items-center gap-2 rounded-xl border border-input bg-background px-3">
             <Search size={17} className="shrink-0 text-muted-foreground" />
             <input
@@ -96,7 +104,11 @@ export default function ElegirEnLista({
           </div>
         </div>
 
-        <ul className="divide-y divide-border/60 overflow-y-auto pb-6">
+        {/* `min-h-0` para que el flex la deje encogerse (sin eso mide lo que
+            miden las 40 opciones), `overscroll-contain` para que el tirón no se
+            escape a la página de atrás y `touch-pan-y` para que el dedo mueva
+            la lista y no otra cosa. */}
+        <ul className="min-h-0 flex-1 touch-pan-y divide-y divide-border/60 overflow-y-auto overscroll-contain pb-6">
           {/* Quitar lo elegido va PRIMERO y siempre: es la salida de quien tocó
               por error, y buscarla al final de 40 opciones no es una salida. */}
           <li>

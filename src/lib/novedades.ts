@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ya-podes-scrollear-la-lista-de-camiones-en",
+    fecha: "2026-08-27",
+    tipo: "arreglo",
+    ver: "mantenimiento_servicios",
+    titulo: "Ya podés scrollear la lista de camiones en el celular",
+    detalle: "En el Taller, al tocar «elegí la unidad» o «elegí el chofer», la lista no se movía con el dedo: se veían los primeros y no había forma de llegar al resto. En la computadora funcionaba, por eso no se notaba.",
+    href: "/taller",
+  },
+  {
     id: "al-elegir-el-camion-ya-te-pone-el-chofer",
     fecha: "2026-08-27",
     tipo: "mejora",

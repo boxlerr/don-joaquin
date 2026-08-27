@@ -70,7 +70,7 @@ export default function DetalleTrabajo({
 }) {
   return (
     <Sheet open={trabajo !== null} onOpenChange={(v) => !v && onCerrar()}>
-      <SheetContent side="bottom" className="p-0">
+      <SheetContent side="bottom" className="overflow-hidden p-0">
         {/* `key` por trabajo: al pasar de uno a otro el cuerpo se rearma de
             cero. Sin eso, quedarse en modo edición con el texto del anterior es
             la forma más rápida de pisar el registro equivocado. */}
@@ -142,11 +142,11 @@ function CuerpoTrabajo({
 
   return (
     <>
-      <SheetHeader className="border-b border-border px-4 pb-3 pt-4">
+      <SheetHeader className="shrink-0 border-b border-border px-4 pb-3 pt-4">
         <SheetTitle className="text-base">{cuando(trabajo.fecha, trabajo.cargadoEn)}</SheetTitle>
       </SheetHeader>
 
-      <div className="space-y-4 overflow-y-auto px-4 pb-8 pt-4">
+      <div className="min-h-0 flex-1 touch-pan-y space-y-4 overflow-y-auto overscroll-contain px-4 pb-8 pt-4">
         <FotosRotura roturaId={trabajo.id} canWrite={canWrite} onCambio={avisarCambioDeFotos} />
 
         {editando ? (
