@@ -35,6 +35,28 @@ export type Acoplado = Pick<
   chofer_nombre?: string | null;
 };
 
+export type AcopladoTipo = Database["public"]["Enums"]["acoplado_tipo"];
+
+/**
+ * Los tipos de acoplado, con la lista que pidió Nico (28/08): la del arranque
+ * era un catálogo general —sider, cisterna, jaula, plancha— que no tenía nada
+ * que ver con lo que ellos manejan, y por eso quedó sin usar: los 64 acoplados
+ * tienen el tipo vacío.
+ */
+export const ACOPLADO_TIPO_LABELS: Record<AcopladoTipo, string> = {
+  semi: "Semis",
+  acoplado: "Acoplado",
+  tolva: "Tolva",
+  batea: "Batea",
+  otro: "Otro",
+};
+
+/** El tipo como se muestra. Un valor viejo que quedara suelto se muestra tal cual. */
+export function etiquetaAcopladoTipo(tipo: string | null | undefined): string {
+  if (!tipo) return "—";
+  return ACOPLADO_TIPO_LABELS[tipo as AcopladoTipo] ?? tipo;
+}
+
 export type ServiceRecord = Pick<
   Database["public"]["Tables"]["mantenimientos"]["Row"],
   | "id"

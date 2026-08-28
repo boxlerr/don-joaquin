@@ -9,6 +9,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import EstadoSwitch from "./EstadoSwitch";
 import { Dato } from "./CamionRow";
 import { updateAcopladoAction } from "../actions";
+import { etiquetaAcopladoTipo } from "../types";
 import type { Acoplado } from "../types";
 
 /** Prender/apagar el acoplado — lo comparten la fila (desktop) y la tarjeta (celular). */
@@ -95,7 +96,7 @@ export default function AcopladoRow({ acoplado, onSelect }: { acoplado: Acoplado
       <TableCell>
         {acoplado.capacidad_tn != null ? `${Number(acoplado.capacidad_tn).toFixed(1)} TN` : "—"}
       </TableCell>
-      <TableCell className="text-muted-foreground">{acoplado.tipo ?? "—"}</TableCell>
+      <TableCell className="text-muted-foreground">{etiquetaAcopladoTipo(acoplado.tipo)}</TableCell>
       <TableCell>
         <div className="flex flex-col gap-0.5">
           {acoplado.camion_patente ? (
@@ -179,7 +180,7 @@ export function AcopladoCard({
           </span>
         </Dato>
         <Dato label="Tipo">
-          <span className="text-foreground">{acoplado.tipo ?? "—"}</span>
+          <span className="text-foreground">{etiquetaAcopladoTipo(acoplado.tipo)}</span>
         </Dato>
         <Dato label="Camión">
           {acoplado.camion_patente ? (

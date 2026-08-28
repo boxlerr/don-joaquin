@@ -5160,15 +5160,7 @@ export type Database = {
     }
     Enums: {
       acoplado_estado: "activo" | "inactivo" | "baja" | "en_mantenimiento"
-      acoplado_tipo:
-        | "semi_tolva"
-        | "batea"
-        | "sider"
-        | "semi_furgon"
-        | "cisterna"
-        | "jaula"
-        | "plancha"
-        | "otro"
+      acoplado_tipo: "semi" | "acoplado" | "tolva" | "batea" | "otro"
       alerta_estado: "pendiente" | "vista" | "resuelta" | "descartada"
       alerta_severidad: "info" | "advertencia" | "critica"
       alerta_tipo:
@@ -5461,16 +5453,7 @@ export const Constants = {
   public: {
     Enums: {
       acoplado_estado: ["activo", "inactivo", "baja", "en_mantenimiento"],
-      acoplado_tipo: [
-        "semi_tolva",
-        "batea",
-        "sider",
-        "semi_furgon",
-        "cisterna",
-        "jaula",
-        "plancha",
-        "otro",
-      ],
+      acoplado_tipo: ["semi", "acoplado", "tolva", "batea", "otro"],
       alerta_estado: ["pendiente", "vista", "resuelta", "descartada"],
       alerta_severidad: ["info", "advertencia", "critica"],
       alerta_tipo: [

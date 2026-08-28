@@ -17,22 +17,11 @@ import InlineFeedback from "@/components/ui/InlineFeedback";
 import { Container, CircleDot, Wrench, Calendar, Truck, MapPin, Pencil, Loader2 } from "lucide-react";
 import EstadoSwitch from "./EstadoSwitch";
 import { getRoturasAcopladoAction, updateAcopladoAction, type RoturaCamionRecord } from "../actions";
-import type { Acoplado } from "../types";
+import type { Acoplado, AcopladoTipo } from "../types";
+import { ACOPLADO_TIPO_LABELS, etiquetaAcopladoTipo } from "../types";
 import type { Database } from "@/types/database";
 
-type AcopladoTipo = Database["public"]["Enums"]["acoplado_tipo"];
 type AcopladoEstado = Database["public"]["Enums"]["acoplado_estado"];
-
-const TIPO_LABELS: Record<AcopladoTipo, string> = {
-  semi_tolva: "Semi tolva",
-  batea: "Batea",
-  sider: "Sider",
-  semi_furgon: "Semi furgón",
-  cisterna: "Cisterna",
-  jaula: "Jaula",
-  plancha: "Plancha",
-  otro: "Otro",
-};
 
 const ESTADO_LABELS: Record<AcopladoEstado, string> = {
   activo: "Activo",
@@ -281,7 +270,7 @@ export default function AcopladoDetailSheet({
                 <Info label="Modelo" value={local.modelo || "—"} />
                 <Info label="Año" value={local.ano != null ? String(local.ano) : "—"} />
                 <Info label="Capacidad" value={local.capacidad_tn != null ? `${Number(local.capacidad_tn).toFixed(1)} TN` : "—"} />
-                <Info label="Tipo" value={local.tipo ? (TIPO_LABELS[local.tipo as AcopladoTipo] ?? local.tipo) : "—"} />
+                <Info label="Tipo" value={etiquetaAcopladoTipo(local.tipo)} />
                 <Info label="Tolva" value={local.es_tolva ? "Sí" : "No"} />
                 <Info label="Camión asignado" value={local.camion_patente || "Sin camión"} mono={!!local.camion_patente} />
                 <Info label="Chofer" value={local.chofer_nombre || "Sin chofer"} />
@@ -350,13 +339,13 @@ export default function AcopladoDetailSheet({
 
               <Field label="Tipo">
                 <div className="flex flex-wrap gap-1.5">
-                  {(Object.keys(TIPO_LABELS) as AcopladoTipo[]).map((t) => (
+                  {(Object.keys(ACOPLADO_TIPO_LABELS) as AcopladoTipo[]).map((t) => (
                     <Chip
                       key={t}
                       active={form.tipo === t}
                       onClick={() => setForm({ ...form, tipo: form.tipo === t ? null : t })}
                     >
-                      {TIPO_LABELS[t]}
+                      {ACOPLADO_TIPO_LABELS[t]}
                     </Chip>
                   ))}
                 </div>
@@ -465,16 +454,6 @@ export default function AcopladoDetailSheet({
               )}
             </div>
           )}
-        </div>
-
-        <div className="flex justify-end pt-2 border-t border-border">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="w-full sm:w-auto text-muted-foreground border-border hover:bg-muted/40"
-          >
-            Cerrar
-          </Button>
         </div>
       </DialogContent>
     </Dialog>
