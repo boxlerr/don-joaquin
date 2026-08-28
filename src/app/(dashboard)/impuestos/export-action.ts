@@ -7,10 +7,12 @@ import {
   type CellValue,
 } from "@/lib/excel/professional-sheet";
 import { getImpuestosAction } from "./actions";
+import { totalGeneral } from "./totales";
 
 // Excel de impuestos con el estilo profesional del sistema (mismo que cheques,
 // préstamos, viajes…). Una hoja con el calendario completo: qué vencía, cuándo
-// se presentó, si se presentó tarde y cuántos comprobantes tiene adjuntos.
+// se presentó, si se presentó tarde, cuánto se pagó y cuántos comprobantes
+// tiene adjuntos.
 
 // Mediodía para esquivar corrimientos de zona horaria al formatear la fecha.
 function fechaCell(iso?: string | null): Date | null {
@@ -41,6 +43,8 @@ export async function exportarImpuestosXlsxAction(): Promise<{
     { header: "Período", width: 12, align: "c" },
     { header: "Vencimiento", width: 14, align: "c", numFmt: "dd/mm/yyyy" },
     { header: "Presentado el", width: 14, align: "c", numFmt: "dd/mm/yyyy" },
+    { header: "Importe pagado", width: 16, align: "r", numFmt: '"$" #,##0.00' },
+    { header: "Pagado el", width: 14, align: "c", numFmt: "dd/mm/yyyy" },
     { header: "Estado", width: 18, align: "l" },
     { header: "Días", width: 9, align: "c" },
     { header: "Comprobantes", width: 13, align: "c" },
@@ -67,6 +71,8 @@ export async function exportarImpuestosXlsxAction(): Promise<{
       i.periodo,
       fechaCell(i.fecha_vencimiento),
       fechaCell(i.fecha_presentacion),
+      i.importe,
+      fechaCell(i.fecha_pago),
       estado,
       dias,
       i.archivos,
@@ -78,13 +84,19 @@ export async function exportarImpuestosXlsxAction(): Promise<{
   const vencidos = impuestos.filter(
     (i) => !i.fecha_presentacion && i.fecha_vencimiento < hoyISO,
   ).length;
+  // Lo pagado va con cuántos les falta el importe al lado: el total solo se
+  // leería como el gasto entero y es el de la parte que alguien cargó.
+  const { total: pagado, sinImporte } = totalGeneral(impuestos);
+  const resumenPagado =
+    ` · pagado $${pagado.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` +
+    (sinImporte > 0 ? ` (${sinImporte} sin importe cargado)` : "");
 
   const buf = await buildMultiSheetWorkbook([
     {
       name: "Impuestos",
       opts: {
         title: "Impuestos — Calendario de vencimientos",
-        subtitle: `${impuestos.length} impuesto(s) · ${presentados} presentado(s) · ${vencidos} vencido(s) sin presentar — exportado el ${hoy}`,
+        subtitle: `${impuestos.length} impuesto(s) · ${presentados} presentado(s) · ${vencidos} vencido(s) sin presentar${resumenPagado} — exportado el ${hoy}`,
         columns: cols,
         rows,
       },

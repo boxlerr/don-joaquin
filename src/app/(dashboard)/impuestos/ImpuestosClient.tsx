@@ -5,7 +5,7 @@ import type { EstadoImpuesto, FiltroEstado } from "./filtros";
 import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, Check, ChevronRight, ChevronLeft, Paperclip,
-  Search, X, FileText, ArrowUpDown, ArrowUp, ArrowDown, CalendarX2,
+  Search, X, FileText, ArrowUpDown, ArrowUp, ArrowDown, CalendarX2, Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,16 @@ import {
   togglePresentadoImpuestoAction,
   setFechaPresentacionAction,
   setFechaVencimientoAction,
+  setImporteImpuestoAction,
+  setFechaPagoImpuestoAction,
   updateImpuestoAction,
   createImpuestoAction,
   deleteImpuestoAction,
   type ImpuestoRow,
 } from "./actions";
 import CeldaFecha from "./components/CeldaFecha";
+import CeldaImporte from "./components/CeldaImporte";
+import { totalesPorPeriodo, totalGeneral } from "./totales";
 import ImpuestoDetalle from "./components/ImpuestoDetalle";
 import IlustracionImpuesto from "./components/IlustracionImpuesto";
 
@@ -347,6 +351,18 @@ export default function ImpuestosClient({
 
   // Handlers de las celdas de fecha — definidos acá para que la tabla (desktop)
   // y las tarjetas (celular) usen exactamente la misma lógica.
+  const guardarImporte = (id: string) => async (v: number | null) => {
+    const res = await setImporteImpuestoAction(id, v);
+    if ("error" in res) return res;
+    router.refresh();
+  };
+
+  const guardarFechaPago = (id: string) => async (f: string | null) => {
+    const res = await setFechaPagoImpuestoAction(id, f);
+    if ("error" in res) return res;
+    router.refresh();
+  };
+
   const guardarVencimiento = (id: string) => async (f: string | null) => {
     const res = await setFechaVencimientoAction(id, f!);
     if ("error" in res) return res;
@@ -474,6 +490,8 @@ export default function ImpuestosClient({
         </div>
       </div>
 
+      <TotalesPorMes impuestos={impuestos} />
+
       <div ref={panelRef} className="overflow-hidden rounded-[8px] border border-border bg-card shadow-sm scroll-mt-4">
         {/* Barra de herramientas: buscar, acotar por organismo y agregar. */}
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-3 sm:px-4">
@@ -593,7 +611,7 @@ export default function ImpuestosClient({
             </div>
           ) : (
             <>
-              {/* Celular: cada impuesto es una tarjeta. La tabla tiene 8 columnas
+              {/* Celular: cada impuesto es una tarjeta. La tabla tiene 9 columnas
                   y es un checklist que se opera con el dedo (tildar, editar
                   fechas, adjuntar), así que abajo de md se apila en vez de
                   scrollear de costado. */}
@@ -656,6 +674,21 @@ export default function ImpuestosClient({
                               onGuardar={guardarPresentacion(i.id)}
                             />
                           </span>
+                          <span className="flex flex-col gap-0.5">
+                            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Pagado</span>
+                            <CeldaImporte
+                              valor={i.importe}
+                              canEdit={canWrite}
+                              onGuardar={guardarImporte(i.id)}
+                            />
+                            <CeldaFecha
+                              valor={i.fecha_pago}
+                              canEdit={canWrite}
+                              permitirVaciar
+                              placeholder="Sin fecha de pago"
+                              onGuardar={guardarFechaPago(i.id)}
+                            />
+                          </span>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 pt-0.5">
@@ -708,7 +741,7 @@ export default function ImpuestosClient({
                 ))}
               </div>
 
-              <Table className="hidden min-w-[980px] md:table">
+              <Table className="hidden min-w-[1120px] md:table">
                 <TableHeader className="bg-muted/40">
                   <TableRow>
                     <TableHead className="w-8 pl-4" />
@@ -723,6 +756,7 @@ export default function ImpuestosClient({
                       <BotonOrden label="Vencimiento" campo="vencimiento" orden={orden} dir={dir} onOrden={cambiarOrden} />
                     </TableHead>
                     <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Presentado el</TableHead>
+                    <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Pagado</TableHead>
                     <TableHead className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Estado</TableHead>
                     {canWrite && (
                       <TableHead className="pr-6 text-right text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -822,6 +856,24 @@ export default function ImpuestosClient({
                             onGuardar={guardarPresentacion(i.id)}
                           />
                         </TableCell>
+                        {/* Cuánto arriba y cuándo abajo: las dos mitades de la
+                            misma pregunta, como el vencimiento con su aviso. */}
+                        <TableCell>
+                          <div className="flex flex-col items-start gap-0.5">
+                            <CeldaImporte
+                              valor={i.importe}
+                              canEdit={canWrite}
+                              onGuardar={guardarImporte(i.id)}
+                            />
+                            <CeldaFecha
+                              valor={i.fecha_pago}
+                              canEdit={canWrite}
+                              permitirVaciar
+                              placeholder="Sin fecha de pago"
+                              onGuardar={guardarFechaPago(i.id)}
+                            />
+                          </div>
+                        </TableCell>
                         <TableCell><EstadoImpuestoBadge row={i} /></TableCell>
                         {canWrite && (
                           <TableCell className="pr-6 text-right">
@@ -855,7 +907,7 @@ export default function ImpuestosClient({
                       </TableRow>
                       {expandidoId === i.id && (
                         <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={canWrite ? 8 : 6} className="p-0">
+                          <TableCell colSpan={canWrite ? 9 : 7} className="p-0">
                             <ImpuestoDetalle impuesto={i} canWrite={canWrite} />
                           </TableCell>
                         </TableRow>
@@ -1024,5 +1076,83 @@ export default function ImpuestosClient({
         onConfirm={handleDelete}
       />
     </div>
+  );
+}
+
+/**
+ * Cuánto se pagó en cada mes — la tira arriba de la lista.
+ *
+ * *"No te dice: este mes tenés tanto"* fue el pedido de la mamá de Bárbara para
+ * los cheques (25/08) y es el mismo para los impuestos (27/08). Se dibuja igual
+ * que la tira de meses de /cheques a propósito: es la misma pregunta.
+ *
+ * **Mira TODOS los impuestos, no los filtrados.** El total de junio es el total
+ * de junio; si cambiara al escribir en el buscador dejaría de ser un dato del
+ * mes y pasaría a ser un dato de la búsqueda, que no es lo que se está
+ * preguntando. Las cuatro tarjetas de arriba se cuentan igual.
+ *
+ * Lo que falta cargar se dice, no se esconde: un total que se come en silencio
+ * los que no tienen importe se lee como el gasto del mes sin serlo.
+ */
+function TotalesPorMes({ impuestos }: { impuestos: ImpuestoRow[] }) {
+  const meses = useMemo(() => totalesPorPeriodo(impuestos), [impuestos]);
+  const general = useMemo(() => totalGeneral(impuestos), [impuestos]);
+
+  if (meses.length === 0) return null;
+
+  // Con un solo período la tira sería una tarjeta sola al lado del total, que
+  // dice dos veces lo mismo: se muestra el renglón del total y listo.
+  const unSoloMes = meses.length === 1;
+
+  return (
+    <section
+      aria-label="Cuánto se pagó por mes"
+      className="rounded-[8px] border border-border bg-card p-3 shadow-sm sm:p-4"
+    >
+      <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <Wallet size={14} className="text-muted-foreground" />
+          Pagado por mes
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Total ${" "}
+          <span className="font-semibold tabular-nums text-foreground">
+            {general.total.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+          {general.sinImporte > 0 && (
+            <span className="text-amber-700">
+              {" "}· {general.sinImporte} sin cargar
+            </span>
+          )}
+        </p>
+      </div>
+
+      {unSoloMes ? (
+        <p className="text-xs text-muted-foreground">
+          Todo lo cargado es de <span className="font-medium text-foreground">{meses[0]!.label}</span>.
+          {meses[0]!.sinImporte > 0 && " Cargá el importe de cada uno para ver el total del mes."}
+        </p>
+      ) : (
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+          {meses.map((m) => (
+            <div
+              key={m.periodo ?? "sin-periodo"}
+              className="flex min-w-[8.5rem] shrink-0 flex-col items-start gap-0.5 rounded-[8px] border border-border px-3 py-2"
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {m.label}
+              </span>
+              <span className="text-[15px] font-semibold tabular-nums text-foreground">
+                $ {Math.round(m.total).toLocaleString("es-AR")}
+              </span>
+              <span className="text-[11px] tabular-nums text-muted-foreground">
+                {m.conImporte} de {m.conImporte + m.sinImporte}
+                {m.sinImporte > 0 && <span className="text-amber-700"> · {m.sinImporte} sin cargar</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

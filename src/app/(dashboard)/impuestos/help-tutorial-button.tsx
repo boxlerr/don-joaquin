@@ -282,6 +282,60 @@ function MockTabla() {
   );
 }
 
+/** La columna "Pagado" y la tira de totales de arriba. */
+function MockPagado() {
+  return (
+    <div className="space-y-2">
+      <div className="rounded-lg border border-border px-3 py-2">
+        <div className="mb-1.5 flex items-baseline justify-between">
+          <span className="text-[9px] font-semibold text-foreground">Pagado por mes</span>
+          <span className="text-[8px] text-muted-foreground">
+            Total <span className="font-semibold text-foreground">$ 1.847.300,00</span>
+            <span className="text-amber-700"> · 3 sin cargar</span>
+          </span>
+        </div>
+        <div className="flex gap-1.5">
+          {[
+            { mes: "Junio 2026", monto: "$ 912.400", n: "5 de 5" },
+            { mes: "Julio 2026", monto: "$ 934.900", n: "4 de 7", falta: "3 sin cargar" },
+          ].map((m) => (
+            <div key={m.mes} className="flex-1 rounded-md border border-border px-2 py-1">
+              <div className="text-[7px] font-bold uppercase text-muted-foreground">{m.mes}</div>
+              <div className="text-[10px] font-semibold text-foreground">{m.monto}</div>
+              <div className="text-[7px] text-muted-foreground">
+                {m.n}
+                {m.falta && <span className="text-amber-700"> · {m.falta}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border overflow-hidden">
+        <div className="grid grid-cols-[1fr_auto] gap-2 bg-muted/50 px-3 py-1.5 text-[8px] font-bold uppercase text-muted-foreground">
+          <span>Impuesto</span>
+          <span className="w-[104px]">Pagado</span>
+        </div>
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2 border-t border-border px-3 py-2">
+          <span className="text-[9px] font-medium text-foreground">IVA — DDJJ mensual</span>
+          <span className="w-[104px]">
+            <span className="block text-[10px] font-semibold tabular-nums text-foreground">$ 486.200,00</span>
+            <span className="block text-[8px] text-muted-foreground">21/07/2026</span>
+          </span>
+        </div>
+        <div className="grid grid-cols-[1fr_auto] items-center gap-2 border-t border-border px-3 py-2">
+          <span className="text-[9px] font-medium text-foreground">SICORE — 1er. Q</span>
+          <span className="w-[104px]">
+            <span className="inline-block rounded border border-dashed border-[#CBD5E1] px-1.5 py-0.5 text-[8px] text-muted-foreground">
+              + Cargar importe
+            </span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MockSemaforo() {
   return (
     <div className="space-y-1.5">
@@ -507,6 +561,13 @@ const TABS: TutorialTab[] = [
           "Cada fila es un impuesto con su organismo, su fecha y su estado. Arranca ordenada por vencimiento —el más próximo arriba— y podés cambiarla tocando el título de la columna: una vez ordena de menor a mayor y otra al revés.",
         mockup: <MockTabla />,
         hint: "Abajo de la fecha dice cuánto falta (o hace cuánto se pasó). Los presentados se ven en gris y tachados, para que no te distraigan de lo que falta.",
+      },
+      {
+        title: "Cuánto se pagó, y cuándo",
+        description:
+          "En la columna “Pagado” cargás el importe y la fecha en que se pagó. Tocás el campo, escribís el número y listo — no hace falta abrir nada. La fecha de pago va aparte de la de presentación a propósito: primero se presenta y después se paga, y no siempre el mismo día.",
+        mockup: <MockPagado />,
+        hint: "Arriba de la lista, “Pagado por mes” suma lo cargado de cada período. Si algún impuesto todavía no tiene importe, lo dice al lado: el total es de lo que está cargado, no del mes entero.",
       },
       {
         title: "El semáforo de estados",

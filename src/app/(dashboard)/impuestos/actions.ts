@@ -26,6 +26,13 @@ export type ImpuestoRow = {
   fecha_vencimiento: string;
   /** Cuándo se presentó. Cargarla marca `presentado`. Null = pendiente. */
   fecha_presentacion: string | null;
+  /**
+   * Cuánto se pagó. `null` es "todavía no se cargó", que NO es cero: el total
+   * por mes cuenta aparte los que faltan para no dar un número que miente.
+   */
+  importe: number | null;
+  /** Cuándo se pagó — distinta de la de presentación (mamá de Bárbara, 27/08). */
+  fecha_pago: string | null;
   presentado: boolean;
   presentado_at: string | null;
   observaciones: string | null;
@@ -34,7 +41,7 @@ export type ImpuestoRow = {
 };
 
 const SELECT_IMPUESTO =
-  "id, nombre, organismo, periodo, fecha_vencimiento, fecha_presentacion, presentado, presentado_at, observaciones, impuesto_archivos(count)";
+  "id, nombre, organismo, periodo, fecha_vencimiento, fecha_presentacion, importe, fecha_pago, presentado, presentado_at, observaciones, impuesto_archivos(count)";
 
 function mapImpuesto(r: any): ImpuestoRow {
   // Supabase devuelve el count agregado como [{ count: n }].
@@ -46,6 +53,9 @@ function mapImpuesto(r: any): ImpuestoRow {
     periodo: r.periodo,
     fecha_vencimiento: r.fecha_vencimiento,
     fecha_presentacion: r.fecha_presentacion ?? null,
+    // Postgres devuelve `numeric` como string para no perder precisión.
+    importe: r.importe === null || r.importe === undefined ? null : Number(r.importe),
+    fecha_pago: r.fecha_pago ?? null,
     presentado: Boolean(r.presentado),
     presentado_at: r.presentado_at ?? null,
     observaciones: r.observaciones ?? null,
@@ -123,6 +133,88 @@ export async function setFechaPresentacionAction(
       presentado: actual.presentado,
     },
     valoresNuevos: { fecha_presentacion: fecha, presentado },
+    metadata: { nombre: actual.nombre },
+  });
+
+  revalidatePath("/impuestos");
+  return { ok: true };
+}
+
+/**
+ * Cuánto se pagó. Se carga desde la tabla, igual que las fechas.
+ *
+ * `null` borra el importe y NO es lo mismo que un 0: cero es "se pagó cero" y
+ * vacío es "no lo sabemos". La tira de totales los cuenta distinto.
+ */
+export async function setImporteImpuestoAction(
+  id: string,
+  importe: number | null,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireArea("finanzas", "write");
+  if (importe !== null && (!Number.isFinite(importe) || importe < 0)) {
+    return { error: "Importe inválido" };
+  }
+  const supabase = createAdminClient();
+
+  const { data: actual } = await (supabase as any)
+    .from("impuesto_vencimientos")
+    .select("nombre, importe")
+    .eq("id", id)
+    .maybeSingle();
+  if (!actual) return { error: "No se encontró el impuesto" };
+
+  const { error } = await (supabase as any)
+    .from("impuesto_vencimientos")
+    .update({ importe, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: "No se pudo guardar el importe" };
+
+  await logAudit({
+    accion: "actualizar",
+    entidadTipo: "impuesto_vencimiento",
+    entidadId: id,
+    usuarioId: user.id,
+    valoresAnteriores: { importe: actual.importe },
+    valoresNuevos: { importe },
+    metadata: { nombre: actual.nombre },
+  });
+
+  revalidatePath("/impuestos");
+  return { ok: true };
+}
+
+/**
+ * Cuándo se pagó. Va aparte de `fecha_presentacion` a propósito: se presenta la
+ * declaración y se paga, y las dos fechas se separan seguido.
+ */
+export async function setFechaPagoImpuestoAction(
+  id: string,
+  fecha: string | null,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireArea("finanzas", "write");
+  if (fecha !== null && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return { error: "Fecha inválida" };
+  const supabase = createAdminClient();
+
+  const { data: actual } = await (supabase as any)
+    .from("impuesto_vencimientos")
+    .select("nombre, fecha_pago")
+    .eq("id", id)
+    .maybeSingle();
+  if (!actual) return { error: "No se encontró el impuesto" };
+
+  const { error } = await (supabase as any)
+    .from("impuesto_vencimientos")
+    .update({ fecha_pago: fecha, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: "No se pudo guardar la fecha de pago" };
+
+  await logAudit({
+    accion: "actualizar",
+    entidadTipo: "impuesto_vencimiento",
+    entidadId: id,
+    usuarioId: user.id,
+    valoresAnteriores: { fecha_pago: actual.fecha_pago },
+    valoresNuevos: { fecha_pago: fecha },
     metadata: { nombre: actual.nombre },
   });
 

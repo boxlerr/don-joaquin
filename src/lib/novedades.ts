@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ahora-podes-cargar-cuanto-pagaste-de-cada",
+    fecha: "2026-08-28",
+    tipo: "nuevo",
+    ver: "impuestos",
+    titulo: "Ahora podés cargar cuánto pagaste de cada impuesto",
+    detalle: "En la columna \"Pagado\" escribís el importe y la fecha en que se pagó, ahí mismo en la lista. Arriba, \"Pagado por mes\" te suma el total de cada período — y te avisa cuántos todavía no tienen el importe cargado, para que el total no se lea como si estuviera completo.",
+    href: "/impuestos",
+  },
+  {
     id: "los-cheques-pasados-de-fecha-ya-no-dicen",
     fecha: "2026-08-28",
     tipo: "mejora",
