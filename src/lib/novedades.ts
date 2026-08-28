@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "la-campana-te-dice-cuantos-avisos-tenes",
+    fecha: "2026-08-28",
+    tipo: "mejora",
+    ver: "todos",
+    titulo: "La campana te dice cuántos avisos tenés",
+    detalle: "Antes decía \"9+\" y no se sabía si eran diez o ciento cuarenta. Ahora muestra el número entero.",
+    href: "/notificaciones",
+  },
+  {
     id: "los-avisos-que-no-pueden-esperar-ahora",
     fecha: "2026-08-27",
     tipo: "nuevo",

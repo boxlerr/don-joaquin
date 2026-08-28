@@ -96,10 +96,14 @@ export default function NotificationBell({ initialCount }: { initialCount: numbe
                 className={`absolute inline-flex w-full h-full rounded-full opacity-75 motion-safe:animate-ping [animation-iteration-count:3] ${pingColor[sevMax]}`}
               />
             )}
+            {/* El número entero, no "9+": con 9+ nadie sabe si son diez o
+                ciento cuarenta, que es justo lo que hay que saber para decidir
+                si vale la pena abrir (Julián, 27/08/2026). El `px` acompaña al
+                largo y `tabular-nums` evita que el badge tiemble al cambiar. */}
             <span
-              className={`relative flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full ring-2 ring-card text-white text-[10px] font-bold leading-none tabular-nums ${badgeColor[sevMax]}`}
+              className={`relative flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full ring-2 ring-card text-white text-[10px] font-bold leading-none tabular-nums ${badgeColor[sevMax]}`}
             >
-              {count > 9 ? "9+" : count}
+              {count}
             </span>
           </span>
         )}
