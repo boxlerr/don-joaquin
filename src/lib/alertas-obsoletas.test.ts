@@ -4,6 +4,9 @@ import {
   disparoPrestamo,
   semanalDeSemanaPasada,
   preavisoPrestamoPasado,
+  preavisoVencimientoPasado,
+  claveComplianceDoc,
+  ultimoVencimientoPorClave,
 } from "./alertas-obsoletas";
 
 describe("documentoRenovado", () => {
@@ -141,5 +144,84 @@ describe("disparoPrestamo — la gracia antes de reclamar", () => {
     expect(disparoPrestamo(1, LUNES)).toMatchObject({ clase: "inminente" });
     expect(disparoPrestamo(5, LUNES)).toMatchObject({ clase: "semana" });
     expect(disparoPrestamo(30, LUNES)).toBeNull();
+  });
+});
+
+describe("compliance: renovar carga una fila nueva, no pisa la vieja", () => {
+  // El caso del video de Bárbara (28/08/2026): el panel decía 4 vencidos de
+  // compliance y la pantalla, 0.
+  const COBERTURA = "71d9f157-d812-4fa7-820a-b1dccc848804";
+  const VIEJO = { requisito_id: COBERTURA, fecha_vencimiento: "2026-08-06" };
+  const NUEVO = { requisito_id: COBERTURA, fecha_vencimiento: "2026-09-05" };
+
+  it("el papel de la empresa es la misma clave aunque sean dos filas", () => {
+    expect(claveComplianceDoc(VIEJO)).toBe(claveComplianceDoc(NUEVO));
+  });
+
+  it("separa el mismo requisito por unidad, chofer y acoplado", () => {
+    const base = { requisito_id: "vtv" };
+    const claves = [
+      claveComplianceDoc(base),
+      claveComplianceDoc({ ...base, camion_id: "c1" }),
+      claveComplianceDoc({ ...base, camion_id: "c2" }),
+      claveComplianceDoc({ ...base, chofer_id: "ch1" }),
+      claveComplianceDoc({ ...base, acoplado_id: "a1" }),
+    ];
+    expect(new Set(claves).size).toBe(5);
+  });
+
+  it("null y undefined dan la misma clave (papel de empresa)", () => {
+    expect(claveComplianceDoc({ requisito_id: "x", camion_id: null })).toBe(
+      claveComplianceDoc({ requisito_id: "x" }),
+    );
+  });
+
+  it("se queda con el vencimiento más lejano, venga en el orden que venga", () => {
+    expect(ultimoVencimientoPorClave([VIEJO, NUEVO]).get(claveComplianceDoc(VIEJO))).toBe("2026-09-05");
+    expect(ultimoVencimientoPorClave([NUEVO, VIEJO]).get(claveComplianceDoc(VIEJO))).toBe("2026-09-05");
+  });
+
+  it("ignora los papeles sin fecha en vez de tomarlos como el último", () => {
+    const sinFecha = { requisito_id: COBERTURA, fecha_vencimiento: null };
+    expect(ultimoVencimientoPorClave([NUEVO, sinFecha]).get(claveComplianceDoc(NUEVO))).toBe("2026-09-05");
+    expect(ultimoVencimientoPorClave([sinFecha]).size).toBe(0);
+  });
+
+  it("con el último de la clave, el aviso viejo se apaga", () => {
+    const ultimo = ultimoVencimientoPorClave([VIEJO, NUEVO]);
+    // Así se decidía antes —contra la misma fila— y por eso no se apagaba nunca.
+    expect(documentoRenovado("2026-08-06", VIEJO.fecha_vencimiento)).toBe(false);
+    expect(documentoRenovado("2026-08-06", ultimo.get(claveComplianceDoc(VIEJO)))).toBe(true);
+  });
+});
+
+describe("preavisoVencimientoPasado", () => {
+  const HOY = "2026-08-28";
+
+  it("apaga el 'vence en 5 días' del F931 de julio, que venció el 20/08", () => {
+    expect(preavisoVencimientoPasado("form931:T5", "2026-08-20", HOY)).toBe(true);
+  });
+
+  it("apaga los tres preavisos de compliance una vez pasada la fecha", () => {
+    for (const t of ["compliance:T5", "compliance:T15", "compliance:T30"]) {
+      expect(preavisoVencimientoPasado(t, "2026-08-20", HOY)).toBe(true);
+    }
+  });
+
+  it("no toca el aviso de vencido: ése se reclama hasta que se presente", () => {
+    expect(preavisoVencimientoPasado("compliance:vencido", "2026-08-06", HOY)).toBe(false);
+    expect(preavisoVencimientoPasado("form931:vencido", "2026-07-13", HOY)).toBe(false);
+  });
+
+  it("deja vivo el preaviso mientras la fecha no llegó", () => {
+    expect(preavisoVencimientoPasado("compliance:T15", "2026-09-11", HOY)).toBe(false);
+    expect(preavisoVencimientoPasado("compliance:T5", HOY, HOY)).toBe(false);
+  });
+
+  it("no se mete con avisos de otra cosa", () => {
+    expect(preavisoVencimientoPasado("prestamo_cuota:T1", "2026-08-20", HOY)).toBe(false);
+    expect(preavisoVencimientoPasado("chofer_documentos", "2026-08-02", HOY)).toBe(false);
+    expect(preavisoVencimientoPasado(null, "2026-08-02", HOY)).toBe(false);
+    expect(preavisoVencimientoPasado("compliance:T5", null, HOY)).toBe(false);
   });
 });

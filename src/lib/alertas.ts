@@ -9,6 +9,10 @@ import {
   disparoPrestamo,
   semanalDeSemanaPasada,
   preavisoPrestamoPasado,
+  preavisoVencimientoPasado,
+  claveComplianceDoc,
+  ultimoVencimientoPorClave,
+  type DocCompliance,
 } from "@/lib/alertas-obsoletas";
 import { hoyArgentina } from "@/lib/fecha-ar";
 import { ensureProximoForm931 } from "@/app/(dashboard)/compliance/form-931/periodo";
@@ -235,16 +239,31 @@ async function resolverAlertasObsoletas(
       .not("entidad_id", "is", null)
       .not("fecha_vencimiento", "is", null);
 
-    // El F931 también entra como 'vencimiento_compliance' pero su entidad_id es
-    // una presentación, no un documento: se apaga cuando se marcan los dos envíos.
-    const candidatas = (pendientes ?? []).filter(
-      (a) => a.tipo !== "vencimiento_compliance" || (a.entidad_tipo ?? "").startsWith("compliance:"),
+    const todas = pendientes ?? [];
+
+    // Dos formas distintas de renovar, y por eso dos barridos.
+    //
+    // En el legajo (chofer y camión) se EDITA la fila del papel: la fecha nueva
+    // se ve mirando el mismo id que disparó el aviso.
+    //
+    // En compliance se CARGA UNA FILA NUEVA y la vieja queda como historial. Ahí
+    // mirar el mismo id no sirve para nada —esa fila nunca cambia— y era lo que
+    // hacía este barrido: el Certificado de Cobertura del 06/08 se renovó el
+    // 07/08 al 05/09 y el aviso siguió vivo igual (video de Bárbara, 28/08).
+    //
+    // El F931 no entra en ninguno de los dos: su entidad_id es una presentación,
+    // no un papel, y se apaga cuando se marcan los dos envíos.
+    const deLegajo = todas.filter((a) => a.tipo !== "vencimiento_compliance");
+    const deCompliance = todas.filter(
+      (a) => a.tipo === "vencimiento_compliance" && (a.entidad_tipo ?? "").startsWith("compliance:"),
     );
 
-    if (candidatas.length > 0) {
-      const ids = [...new Set(candidatas.map((a) => a.entidad_id!))];
+    const renovadas: string[] = [];
+
+    if (deLegajo.length > 0) {
+      const ids = [...new Set(deLegajo.map((a) => a.entidad_id!))];
       const vencActual = new Map<string, string>();
-      for (const tabla of ["chofer_documentos", "camion_documentos", "compliance_documentos"]) {
+      for (const tabla of ["chofer_documentos", "camion_documentos"]) {
         for (const tanda of enTandas(ids, 200)) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data } = await (supabase as any)
@@ -256,14 +275,62 @@ async function resolverAlertasObsoletas(
           }
         }
       }
-
-      const renovadas = candidatas
-        .filter((a) => documentoRenovado(a.fecha_vencimiento, vencActual.get(a.entidad_id!)))
-        .map((a) => a.id);
-      if (renovadas.length > 0) {
-        const n = await marcarResueltas(supabase, renovadas);
-        console.log(`[alertas] ${n} aviso(s) de documentos ya renovados`);
+      for (const a of deLegajo) {
+        if (documentoRenovado(a.fecha_vencimiento, vencActual.get(a.entidad_id!))) renovadas.push(a.id);
       }
+    }
+
+    if (deCompliance.length > 0) {
+      // Primero, de qué papel y de quién es cada aviso.
+      const ids = [...new Set(deCompliance.map((a) => a.entidad_id!))];
+      const claveDeAlerta = new Map<string, string>();
+      const requisitos = new Set<string>();
+      for (const tanda of enTandas(ids, 200)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("compliance_documentos")
+          .select("id, requisito_id, chofer_id, camion_id, acoplado_id")
+          .in("id", tanda);
+        for (const d of (data ?? []) as (DocCompliance & { id: string })[]) {
+          claveDeAlerta.set(d.id, claveComplianceDoc(d));
+          requisitos.add(d.requisito_id);
+        }
+      }
+
+      // Y después, cuál es el último papel cargado para cada uno de esos.
+      const cargados: DocCompliance[] = [];
+      for (const tanda of enTandas([...requisitos], 200)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("compliance_documentos")
+          .select("requisito_id, chofer_id, camion_id, acoplado_id, fecha_vencimiento")
+          .in("requisito_id", tanda);
+        cargados.push(...((data ?? []) as DocCompliance[]));
+      }
+      const ultimo = ultimoVencimientoPorClave(cargados);
+
+      for (const a of deCompliance) {
+        const clave = claveDeAlerta.get(a.entidad_id!);
+        if (!clave) continue;
+        if (documentoRenovado(a.fecha_vencimiento, ultimo.get(clave))) renovadas.push(a.id);
+      }
+    }
+
+    if (renovadas.length > 0) {
+      const n = await marcarResueltas(supabase, renovadas);
+      console.log(`[alertas] ${n} aviso(s) de documentos ya renovados`);
+    }
+
+    // Preavisos de compliance y del F931 que quedaron atrás. Cuando la fecha
+    // pasa manda el aviso de vencido; el "vence en 5 días" al lado sólo hace
+    // ruido — el F931 de julio tenía los dos, en rojo y con tiempos verbales
+    // distintos.
+    const preavisos = todas
+      .filter((a) => preavisoVencimientoPasado(a.entidad_tipo, a.fecha_vencimiento, hoyIso))
+      .map((a) => a.id);
+    if (preavisos.length > 0) {
+      const n = await marcarResueltas(supabase, preavisos);
+      console.log(`[alertas] ${n} preaviso(s) de vencimiento que ya quedaron atrás`);
     }
   } catch (e) {
     console.error("[alertas] resolverAlertasObsoletas/documentos:", e);
@@ -477,10 +544,10 @@ export async function generarAlertas() {
       severidad: diasRestantes <= umbrales.diasCritico ? "critica" : "advertencia",
       titulo: esPropio
         ? `Cheque nuestro por debitarse — ${contraparte}`
-        : `Cheque próximo a vencer — ${contraparte}`,
+        : `Cheque próximo a cobrar — ${contraparte}`,
       mensaje: esPropio
         ? `Cheque nuestro de ${importeLabel} entregado a ${contraparte} se debita en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`
-        : `Cheque de ${importeLabel} de ${contraparte} vence en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`,
+        : `Cheque de ${importeLabel} de ${contraparte} se cobra en ${diasRestantes} día${diasRestantes !== 1 ? "s" : ""}.`,
       entidad_id: cheque.id,
       entidad_tipo: "cheques",
       fecha_disparo: new Date().toISOString(),

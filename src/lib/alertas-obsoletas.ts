@@ -32,6 +32,76 @@ export function documentoRenovado(
   return vencActual > vencAlerta;
 }
 
+/**
+ * Los papeles de compliance NO se renuevan pisando la fila: se carga una nueva.
+ *
+ * Ahí estaba el agujero que encontró Bárbara (video del 28/08/2026): el panel le
+ * decía 4 vencidos de compliance y la pantalla, 0. Uno de esos cuatro era el
+ * Certificado de Cobertura — vencía el 06/08, se cargó el nuevo el 07/08 con
+ * vencimiento 05/09, y el aviso viejo siguió reclamando para siempre. `documentoRenovado`
+ * miraba la MISMA fila que había disparado el aviso, y esa fila nunca cambia.
+ *
+ * Con documentos de chofer y de camión no pasa: ahí sí se edita la fila (124 y 65
+ * filas para 124 y 64 claves; una sola por papel). El certificado es mensual, así
+ * que sin esto el reclamo se repetía todos los meses del año.
+ *
+ * La clave es "de qué papel, de quién": el mismo requisito para la misma unidad,
+ * chofer o acoplado — y vacío en los tres cuando el papel es de la empresa.
+ */
+export type DocCompliance = {
+  requisito_id: string;
+  chofer_id?: string | null;
+  camion_id?: string | null;
+  acoplado_id?: string | null;
+  fecha_vencimiento?: string | null;
+};
+
+export function claveComplianceDoc(d: DocCompliance): string {
+  return [d.requisito_id, d.chofer_id ?? "", d.camion_id ?? "", d.acoplado_id ?? ""].join("|");
+}
+
+/**
+ * El vencimiento más lejano cargado para cada papel — que es el que vale.
+ *
+ * Es el mismo criterio con el que `v_compliance_estado` arma la pantalla
+ * (`order by fecha_vencimiento desc limit 1`), y por eso los dos números
+ * terminan diciendo lo mismo.
+ */
+export function ultimoVencimientoPorClave(docs: DocCompliance[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const d of docs) {
+    if (!d.fecha_vencimiento) continue;
+    const k = claveComplianceDoc(d);
+    const previo = out.get(k);
+    if (!previo || d.fecha_vencimiento > previo) out.set(k, d.fecha_vencimiento);
+  }
+  return out;
+}
+
+/** `compliance:T30` / `form931:T5` y compañía — los preavisos, no el "vencido". */
+const RE_PREAVISO_VENCIMIENTO = /^(?:compliance|form931):T\d+$/;
+
+/**
+ * ¿Este "vence en N días" quedó atrás porque la fecha ya pasó?
+ *
+ * Mismo criterio que `preavisoPrestamoPasado`, para compliance y para el F931.
+ * Cuando la fecha pasa manda el aviso de vencido; dejar vivo el preaviso hacía
+ * que el mismo papel apareciera dos veces y con los dos tiempos verbales a la
+ * vez. Le pasaba al F931 de julio: "vence en 5 días" y "venció hace 1 día"
+ * conviviendo, los dos en rojo.
+ *
+ * El de `vencido` no se toca: ése se reclama hasta que se presente.
+ */
+export function preavisoVencimientoPasado(
+  entidadTipo: string | null | undefined,
+  fechaVencimiento: string | null | undefined,
+  hoyIso: string,
+): boolean {
+  if (!RE_PREAVISO_VENCIMIENTO.test(entidadTipo ?? "")) return false;
+  if (!fechaVencimiento) return false;
+  return fechaVencimiento < hoyIso;
+}
+
 export type ClasePrestamo = "vencido" | "gracia" | "inminente" | "semana";
 
 /**
