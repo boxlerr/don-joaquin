@@ -540,8 +540,8 @@ export default function ChequesList({
 
   const ETIQUETA_VISTA: Record<VistaResumen, string> = {
     cartera: "los cheques en cartera",
-    por_vencer: "los que vencen en los próximos 7 días",
-    vencidos: "los cheques vencidos",
+    por_vencer: "los que se cobran en los próximos 7 días",
+    vencidos: "los cheques pasados de fecha",
     nuestros: "los cheques nuestros sin debitar",
     avisos: "los cheques que el sistema está avisando",
   };
@@ -562,23 +562,23 @@ export default function ChequesList({
           onClick={() => abrirVista("cartera")}
         />
         <StatCard
-          label="Por vencer"
+          label="Próximos a cobrar"
           value={`$${formatARS(cifras.por_vencer.total)}`}
           sub={`${cifras.por_vencer.cantidad} en próximos 7 días`}
           color="warning"
           icon={CalendarClock}
           active={vista === "por_vencer"}
-          ariaLabel="Ver los cheques que vencen en los próximos 7 días"
+          ariaLabel="Ver los cheques que se cobran en los próximos 7 días"
           onClick={() => abrirVista("por_vencer")}
         />
         <StatCard
-          label="Vencidos"
+          label="Pasados de fecha"
           value={`$${formatARS(cifras.vencidos.total)}`}
           sub={`${cifras.vencidos.cantidad} sin gestionar`}
           color="error"
           icon={AlertTriangle}
           active={vista === "vencidos"}
-          ariaLabel="Ver los cheques vencidos"
+          ariaLabel="Ver los cheques pasados de fecha"
           onClick={() => abrirVista("vencidos")}
         />
         <StatCard

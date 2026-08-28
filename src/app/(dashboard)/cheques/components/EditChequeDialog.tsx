@@ -225,7 +225,7 @@ export default function EditChequeDialog({
                 onChange={(e) => setImporte(e.target.value)}
               />
             </FieldBlock>
-            <FieldBlock label="Fecha de vencimiento *" icon={Calendar}>
+            <FieldBlock label={origen === "propio" ? "Fecha de pago *" : "Fecha de cobro *"} icon={Calendar}>
               <FieldInput
                 icon={Calendar}
                 type="date"

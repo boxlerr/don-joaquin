@@ -33,8 +33,8 @@ import {
 
 const SERIES = [
   { key: "enCartera", label: "En cartera", color: "#2563EB" },
-  { key: "porVencer", label: "Por vencer", color: "#F59E0B" },
-  { key: "vencidos", label: "Vencidos", color: "#EF4444" },
+  { key: "porVencer", label: "Próximos a cobrar", color: "#F59E0B" },
+  { key: "vencidos", label: "Pasados de fecha", color: "#EF4444" },
   { key: "nuestros", label: "Nuestros", color: "#10B981" },
 ] as const;
 

@@ -71,8 +71,8 @@ export const ALERTAS = [
   {
     key: "cheques_vencidos",
     nombre: "Cheques",
-    descripcion: "Cheques en cartera próximos a vencer, que vencen hoy o ya vencidos",
-    cubre: ["Cheque en cartera por vencer", "Cheque que vence hoy", "Cheque vencido sin gestionar"],
+    descripcion: "Cheques en cartera próximos a cobrarse, que se cobran hoy o ya pasados de fecha",
+    cubre: ["Cheque en cartera próximo a cobrar", "Cheque que se cobra hoy", "Cheque pasado de fecha sin gestionar"],
   },
   {
     key: "viaticos_sin_rendir",

@@ -40,14 +40,14 @@ const TABS: TutorialTab[] = [
       {
         title: "Cargá los datos del cheque",
         description:
-          "Número, importe, banco, librador y las fechas de emisión y vencimiento. Podés vincularlo a un cliente.",
+          "Número, importe, banco, librador y las fechas de emisión y de cobro. Podés vincularlo a un cliente.",
         mockup: <MockChequeForm />,
         hint: "El banco y el cliente salen de catálogos: si falta uno, cargalo primero en su sección.",
       },
       {
         title: "Mirá las tarjetas de cartera",
         description:
-          "El encabezado resume el dinero en cartera, lo que vence en los próximos 7 días y lo ya vencido sin gestionar. Te dice qué cheques mover primero.",
+          "El encabezado resume el dinero en cartera, lo que se cobra en los próximos 7 días y lo que ya pasó de fecha sin gestionar. Te dice qué cheques mover primero.",
         mockup: <MockStats />,
       },
     ],
@@ -113,7 +113,7 @@ function MockChequeForm() {
         <MockField label="Banco *" value="Banco Nación" icon={<Building2 size={11} />} required />
         <div className="grid grid-cols-2 gap-3">
           <MockField label="Emisión *" value="01/05/2026" icon={<Calendar size={11} />} required />
-          <MockField label="Vencimiento *" value="30/06/2026" icon={<Calendar size={11} />} required />
+          <MockField label="Fecha de cobro *" value="30/06/2026" icon={<Calendar size={11} />} required />
         </div>
         <MockField label="Librador / Cliente" value="Don Joaquín SA" icon={<User size={11} />} />
       </div>
@@ -129,11 +129,11 @@ function MockStats() {
         <div className="text-sm font-bold text-foreground">$ 2.1M</div>
       </div>
       <div className="rounded-md border border-[#FCD34D] bg-[#FEF3C7]/50 p-2">
-        <div className="text-[9px] text-[#B45309] uppercase tracking-wide">Por vencer 7d</div>
+        <div className="text-[9px] text-[#B45309] uppercase tracking-wide">A cobrar 7d</div>
         <div className="text-sm font-bold text-[#B45309]">$ 480k</div>
       </div>
       <div className="rounded-md border border-[#FECACA] bg-[#FEE2E2]/40 p-2">
-        <div className="text-[9px] text-[#DC2626] uppercase tracking-wide">Vencidos</div>
+        <div className="text-[9px] text-[#DC2626] uppercase tracking-wide">Pasados de fecha</div>
         <div className="text-sm font-bold text-[#DC2626]">$ 90k</div>
       </div>
     </div>

@@ -10,6 +10,17 @@
  * lado y el filtro del otro, tarde o temprano dirían cosas distintas: es
  * exactamente el bug que tenía la tarjeta "Cheques nuestros", que contaba todos
  * los cheques bajo un título que hablaba de los propios.
+ *
+ * **Las cifras no cambiaron; los rótulos sí** (audio de Bárbara, 28/08/2026):
+ * *"yo en fecha de vencimiento lo que le pongo es la fecha que nosotros pusimos
+ * de pago de ese cheque, pero no quiere decir que está vencido"*. Un cheque que
+ * se pasó de esa fecha no dejó de servir: quien lo tiene lo puede presentar al
+ * banco un buen rato después. Por eso las dos tarjetas se llaman "Próximos a
+ * cobrar" y "Pasados de fecha", y ninguna dice "vencido". Adentro, en la base y
+ * en este archivo, las claves siguen siendo `por_vencer` y `vencidos`: renombrarlas
+ * tocaría los links guardados (`/cheques?vista=vencidos`), el histórico y la
+ * columna `fecha_vencimiento` de miles de cheques ya cargados, sin cambiar una
+ * sola cosa de lo que se ve.
  */
 
 import { chequeReclama } from "@/lib/alertas-live";

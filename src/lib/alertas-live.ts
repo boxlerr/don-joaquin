@@ -200,8 +200,16 @@ export function chequeReclama(origen: string | null | undefined, estado: string)
 }
 
 /**
- * Alertas de cheques en cartera próximos a vencer o vencidos, en vivo. Escala a
- * "vencido" (la generación original solo miraba los que aún no habían vencido).
+ * Alertas de cheques en cartera próximos a cobrarse o pasados de fecha, en vivo.
+ * Escala a "pasado de fecha" (la generación original solo miraba los de antes).
+ *
+ * OJO CON LAS PALABRAS (audio de Bárbara, 28/08/2026): la fecha que se carga en
+ * el cheque NO es un vencimiento, es la fecha de pago que se acordó. Que pase no
+ * significa que el cheque no sirva más —quien lo tiene todavía puede presentarlo
+ * al banco un buen rato después—: significa que se podía cobrar y no se cobró.
+ * Por eso ningún aviso de acá dice "venció": el campo se llama
+ * `fecha_vencimiento` en la base y así se queda, pero de la pantalla para
+ * afuera son "fecha de cobro" y "pasado de fecha".
  *
  * Igual que los documentos, el mail recuerda en HITOS y no todos los días: al
  * entrar en la ventana configurada, a 7, a 3, mañana, el día que vence, y
@@ -273,21 +281,21 @@ export async function getChequeAlertasLive(
           ? `Cheque nuestro sin debitar — ${contraparte}`
           : `Cheque nuestro por debitarse — ${contraparte}`
         : vencido
-          ? `Cheque vencido sin depositar — ${contraparte}`
+          ? `Cheque pasado de fecha sin depositar — ${contraparte}`
           : dias === 0
             ? `Cheque para depositar hoy — ${contraparte}`
-            : `Cheque próximo a vencer — ${contraparte}`,
+            : `Cheque próximo a cobrar — ${contraparte}`,
       mensaje: esPropio
         ? vencido
-          ? `Cheque nuestro de ${importeLabel}${aQuien} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue sin debitarse.`
+          ? `Cheque nuestro de ${importeLabel}${aQuien} tenía fecha de pago hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue sin debitarse.`
           : dias === 0
             ? `Cheque nuestro de ${importeLabel}${aQuien} se debita hoy.`
             : `Cheque nuestro de ${importeLabel}${aQuien} se debita en ${dias} día${plural(dias)}.`
         : vencido
-          ? `Cheque de ${importeLabel}${deQuien} venció hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue en cartera: depositalo o cedelo.`
+          ? `Cheque de ${importeLabel}${deQuien} se podía cobrar hace ${Math.abs(dias)} día${plural(Math.abs(dias))} y sigue en cartera: depositalo o cedelo.`
           : dias === 0
-            ? `Cheque de ${importeLabel}${deQuien} vence hoy: depositalo o cedelo.`
-            : `Cheque de ${importeLabel}${deQuien} vence en ${dias} día${plural(dias)}.`,
+            ? `Cheque de ${importeLabel}${deQuien} se cobra hoy: depositalo o cedelo.`
+            : `Cheque de ${importeLabel}${deQuien} se cobra en ${dias} día${plural(dias)}.`,
       fecha_vencimiento: c.fecha_vencimiento,
       entidad_tipo: "cheques",
       depositoPendiente,

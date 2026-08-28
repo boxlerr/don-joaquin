@@ -61,7 +61,7 @@ export async function exportarChequesXlsxAction(
     { header: "Cliente", width: 25, align: "l" },
     { header: "Importe", width: 16, align: "r", numFmt: '"$" #,##0.00' },
     { header: "Fecha Emisión", width: 13, align: "c", numFmt: "dd/mm/yyyy" },
-    { header: "Fecha Vencimiento", width: 15, align: "c", numFmt: "dd/mm/yyyy" },
+    { header: "Fecha de Cobro", width: 15, align: "c", numFmt: "dd/mm/yyyy" },
     { header: "Estado", width: 13, align: "c" },
     { header: "Concepto", width: 30, align: "l" },
   ];

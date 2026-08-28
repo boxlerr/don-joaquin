@@ -240,7 +240,10 @@ export default function AddChequeDialog({
                 onChange={(e) => setImporte(e.target.value)}
               />
             </FieldBlock>
-            <FieldBlock label="Fecha de vencimiento *" icon={Calendar}>
+            {/* No es un vencimiento: es la fecha que va escrita en el cheque para
+                cobrarlo (audio de Bárbara, 28/08/2026). El cheque vence de verdad
+                bastante después, cuando ya no se puede presentar al banco. */}
+            <FieldBlock label={esPropio ? "Fecha de pago *" : "Fecha de cobro *"} icon={Calendar}>
               <FieldInput
                 icon={Calendar}
                 type="date"
