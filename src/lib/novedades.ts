@@ -90,6 +90,33 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "los-cheques-pasados-de-fecha-ya-no-dicen",
+    fecha: "2026-08-28",
+    tipo: "mejora",
+    ver: "cheques",
+    titulo: "Los cheques pasados de fecha ya no dicen \"vencidos\"",
+    detalle: "La fecha que cargás es la de cobro del cheque, no un vencimiento: que pase no significa que el cheque no sirva más, sino que todavía no se cobró. Las tarjetas ahora dicen \"Próximos a cobrar\" y \"Pasados de fecha\", y los avisos hablan de cobrar y de debitar en vez de vencer.",
+    href: "/cheques",
+  },
+  {
+    id: "el-papel-que-renovaste-deja-de-aparecer",
+    fecha: "2026-08-28",
+    tipo: "arreglo",
+    ver: "compliance",
+    titulo: "El papel que renovaste deja de aparecer como vencido",
+    detalle: "El Certificado de Cobertura se renovó el 07/08 y el aviso siguió reclamándolo igual, porque el sistema buscaba la renovación en el papel viejo en vez de en el nuevo. Además, cuando pasa la fecha ya no vas a ver \"vence en 5 días\" al lado de \"venció hace 1 día\" para el mismo papel.",
+    href: "/compliance",
+  },
+  {
+    id: "los-tipos-de-acoplado-ahora-son-los-cinco",
+    fecha: "2026-08-28",
+    tipo: "arreglo",
+    ver: "flota",
+    titulo: "Los tipos de acoplado ahora son los cinco que usan ustedes",
+    detalle: "Antes la lista ofrecía sider, cisterna, jaula y plancha, que no existen en la flota — por eso los 64 acoplados tenían el tipo vacío. Ahora elegís entre Semis, Acoplado, Tolva, Batea y Otro. La ficha además se cierra con la X de arriba a la derecha.",
+    href: "/camiones",
+  },
+  {
     id: "la-campana-te-dice-cuantos-avisos-tenes",
     fecha: "2026-08-28",
     tipo: "mejora",
