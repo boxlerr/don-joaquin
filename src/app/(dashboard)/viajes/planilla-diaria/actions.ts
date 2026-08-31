@@ -40,6 +40,18 @@ export type PlanillaChofer = {
   observaciones: string | null;
 };
 
+export type PlanillaCamion = {
+  id: string;
+  /** Patente del camión. */
+  label: string;
+  /** false = dado de baja. Sólo aparece en el historial, donde se muestra la
+   *  patente de lo que se manejó ese día aunque hoy la unidad no exista más. */
+  activo: boolean;
+  /** Patente del semi/acoplado enganchado hoy, para poder nombrar el equipo
+   *  completo ("AA696BJ · AA373XW") en la lista de equipos sin chofer. */
+  acoplado: string | null;
+};
+
 export type PlanillaDiariaData = {
   fecha: string;
   /** Fecha de hoy (ISO). */
@@ -48,7 +60,7 @@ export type PlanillaDiariaData = {
    *  Las otras fechas son historial de solo lectura. */
   editable: boolean;
   choferes: PlanillaChofer[];
-  camiones: { id: string; label: string }[];
+  camiones: PlanillaCamion[];
   guardado_por?: string | null;
   guardado_el?: string | null;
   /** Días con planilla guardada (se marcan en el calendario). */
@@ -82,7 +94,7 @@ export async function getPlanillaDiariaData(
   const editable = fecha === hoy;
 
   const supabase = createAdminClient();
-  const [choferesRes, camionesRes, asignacionesRes, fechasRes] = await Promise.all([
+  const [choferesRes, camionesRes, asignacionesRes, fechasRes, vinculosRes, acopladosRes] = await Promise.all([
     supabase
       .from("choferes")
       .select("id, nombre, apellido")
@@ -110,6 +122,8 @@ export async function getPlanillaDiariaData(
       .select("fecha, hubo_cambios")
       .order("fecha", { ascending: false })
       .limit(1000),
+    supabase.from("camion_acoplados").select("camion_id, acoplado_id").is("hasta", null),
+    supabase.from("acoplados").select("id, patente"),
   ]);
 
   if (choferesRes.error || camionesRes.error) {
@@ -122,6 +136,16 @@ export async function getPlanillaDiariaData(
     patentePorCamion.set(cam.id, cam.patente);
     const chid = (cam as { chofer_actual_id?: string | null }).chofer_actual_id;
     if (chid) habitualPorChofer.set(chid, cam.id);
+  }
+
+  // Qué semi/acoplado lleva enganchado cada camión hoy (vínculo abierto).
+  const patenteAcoplado = new Map<string, string>();
+  for (const a of acopladosRes.data ?? []) patenteAcoplado.set(a.id, a.patente);
+  const acopladoPorCamion = new Map<string, string>();
+  for (const v of vinculosRes.data ?? []) {
+    if (acopladoPorCamion.has(v.camion_id)) continue;
+    const pat = patenteAcoplado.get(v.acoplado_id);
+    if (pat) acopladoPorCamion.set(v.camion_id, pat);
   }
 
   // Días con planilla guardada y, de esos, cuáles tuvieron algún cambio de camión.
@@ -262,7 +286,12 @@ export async function getPlanillaDiariaData(
           (ch) => ch.camion_asignado_id === c.id || ch.camion_previo_id === c.id,
         );
       })
-      .map((c) => ({ id: c.id, label: c.patente })),
+      .map((c) => ({
+        id: c.id,
+        label: c.patente,
+        activo: (c as { estado?: string | null }).estado === "activo",
+        acoplado: acopladoPorCamion.get(c.id) ?? null,
+      })),
     guardado_por,
     guardado_el,
     fechas_guardadas: [...guardadas],
@@ -282,13 +311,21 @@ export type PlanillaImpresionRow = {
   cuil: string;
   tractor: string; // patente del camión asignado
   acoplado: string; // patente del semi/acoplado
-  telefono: string;
   localidad: string;
+};
+
+/** Equipo que ese día no quedó con ningún chofer. */
+export type PlanillaEquipoLibre = {
+  tractor: string;
+  acoplado: string;
 };
 
 export async function getPlanillaImpresionAction(
   fecha: string,
-): Promise<{ fecha: string; rows: PlanillaImpresionRow[] } | { error: string }> {
+): Promise<
+  | { fecha: string; rows: PlanillaImpresionRow[]; sinChofer: PlanillaEquipoLibre[] }
+  | { error: string }
+> {
   await requireArea("viajes", "read");
   if (!ISO.test(fecha)) return { error: "Fecha inválida." };
 
@@ -296,7 +333,7 @@ export async function getPlanillaImpresionAction(
   const [choferesRes, camionesRes, asignacionesRes, vinculosRes, acopladosRes] = await Promise.all([
     supabase
       .from("choferes")
-      .select("id, nombre, apellido, cuil, telefono, localidad")
+      .select("id, nombre, apellido, cuil, localidad")
       .eq("estado", "activo")
       // Solo choferes (no administración, mantenimiento ni fleteros).
       .or("rol.is.null,rol.eq.chofer")
@@ -353,6 +390,9 @@ export async function getPlanillaImpresionAction(
   // camión habitual. Para una fecha pasada imprimimos exactamente lo que se guardó.
   const esHoy = fecha === hoyArgentina();
 
+  /** Camiones que quedaron con alguien: lo que sobra son los equipos parados. */
+  const asignados = new Set<string>();
+
   const rows: PlanillaImpresionRow[] = (choferesRes.data ?? []).map((c) => {
     // Ojo: `has` y no `??`, porque una fila con camion_id null significa "ese día
     // no manejó" y no debe caer al camión habitual.
@@ -361,17 +401,25 @@ export async function getPlanillaImpresionAction(
       : esHoy
         ? habitualPorChofer.get(c.id) ?? null
         : null;
+    if (camionId) asignados.add(camionId);
     return {
       nombre: `${c.apellido} ${c.nombre}`.trim(),
       cuil: c.cuil ?? "",
       tractor: camionId ? patentePorCamion.get(camionId) ?? "" : "",
       acoplado: camionId ? acopladoPorCamion.get(camionId) ?? "" : "",
-      telefono: c.telefono ?? "",
       localidad: c.localidad ?? "",
     };
   });
 
-  return { fecha, rows };
+  // Equipos que quedan sin chofer (pedido de Nico, 31/08): con la hoja en la mano
+  // hay que saber qué unidades quedaron paradas, y eso en la lista de choferes no
+  // se ve — un camión sin nadie simplemente no aparece.
+  const sinChofer: PlanillaEquipoLibre[] = (camionesRes.data ?? [])
+    .filter((c) => !asignados.has(c.id))
+    .map((c) => ({ tractor: c.patente, acoplado: acopladoPorCamion.get(c.id) ?? "" }))
+    .sort((a, b) => a.tractor.localeCompare(b.tractor, "es"));
+
+  return { fecha, rows, sinChofer };
 }
 
 const guardarSchema = z.object({

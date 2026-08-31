@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ves-que-equipos-quedan-sin-chofer",
+    fecha: "2026-08-31",
+    tipo: "mejora",
+    ver: "viajes_planilla",
+    titulo: "Ves qué equipos quedan sin chofer",
+    detalle: "Al pie de la planilla diaria, y también en la hoja que se imprime, ahora figuran las unidades que no le quedaron a nadie, con su semi enganchado. La hoja además dejó de traer la columna de teléfono y el resto de los datos se ve más grande.",
+    href: "/viajes/planilla-diaria",
+  },
+  {
     id: "ahora-podes-cargar-cuanto-pagaste-de-cada",
     fecha: "2026-08-28",
     tipo: "nuevo",

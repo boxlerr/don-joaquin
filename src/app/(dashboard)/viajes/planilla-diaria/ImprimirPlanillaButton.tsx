@@ -15,8 +15,11 @@ function fmtFecha(iso: string): string {
 
 /**
  * Abre una ventana con la hoja de asignación en el formato de la fotocopia que
- * usan a mano (tabla con bordes: chofer, CUIL, tractor, semi/acop, teléfono,
- * localidad) y dispara la impresión.
+ * usan a mano (tabla con bordes: chofer, CUIL, tractor, semi/acop, localidad) y
+ * dispara la impresión. Al pie van los equipos que quedaron sin chofer.
+ *
+ * El teléfono se sacó a pedido de Nico (31/08): venía de la fotocopia original y
+ * en la hoja del día no lo usa nadie.
  */
 export default function ImprimirPlanillaButton({ fecha }: { fecha: string }) {
   const [loading, setLoading] = useState(false);
@@ -40,11 +43,33 @@ export default function ImprimirPlanillaButton({ fecha }: { fecha: string }) {
         <td class="m">${esc(r.cuil)}</td>
         <td class="m">${esc(r.tractor)}</td>
         <td class="m">${esc(r.acoplado)}</td>
-        <td class="m">${esc(r.telefono)}</td>
         <td>${esc(r.localidad)}</td>
       </tr>`,
       )
       .join("");
+
+    // Los equipos que quedaron parados. Van al pie y en su propia tabla: es la
+    // pregunta que se hace al mirar la hoja ("¿qué unidad queda libre hoy?") y en
+    // la lista de choferes no se puede leer, porque un camión sin nadie no aparece.
+    const libres = res.sinChofer
+      .map(
+        (e, i) => `<tr>
+        <td class="c">${i + 1}</td>
+        <td class="m">${esc(e.tractor)}</td>
+        <td class="m">${esc(e.acoplado)}</td>
+      </tr>`,
+      )
+      .join("");
+
+    const bloqueLibres = res.sinChofer.length
+      ? `<div class="libres">
+          <h2>Equipos sin chofer asignado (${res.sinChofer.length})</h2>
+          <table class="chica">
+            <thead><tr><th>#</th><th>Tractor / Chasis</th><th>Semi / Acop.</th></tr></thead>
+            <tbody>${libres}</tbody>
+          </table>
+        </div>`
+      : `<p class="nota">Todos los equipos quedaron con chofer asignado.</p>`;
 
     const html = `<!doctype html><html lang="es"><head><meta charset="utf-8" />
       <title>Hoja de asignación ${fmtFecha(fecha)}</title>
@@ -55,11 +80,17 @@ export default function ImprimirPlanillaButton({ fecha }: { fecha: string }) {
         h1 { font-size: 14px; text-align: center; margin: 0 0 2px; letter-spacing: .3px; }
         .sub { font-size: 11px; text-align: center; margin: 0 0 8px; }
         table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #000; padding: 2px 5px; font-size: 10px; line-height: 1.2; }
+        /* 11px: al sacar el teléfono sobró ancho y Nico lo pidió para que el
+           resto de los datos se lea más grande. */
+        th, td { border: 1px solid #000; padding: 3px 5px; font-size: 11px; line-height: 1.2; }
         th { background: #e3e3e3; font-weight: bold; text-transform: uppercase; }
         td.c { text-align: center; width: 26px; }
         td.m { font-family: "Courier New", monospace; white-space: nowrap; }
         tr:nth-child(even) td { background: #f6f6f6; }
+        .libres { margin-top: 10px; page-break-inside: avoid; }
+        .libres h2 { font-size: 12px; text-transform: uppercase; margin: 0 0 3px; letter-spacing: .3px; }
+        .libres table.chica { width: auto; min-width: 45%; }
+        p.nota { font-size: 11px; margin: 10px 0 0; }
         @media print {
           th, tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
@@ -70,10 +101,11 @@ export default function ImprimirPlanillaButton({ fecha }: { fecha: string }) {
         <table>
           <thead><tr>
             <th>#</th><th>Chofer</th><th>CUIL</th><th>Tractor / Chasis</th>
-            <th>Semi / Acop.</th><th>N° Teléfono</th><th>Localidad</th>
+            <th>Semi / Acop.</th><th>Localidad</th>
           </tr></thead>
           <tbody>${filas}</tbody>
         </table>
+        ${bloqueLibres}
       </body></html>`;
 
     const w = window.open("", "_blank", "width=980,height=720");

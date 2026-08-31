@@ -235,6 +235,19 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     return m;
   }, [filas]);
 
+  // Unidades activas que no le quedaron a nadie (pedido de Nico, 31/08). En la
+  // grilla no se pueden ver: lista choferes, y un camión sin chofer no tiene fila
+  // donde aparecer. Se recalcula con cada cambio del selector, así que mientras se
+  // arma la planilla dice qué queda parado.
+  const equiposSinChofer = useMemo(
+    () => data.camiones.filter((c) => c.activo && !ocupadoPor.has(c.id)),
+    [data.camiones, ocupadoPor],
+  );
+  const cantidadActivos = useMemo(
+    () => data.camiones.filter((c) => c.activo).length,
+    [data.camiones],
+  );
+
   // Opciones del selector de UNA fila: verde = libre · ámbar = ocupado por otro
   // chofer ese día (mostrando su apellido).
   const opcionesCamion = (f: Fila): ComboboxOption[] =>
@@ -795,6 +808,48 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           </table>
         </div>
       </div>
+
+      {/* Equipos sin chofer — al pie de la grilla, que es donde se termina de
+          armar el día: "¿qué unidad queda libre?" es la pregunta siguiente. */}
+      <section
+        aria-labelledby="equipos-sin-chofer"
+        className="bg-card border border-border rounded-[8px] px-4 py-3"
+      >
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <h2
+            id="equipos-sin-chofer"
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
+            Equipos sin chofer
+          </h2>
+          <span className="text-xs text-muted-foreground/70">
+            {equiposSinChofer.length > 0 ? (
+              <>
+                <strong className="font-semibold text-foreground">
+                  {equiposSinChofer.length}
+                </strong>{" "}
+                de {cantidadActivos} unidades activas {editable ? "quedan" : "quedaron"} sin
+                chofer {editable ? "hoy" : "ese día"}
+              </>
+            ) : (
+              <>Las {cantidadActivos} unidades activas tienen chofer asignado.</>
+            )}
+          </span>
+        </div>
+
+        {equiposSinChofer.length > 0 && (
+          <ul className="mt-2 grid gap-x-6 gap-y-1 max-h-48 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(170px,1fr))]">
+            {equiposSinChofer.map((c) => (
+              <li key={c.id} className="flex items-baseline gap-2 text-xs">
+                <span className="font-mono font-semibold text-foreground">{c.label}</span>
+                <span className="text-muted-foreground/70 truncate">
+                  {c.acoplado ? `· ${c.acoplado}` : "· sin semi"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Feedback */}
       {resultado && (

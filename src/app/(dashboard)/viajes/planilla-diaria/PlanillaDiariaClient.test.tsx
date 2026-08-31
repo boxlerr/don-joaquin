@@ -20,9 +20,9 @@ vi.mock("./CambiosDrawer", () => ({
 }));
 
 const CAMIONES = [
-  { id: "cam-a", label: "AD916TF" },
-  { id: "cam-b", label: "AE601GF" },
-  { id: "cam-c", label: "AF696CW" },
+  { id: "cam-a", label: "AD916TF", activo: true, acoplado: "AA373XW" },
+  { id: "cam-b", label: "AE601GF", activo: true, acoplado: null },
+  { id: "cam-c", label: "AF696CW", activo: true, acoplado: "AE084UG" },
 ];
 
 /** Planilla de una fecha pasada (historial, solo lectura). */
@@ -172,6 +172,48 @@ describe("PlanillaDiariaClient · choferes sin camión", () => {
     render(<PlanillaDiariaClient data={hoy()} />);
 
     expect(screen.queryByText(/sin camión asignado\./)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlanillaDiariaClient · equipos sin chofer", () => {
+  const bloque = () =>
+    within(screen.getByRole("region", { name: "Equipos sin chofer" }));
+
+  it("nombra la unidad que no le quedó a nadie, con su semi", () => {
+    // Pedido de Nico (31/08): en la grilla —que lista choferes— un camión sin
+    // chofer no tiene fila donde aparecer.
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    // cam-a no está asignado a ninguno de los dos choferes.
+    expect(bloque().getByText("AD916TF")).toBeInTheDocument();
+    expect(bloque().getByText("· AA373XW")).toBeInTheDocument();
+    // Las que sí tienen chofer no se listan.
+    expect(bloque().queryByText("AE601GF")).not.toBeInTheDocument();
+  });
+
+  it("avisa cuando la unidad libre no tiene semi enganchado", () => {
+    const data = { ...hoy(), camiones: CAMIONES.filter((c) => c.id !== "cam-a") };
+    // Bustos deja cam-b libre.
+    data.choferes = data.choferes.map((c) =>
+      c.chofer_id === "ch-1" ? { ...c, camion_asignado_id: null } : c,
+    );
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(bloque().getByText("AE601GF")).toBeInTheDocument();
+    expect(bloque().getByText("· sin semi")).toBeInTheDocument();
+  });
+
+  it("no cuenta las unidades dadas de baja", () => {
+    // En el historial se listan también los camiones de baja, para poder mostrar
+    // la patente de lo que se manejó ese día. Esos no son equipos disponibles.
+    const data = {
+      ...hoy(),
+      camiones: CAMIONES.map((c) => (c.id === "cam-a" ? { ...c, activo: false } : c)),
+    };
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(bloque().queryByText("AD916TF")).not.toBeInTheDocument();
+    expect(bloque().getByText(/tienen chofer asignado/)).toBeInTheDocument();
   });
 });
 
