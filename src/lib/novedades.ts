@@ -90,6 +90,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-cambio-de-semi-queda-anotado-igual-que",
+    fecha: "2026-09-01",
+    tipo: "mejora",
+    ver: "viajes_planilla",
+    titulo: "El cambio de semi queda anotado igual que el del camión",
+    detalle: "Antes se marcaba mientras lo estabas cambiando y al guardar no quedaba rastro. Ahora la columna Cambio lo dice —\"semi AF031FE → AF112OM\"— y sigue ahí cuando volvés a abrir la planilla, también en una fecha pasada.",
+    href: "/viajes/planilla-diaria",
+  },
+  {
+    id: "cambios-de-camion-ahora-se-llama-cambios-de",
+    fecha: "2026-09-01",
+    tipo: "mejora",
+    ver: "viajes_planilla",
+    titulo: "\"Cambios de camión\" ahora se llama \"Cambios de unidad\" y lista los semis",
+    detalle: "Los días en que sólo se cambió el acoplado aparecían vacíos. Ahora cada cambio de semi figura con el camión y el chofer que lo lleva.",
+    href: "/viajes/planilla-diaria",
+  },
+  {
     id: "el-formulario-931-avisa-lo-que-falta-enviar",
     fecha: "2026-09-01",
     tipo: "arreglo",

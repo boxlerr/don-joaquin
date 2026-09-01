@@ -56,6 +56,8 @@ function historial(
       // Bustos está en cam-b, que no lleva semi.
       acoplado_id: null,
       acoplado_patente: null,
+      acoplado_previo_id: null,
+      acoplado_previo_patente: null,
       observaciones: null,
     },
     {
@@ -70,6 +72,9 @@ function historial(
       camion_previo_patente: "AF696CW",
       acoplado_id: "ac-cam-c",
       acoplado_patente: "AE084UG",
+      // Sin cambio de semi ese día: el previo es el mismo.
+      acoplado_previo_id: "ac-cam-c",
+      acoplado_previo_patente: "AE084UG",
       observaciones: null,
     },
   ];
@@ -288,8 +293,41 @@ describe("PlanillaDiariaClient · semi / acoplado", () => {
     fireEvent.click(within(fila).getByText("AE601GF"));
     fireEvent.click(screen.getByRole("option", { name: /AD916TF/ }));
 
-    // cam-a lleva AA373XW: ese es el que tiene que aparecer.
-    expect(within(filaDe("Bustos")).getByText("AA373XW")).toBeInTheDocument();
+    // cam-a lleva AA373XW: ese es el que tiene que aparecer EN EL SELECTOR.
+    // (En la columna Cambio tambien figura, por eso se mira el combobox.)
+    const selectores = within(filaDe("Bustos")).getAllByRole("combobox");
+    expect(selectores[1].textContent).toContain("AA373XW");
+  });
+
+  it("el cambio de semi queda a la vista DESPUES de guardar, en la columna Cambio", () => {
+    // El agujero que encontró Julián (01/09): el cambio de semi se marcaba sólo
+    // mientras estaba sin guardar. Al guardar desaparecía y en la planilla no
+    // quedaba rastro, mientras que el de camión sí se veía. El "antes" ahora
+    // sale del historial de enganches, igual que el del camión.
+    const data = hoy([
+      {},
+      { acoplado_id: "ac-cam-a", acoplado_patente: "AA373XW" },
+    ]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    // Acosta seguía en cam-c pero le cambiaron el semi: AE084UG -> AA373XW.
+    const fila = filaDe("Acosta");
+    expect(within(fila).getByTitle("Cambió el semi de AE084UG a AA373XW")).toBeInTheDocument();
+  });
+
+  it("marca el semi que se sacó, cuando la unidad quedó sin acoplado", () => {
+    const data = hoy([{}, { acoplado_id: null, acoplado_patente: null }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(
+      within(filaDe("Acosta")).getByTitle("Cambió el semi de AE084UG a sin semi"),
+    ).toBeInTheDocument();
+  });
+
+  it("no inventa un cambio de semi cuando ese día no se movió nada", () => {
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    expect(within(filaDe("Acosta")).getByText("—")).toBeInTheDocument();
   });
 
   it("avisa cuál semi quedó enganchado a dos camiones", () => {

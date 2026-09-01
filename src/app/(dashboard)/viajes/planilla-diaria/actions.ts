@@ -46,6 +46,12 @@ export type PlanillaChofer = {
    *  no con la persona: cambiarlo acá cambia el enganche del camión. */
   acoplado_id: string | null;
   acoplado_patente: string | null;
+  /** Semi que llevaba ANTES del cambio registrado en esa fecha. Si no hubo
+   *  cambio ese día es el mismo que `acoplado_id`. Sale del propio historial de
+   *  `camion_acoplados` (la fila que se cerró ese día), así que el cambio se
+   *  sigue viendo después de guardar y también en una fecha pasada. */
+  acoplado_previo_id: string | null;
+  acoplado_previo_patente: string | null;
   observaciones: string | null;
 };
 
@@ -114,7 +120,15 @@ export async function getPlanillaDiariaData(
   const editable = fecha === hoy;
 
   const supabase = createAdminClient();
-  const [choferesRes, camionesRes, asignacionesRes, fechasRes, vinculosRes, acopladosRes] = await Promise.all([
+  const [
+    choferesRes,
+    camionesRes,
+    asignacionesRes,
+    fechasRes,
+    vinculosRes,
+    acopladosRes,
+    cerradosRes,
+  ] = await Promise.all([
     supabase
       .from("choferes")
       .select("id, nombre, apellido")
@@ -149,6 +163,8 @@ export async function getPlanillaDiariaData(
       ? engancheVigentePorCamion(supabase)
       : engancheEnFechaPorCamion(supabase, fecha),
     supabase.from("acoplados").select("id, patente, estado").order("patente"),
+    // Enganches que se cerraron ESE día: es el "antes" de cada cambio de semi.
+    supabase.from("camion_acoplados").select("camion_id, acoplado_id").eq("hasta", fecha),
   ]);
 
   if (choferesRes.error || camionesRes.error) {
@@ -169,6 +185,13 @@ export async function getPlanillaDiariaData(
   const acopladoIdPorCamion = vinculosRes;
   const camionPorAcoplado = new Map<string, string>();
   const acopladoPorCamion = new Map<string, string>();
+  // Lo que llevaba cada camión antes del cambio de ese día.
+  const acopladoPrevioPorCamion = new Map<string, string>();
+  for (const c of cerradosRes.data ?? []) {
+    if (!acopladoPrevioPorCamion.has(c.camion_id)) {
+      acopladoPrevioPorCamion.set(c.camion_id, c.acoplado_id);
+    }
+  }
   for (const [camionId, acopladoId] of acopladoIdPorCamion) {
     camionPorAcoplado.set(acopladoId, camionId);
     const pat = patenteAcoplado.get(acopladoId);
@@ -261,6 +284,10 @@ export async function getPlanillaDiariaData(
       : previoSnapshotAnterior.get(c.id) ?? asignado;
 
     const acopladoId = asignado ? acopladoIdPorCamion.get(asignado) ?? null : null;
+    // Sin fila cerrada ese día, el previo es el propio asignado: no hubo cambio.
+    const acopladoPrevio = asignado
+      ? acopladoPrevioPorCamion.get(asignado) ?? acopladoId
+      : acopladoId;
 
     return {
       chofer_id: c.id,
@@ -273,6 +300,10 @@ export async function getPlanillaDiariaData(
       camion_previo_patente: previo ? patentePorCamion.get(previo) ?? null : null,
       acoplado_id: acopladoId,
       acoplado_patente: acopladoId ? patenteAcoplado.get(acopladoId) ?? null : null,
+      acoplado_previo_id: acopladoPrevio,
+      acoplado_previo_patente: acopladoPrevio
+        ? patenteAcoplado.get(acopladoPrevio) ?? null
+        : null,
       observaciones: asig?.observaciones ?? null,
     };
   });
@@ -684,6 +715,8 @@ export async function guardarPlanillaDiariaAction(
 export type PlanillaCambioRow = {
   id: string;
   fecha: string;
+  /** Qué se movió ese día: la unidad o el semi que lleva enganchado. */
+  que: "camion" | "semi";
   chofer_nombre: string;
   /** Patente que tenía antes (null = no tenía camión asignado). */
   patente_anterior: string | null;
@@ -696,9 +729,14 @@ export type PlanillaCambioRow = {
 };
 
 /**
- * Todos los cambios de camión registrados en las planillas, del más nuevo al más
- * viejo. Alimenta el panel "Cambios de unidad" del historial: solo trae las filas
- * marcadas como cambio, no la planilla entera.
+ * Todos los cambios de unidad registrados, del más nuevo al más viejo. Alimenta
+ * el panel del historial.
+ *
+ * Son dos fuentes: el cambio de CAMIÓN sale de `asignacion_diaria` (las filas
+ * marcadas como cambio) y el del SEMI, de `camion_acoplados` (cada fila que se
+ * cerró es un enganche que terminó ese día). Sin la segunda, el panel decía que
+ * no había pasado nada los días en que sólo se movió el acoplado — que es
+ * justamente el caso que Nico describió: "a veces cambian solo el acoplado".
  */
 export async function getPlanillaCambiosHistorialAction(): Promise<
   PlanillaCambioRow[] | { error: string }
@@ -732,13 +770,14 @@ export async function getPlanillaCambiosHistorialAction(): Promise<
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).map((row: any) => {
+  const cambiosCamion: PlanillaCambioRow[] = (data ?? []).map((row: any) => {
     const chofer = row.choferes;
     const editor = row.usuarios;
 
     return {
       id: row.id,
       fecha: row.fecha,
+      que: "camion" as const,
       chofer_nombre: chofer
         ? [chofer.apellido, chofer.nombre].filter(Boolean).join(", ").trim()
         : "Desconocido",
@@ -752,4 +791,66 @@ export async function getPlanillaCambiosHistorialAction(): Promise<
       created_at: row.created_at,
     };
   });
+
+  // ── Cambios de semi. Cada fila cerrada es "este camión dejó de llevar este
+  //    acoplado ese día"; el que pasó a llevar sale de la fila abierta desde
+  //    esa misma fecha.
+  const [{ data: cerrados }, { data: abiertos }, { data: camiones }, { data: acoplados }] =
+    await Promise.all([
+      supabase
+        .from("camion_acoplados")
+        .select("id, camion_id, acoplado_id, hasta")
+        .not("hasta", "is", null)
+        .order("hasta", { ascending: false })
+        .limit(300),
+      supabase.from("camion_acoplados").select("camion_id, acoplado_id, desde").is("hasta", null),
+      supabase.from("camiones").select("id, patente, chofer_actual_id"),
+      supabase.from("acoplados").select("id, patente"),
+    ]);
+
+  const patenteCamion = new Map((camiones ?? []).map((c) => [c.id, c.patente]));
+  const patenteAcoplado = new Map((acoplados ?? []).map((a) => [a.id, a.patente]));
+
+  const { data: choferes } = await supabase.from("choferes").select("id, nombre, apellido");
+  const nombreChofer = new Map(
+    (choferes ?? []).map((c) => [c.id, `${c.apellido ?? ""}, ${c.nombre ?? ""}`.trim()]),
+  );
+  const choferDeCamion = new Map<string, string>();
+  for (const c of camiones ?? []) {
+    const chid = (c as { chofer_actual_id?: string | null }).chofer_actual_id;
+    if (chid) choferDeCamion.set(c.id, chid);
+  }
+
+  /** Qué acoplado pasó a llevar ese camión ese día (si es que pasó a llevar uno). */
+  const nuevoDeCamionEnFecha = new Map<string, string>();
+  for (const a of (abiertos ?? []) as { camion_id: string; acoplado_id: string; desde: string }[]) {
+    nuevoDeCamionEnFecha.set(`${a.camion_id}|${a.desde}`, a.acoplado_id);
+  }
+
+  const cambiosSemi: PlanillaCambioRow[] = (
+    (cerrados ?? []) as { id: string; camion_id: string; acoplado_id: string; hasta: string }[]
+  ).map((c) => {
+    const nuevo = nuevoDeCamionEnFecha.get(`${c.camion_id}|${c.hasta}`) ?? null;
+    const choferId = choferDeCamion.get(c.camion_id);
+    const patente = patenteCamion.get(c.camion_id) ?? "";
+    return {
+      id: `semi-${c.id}`,
+      fecha: c.hasta,
+      que: "semi" as const,
+      // El semi va con la unidad: se nombra el camión y, si hoy tiene chofer, quién.
+      chofer_nombre: choferId
+        ? `${patente} — ${nombreChofer.get(choferId) ?? ""}`.trim()
+        : patente || "Sin camión",
+      patente_anterior: patenteAcoplado.get(c.acoplado_id) ?? null,
+      patente_nueva: nuevo ? patenteAcoplado.get(nuevo) ?? null : null,
+      observaciones: null,
+      editor_nombre: null,
+      editor_email: null,
+      created_at: c.hasta,
+    };
+  });
+
+  return [...cambiosCamion, ...cambiosSemi].sort((a, b) =>
+    a.fecha === b.fecha ? b.created_at.localeCompare(a.created_at) : b.fecha.localeCompare(a.fecha),
+  );
 }

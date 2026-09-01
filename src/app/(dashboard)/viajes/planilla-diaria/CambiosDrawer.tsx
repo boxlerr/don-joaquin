@@ -14,8 +14,9 @@ function fmtFecha(iso: string): string {
 }
 
 /**
- * Todos los cambios de camión de todas las planillas, del más nuevo al más viejo.
- * Complementa la columna "Cambio" de la grilla, que muestra solo los del día visto.
+ * Todos los cambios de unidad de todas las planillas, del más nuevo al más viejo:
+ * los de camión y los de semi. Complementa la columna "Cambio" de la grilla, que
+ * muestra solo los del día visto.
  */
 export default function CambiosDrawer({
   open,
@@ -91,13 +92,13 @@ export default function CambiosDrawer({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Cambios de camión"
+        aria-label="Cambios de unidad"
         className="fixed top-0 right-0 h-full w-[460px] max-w-[92vw] bg-card shadow-2xl z-[60] flex flex-col animate-in slide-in-from-right duration-200"
       >
         <div className="bg-gradient-to-r from-[#0088D1] to-[#0077B6] text-white px-4 sm:px-6 py-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Repeat2 size={16} />
-            <h2 className="text-base font-bold truncate">Cambios de camión</h2>
+            <h2 className="text-base font-bold truncate">Cambios de unidad</h2>
           </div>
           <button
             ref={cerrarRef}
@@ -123,7 +124,7 @@ export default function CambiosDrawer({
               <History size={32} className="mx-auto text-[#CBD5E1] mb-3" />
               <p className="text-sm">Todavía no hay cambios registrados</p>
               <p className="text-xs mt-1 text-muted-foreground/70">
-                Cuando alguien cambie de camión en la planilla, va a aparecer acá
+                Cuando alguien cambie de camión o de semi en la planilla, va a aparecer acá
               </p>
             </div>
           ) : (
@@ -148,14 +149,21 @@ export default function CambiosDrawer({
                     key={r.id}
                     className="border border-border rounded-lg p-3 hover:border-[#CBD5E1] transition-colors"
                   >
-                    <p className="text-sm font-medium text-foreground">{r.chofer_nombre}</p>
+                    <p className="flex flex-wrap items-center gap-x-2 text-sm font-medium text-foreground">
+                      {r.chofer_nombre}
+                      {r.que === "semi" && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                          semi
+                        </span>
+                      )}
+                    </p>
                     <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold">
                       <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                        {r.patente_anterior ?? "Sin camión"}
+                        {r.patente_anterior ?? (r.que === "semi" ? "Sin semi" : "Sin camión")}
                       </span>
                       <ArrowRight size={11} className="text-muted-foreground/70 shrink-0" />
                       <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                        {r.patente_nueva ?? "Sin camión"}
+                        {r.patente_nueva ?? (r.que === "semi" ? "Sin semi" : "Sin camión")}
                       </span>
                     </div>
                     {r.observaciones && (

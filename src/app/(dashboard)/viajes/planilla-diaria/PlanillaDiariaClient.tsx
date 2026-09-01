@@ -43,8 +43,11 @@ type Fila = {
   camion_previo_patente: string | null;
   /** Semi enganchado al camión de la fila. "" = sin acoplado. */
   acoplado_id: string;
-  /** El que traía al abrir, para marcar el cambio. "" = ninguno. */
+  /** El que llevaba ANTES del cambio de esa fecha. "" = ninguno. Igual que con
+   *  el camión, sale del servidor: por eso el cambio se sigue viendo después de
+   *  guardar y no sólo mientras está sin guardar. */
   acoplado_previo_id: string;
+  acoplado_previo_patente: string | null;
   observaciones: string;
 };
 
@@ -65,7 +68,8 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
     camion_previo_id: c.camion_previo_id ?? "",
     camion_previo_patente: c.camion_previo_patente,
     acoplado_id: c.acoplado_id ?? "",
-    acoplado_previo_id: c.acoplado_id ?? "",
+    acoplado_previo_id: c.acoplado_previo_id ?? "",
+    acoplado_previo_patente: c.acoplado_previo_patente,
     observaciones: c.observaciones ?? "",
   }));
 }
@@ -102,19 +106,36 @@ function normalizarBorradorPlanilla(crudo: unknown): BorradorPlanilla | null {
   return Object.keys(out).length ? out : null;
 }
 
-/** "AD916TF → AE331SH": de qué unidad a cuál pasó el chofer. */
-function CambioCamion({ antes, ahora }: { antes: string | null; ahora: string | null }) {
+/** "AD916TF → AE331SH": de qué unidad a cuál pasó. Con `etiqueta` sirve también
+ *  para el semi, que cambia por su cuenta ("a veces cambian solo el acoplado"). */
+function CambioCamion({
+  antes,
+  ahora,
+  etiqueta,
+}: {
+  antes: string | null;
+  ahora: string | null;
+  etiqueta?: string;
+}) {
+  const vacio = etiqueta ? "Sin semi" : "Sin camión";
+  // El título va en minúscula ("a sin camión") porque se lee como frase.
+  const enFrase = vacio.toLowerCase();
   return (
     <span
-      title={`Cambió de ${antes ?? "sin camión"} a ${ahora ?? "sin camión"}`}
+      title={`Cambió ${etiqueta ? "el semi " : ""}de ${antes ?? enFrase} a ${ahora ?? enFrase}`}
       className="inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] font-semibold"
     >
+      {etiqueta && (
+        <span className="font-normal uppercase tracking-wide text-[10px] text-muted-foreground/70">
+          {etiqueta}
+        </span>
+      )}
       <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-        {antes ?? "Sin camión"}
+        {antes ?? vacio}
       </span>
       <ArrowRight size={11} className="text-muted-foreground/70 shrink-0" />
       <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-        {ahora ?? "Sin camión"}
+        {ahora ?? vacio}
       </span>
     </span>
   );
@@ -589,10 +610,10 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
             size="sm"
             onClick={() => setCambiosOpen(true)}
             className="gap-1.5 h-9 text-xs"
-            title="Ver todos los cambios de camión registrados"
+            title="Ver todos los cambios de camión y de semi registrados"
           >
             <Repeat2 size={13} />
-            Cambios de camión
+            Cambios de unidad
           </Button>
         </div>
 
@@ -955,18 +976,6 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                             invalid={acopladoDuplicado}
                             triggerClassName="h-9 sm:h-8 w-44 text-xs"
                           />
-                          {cambioAcoplado && !acopladoDuplicado && (
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 whitespace-nowrap">
-                              Cambió
-                              {f.acoplado_previo_id && (
-                                <span className="font-medium normal-case tracking-normal text-muted-foreground/60">
-                                  {" "}
-                                  (traía{" "}
-                                  {patenteAcoplado.get(f.acoplado_previo_id) ?? "otro"})
-                                </span>
-                              )}
-                            </span>
-                          )}
                           {acopladoDuplicado && (
                             <span title="Semi enganchado a otro camión en esta planilla">
                               <AlertTriangle size={14} className="text-red-500" />
@@ -978,19 +987,43 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                       )}
                     </td>
 
-                    {/* Cambio de unidad: de qué camión venía y a cuál pasó */}
+                    {/* Qué cambió ese día en esta fila: la unidad, el semi, o las
+                        dos. El semi se marca acá y no sólo mientras está sin
+                        guardar — que era el agujero: se guardaba y no quedaba
+                        rastro en la planilla. */}
                     <td className="px-3 py-1.5">
-                      {cambio ? (
-                        <CambioCamion
-                          antes={
-                            f.camion_previo_id
-                              ? f.camion_previo_patente ??
-                                patentePorCamion.get(f.camion_previo_id) ??
-                                null
-                              : null
-                          }
-                          ahora={f.camion_id ? patentePorCamion.get(f.camion_id) ?? null : null}
-                        />
+                      {cambio || cambioAcoplado ? (
+                        <div className="flex flex-col gap-1">
+                          {cambio && (
+                            <CambioCamion
+                              antes={
+                                f.camion_previo_id
+                                  ? f.camion_previo_patente ??
+                                    patentePorCamion.get(f.camion_previo_id) ??
+                                    null
+                                  : null
+                              }
+                              ahora={
+                                f.camion_id ? patentePorCamion.get(f.camion_id) ?? null : null
+                              }
+                            />
+                          )}
+                          {cambioAcoplado && (
+                            <CambioCamion
+                              etiqueta="semi"
+                              antes={
+                                f.acoplado_previo_id
+                                  ? f.acoplado_previo_patente ??
+                                    patenteAcoplado.get(f.acoplado_previo_id) ??
+                                    null
+                                  : null
+                              }
+                              ahora={
+                                f.acoplado_id ? patenteAcoplado.get(f.acoplado_id) ?? null : null
+                              }
+                            />
+                          )}
+                        </div>
                       ) : (
                         <span className="text-[11px] text-muted-foreground/40">—</span>
                       )}
