@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, Loader2, Plus } from "lucide-react";
+import { Upload, Loader2, Plus, Camera } from "lucide-react";
 import AdjuntosInline from "./AdjuntosInline";
 import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
 import type { AdjuntoExistente, ArchivoMeta, CrearUrlResult } from "@/lib/adjuntos-server";
@@ -23,6 +23,7 @@ export default function AdjuntosEditable({
   canEdit = true,
   addLabel = "Agregar archivos",
   emptyHint,
+  permitirFoto = false,
 }: {
   entidadId: string;
   getArchivos: (id: string) => Promise<AdjuntoExistente[]>;
@@ -35,11 +36,17 @@ export default function AdjuntosEditable({
   canEdit?: boolean;
   addLabel?: string;
   emptyHint?: string;
+  /** Muestra además "Sacar foto" (abre la cámara del teléfono). Para papeles que
+   *  llegan en mano: un CV, un carnet, un remito. */
+  permitirFoto?: boolean;
 }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [subiendo, setSubiendo] = useState<{ idx: number; total: number; pct: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Input aparte para la cámara: `capture` en el input general le sacaría al
+  // teléfono la opción de elegir un archivo ya guardado.
+  const camaraRef = useRef<HTMLInputElement>(null);
 
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -83,6 +90,7 @@ export default function AdjuntosEditable({
     } finally {
       setSubiendo(null);
       if (fileRef.current) fileRef.current.value = "";
+      if (camaraRef.current) camaraRef.current.value = "";
     }
   };
 
@@ -106,6 +114,20 @@ export default function AdjuntosEditable({
             className="hidden"
             onChange={(e) => onFiles(e.target.files)}
           />
+          {permitirFoto && (
+            <input
+              ref={camaraRef}
+              type="file"
+              // `capture="environment"` abre directo la cámara trasera. Sin esto
+              // el teléfono muestra un menú y hay que elegir "Sacar foto" ahí,
+              // que es justo el paso que sobraba: "el CV lo quiero subir
+              // sacándole una foto desde el celu y ya" (Bárbara, 01/09/26).
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => onFiles(e.target.files)}
+            />
+          )}
           {subiendo ? (
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[11px] text-muted-foreground">
@@ -119,15 +141,29 @@ export default function AdjuntosEditable({
               </div>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0088D1] hover:text-[#0277BD] hover:underline"
-            >
-              <Plus size={13} />
-              <Upload size={12} />
-              {addLabel}
-            </button>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0088D1] hover:text-[#0277BD] hover:underline"
+              >
+                <Plus size={13} />
+                <Upload size={12} />
+                {addLabel}
+              </button>
+              {/* Sólo en pantallas chicas: en la compu "Sacar foto" abre la
+                  webcam, que no sirve para fotografiar un papel. */}
+              {permitirFoto && (
+                <button
+                  type="button"
+                  onClick={() => camaraRef.current?.click()}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#BAE6FD] bg-[#E1F5FE] px-2.5 text-xs font-semibold text-[#0369A1] transition-colors hover:bg-[#BAE6FD]/60 sm:hidden"
+                >
+                  <Camera size={13} />
+                  Sacar foto
+                </button>
+              )}
+            </div>
           )}
           {error && <p className="text-[11px] text-red-600">{error}</p>}
         </>

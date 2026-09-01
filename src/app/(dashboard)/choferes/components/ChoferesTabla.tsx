@@ -40,7 +40,7 @@ import { formatFecha } from "@/lib/utils";
 import { logoDeMarca } from "@/components/ui/MarcaLogo";
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { useChoferAcciones } from "./useChoferAcciones";
-import type { ChoferMotivoEgreso } from "../actions";
+import type { ChoferMotivoEgreso } from "@/domain/rotacion/motivo-egreso";
 import {
   DOCS_VACIO,
   ROL_LABEL_SINGULAR,

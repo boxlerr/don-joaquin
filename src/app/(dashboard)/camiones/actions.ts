@@ -32,6 +32,8 @@ import {
   type CellValue,
 } from "@/lib/excel/professional-sheet";
 import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
+import { hoyArgentina } from "@/lib/fecha-ar";
+import { soltarAcoplado } from "@/lib/acoplado-enganche";
 
 type CamionInsert = Database["public"]["Tables"]["camiones"]["Insert"];
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
@@ -320,6 +322,216 @@ export async function updateAcopladoAction(
 
   revalidatePath("/camiones");
   return { success: true };
+}
+
+// ============================================================================
+// Enganche camión ↔ acoplado (`camion_acoplados`)
+// ----------------------------------------------------------------------------
+// El vínculo es histórico: la fila abierta (`hasta is null`) es el enganche de
+// hoy. Un acoplado va en UN camión por vez —la base lo exige con un índice único
+// parcial— y un camión puede llevar más de uno.
+//
+// La mecánica (soltar y volver a enganchar con fecha de hoy) vive en
+// `@/lib/acoplado-enganche`, compartida con la planilla diaria.
+// ============================================================================
+
+export type EngancheAcoplado = {
+  acoplado_id: string;
+  patente: string;
+  /** Camión al que está enganchado hoy. null = suelto. */
+  camion_id: string | null;
+  camion_patente: string | null;
+  estado: string;
+};
+
+/** Todos los acoplados con el camión al que están enganchados hoy. */
+export async function getEnganchesAcopladosAction(): Promise<EngancheAcoplado[]> {
+  await requireArea("flota", "read");
+  const supabase = createAdminClient();
+
+  const [acopladosRes, vinculosRes, camionesRes] = await Promise.all([
+    supabase.from("acoplados").select("id, patente, estado").order("patente"),
+    supabase.from("camion_acoplados").select("camion_id, acoplado_id").is("hasta", null),
+    supabase.from("camiones").select("id, patente"),
+  ]);
+
+  const patentePorCamion = new Map<string, string>(
+    (camionesRes.data ?? []).map((c) => [c.id, c.patente]),
+  );
+  const camionDeAcoplado = new Map<string, string>();
+  for (const v of vinculosRes.data ?? []) {
+    if (!camionDeAcoplado.has(v.acoplado_id)) camionDeAcoplado.set(v.acoplado_id, v.camion_id);
+  }
+
+  return (acopladosRes.data ?? []).map((a) => {
+    const camionId = camionDeAcoplado.get(a.id) ?? null;
+    return {
+      acoplado_id: a.id,
+      patente: a.patente,
+      camion_id: camionId,
+      camion_patente: camionId ? patentePorCamion.get(camionId) ?? null : null,
+      estado: a.estado,
+    };
+  });
+}
+
+/**
+ * Deja al camión con exactamente estos acoplados enganchados. Los que sobran se
+ * sueltan; los que faltan se enganchan (soltándolos antes del camión en el que
+ * estuvieran, porque un acoplado no puede estar en dos a la vez).
+ */
+export async function setAcopladosDeCamionAction(
+  camionId: string,
+  acopladoIds: string[],
+): Promise<{ success: true; enganchados: number; soltados: number } | { error: string }> {
+  const user = await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const hoy = hoyArgentina();
+  const deseados = [...new Set(acopladoIds.filter(Boolean))];
+
+  const [{ data: camion }, { data: abiertasDelCamion }] = await Promise.all([
+    supabase.from("camiones").select("id, patente").eq("id", camionId).maybeSingle(),
+    supabase
+      .from("camion_acoplados")
+      .select("id, acoplado_id, desde")
+      .eq("camion_id", camionId)
+      .is("hasta", null),
+  ]);
+  if (!camion) return { error: "No se encontró el camión." };
+
+  const actuales = (abiertasDelCamion ?? []).map((v) => v.acoplado_id as string);
+  const aSoltar = actuales.filter((id) => !deseados.includes(id));
+  const aEnganchar = deseados.filter((id) => !actuales.includes(id));
+
+  if (aSoltar.length === 0 && aEnganchar.length === 0) {
+    return { success: true, enganchados: 0, soltados: 0 };
+  }
+
+  // Primero se suelta TODO lo que tenga que moverse —lo que sale de este camión
+  // y lo que viene de otro—: si no, el índice único de "un acoplado, un camión"
+  // rechaza el insert.
+  for (const id of aSoltar) await soltarAcoplado(supabase, id, hoy);
+  for (const id of aEnganchar) await soltarAcoplado(supabase, id, hoy);
+
+  if (aEnganchar.length > 0) {
+    const { error } = await supabase.from("camion_acoplados").insert(
+      aEnganchar.map((acoplado_id) => ({
+        camion_id: camionId,
+        acoplado_id,
+        desde: hoy,
+        created_by: user.id,
+      })),
+    );
+    if (error) {
+      console.error("Error al enganchar acoplados:", error);
+      return { error: "No se pudo cambiar el acoplado. Probá de nuevo." };
+    }
+  }
+
+  const { data: patentes } = await supabase
+    .from("acoplados")
+    .select("id, patente")
+    .in("id", [...aSoltar, ...aEnganchar]);
+  const patentePorAcoplado = new Map<string, string>(
+    (patentes ?? []).map((a) => [a.id, a.patente]),
+  );
+
+  await logAudit({
+    client: supabase,
+    accion: "actualizar",
+    entidadTipo: "camion_acoplados",
+    entidadId: camionId,
+    usuarioId: user.id,
+    valoresAnteriores: {
+      [camion.patente]: actuales.map((id) => patentePorAcoplado.get(id) ?? id).join(", ") || "sin acoplado",
+    },
+    valoresNuevos: {
+      [camion.patente]: deseados.map((id) => patentePorAcoplado.get(id) ?? id).join(", ") || "sin acoplado",
+    },
+    metadata: { origen: "camiones" },
+  });
+
+  revalidatePath("/camiones");
+  revalidatePath("/viajes/planilla-diaria");
+  revalidatePath("/compliance");
+  return { success: true, enganchados: aEnganchar.length, soltados: aSoltar.length };
+}
+
+/** Engancha un acoplado a un camión (o lo deja suelto con `camionId = null`). */
+export async function setCamionDeAcopladoAction(
+  acopladoId: string,
+  camionId: string | null,
+): Promise<{ success: true; camion_patente: string | null } | { error: string }> {
+  const user = await requireArea("flota", "write");
+  const supabase = createAdminClient();
+  const hoy = hoyArgentina();
+
+  const { data: acoplado } = await supabase
+    .from("acoplados")
+    .select("id, patente")
+    .eq("id", acopladoId)
+    .maybeSingle();
+  if (!acoplado) return { error: "No se encontró el acoplado." };
+
+  const { data: abierta } = await supabase
+    .from("camion_acoplados")
+    .select("id, camion_id, desde")
+    .eq("acoplado_id", acopladoId)
+    .is("hasta", null)
+    .maybeSingle();
+
+  if ((abierta?.camion_id ?? null) === camionId) {
+    const { data: c } = camionId
+      ? await supabase.from("camiones").select("patente").eq("id", camionId).maybeSingle()
+      : { data: null };
+    return { success: true, camion_patente: c?.patente ?? null };
+  }
+
+  let camionPatente: string | null = null;
+  if (camionId) {
+    const { data: camion } = await supabase
+      .from("camiones")
+      .select("id, patente")
+      .eq("id", camionId)
+      .maybeSingle();
+    if (!camion) return { error: "No se encontró el camión." };
+    camionPatente = camion.patente;
+  }
+
+  await soltarAcoplado(supabase, acopladoId, hoy);
+
+  if (camionId) {
+    const { error } = await supabase.from("camion_acoplados").insert({
+      camion_id: camionId,
+      acoplado_id: acopladoId,
+      desde: hoy,
+      created_by: user.id,
+    });
+    if (error) {
+      console.error("Error al enganchar el acoplado:", error);
+      return { error: "No se pudo cambiar el camión del acoplado. Probá de nuevo." };
+    }
+  }
+
+  const { data: camionPrevio } = abierta?.camion_id
+    ? await supabase.from("camiones").select("patente").eq("id", abierta.camion_id).maybeSingle()
+    : { data: null };
+
+  await logAudit({
+    client: supabase,
+    accion: "actualizar",
+    entidadTipo: "camion_acoplados",
+    entidadId: acopladoId,
+    usuarioId: user.id,
+    valoresAnteriores: { [acoplado.patente]: camionPrevio?.patente ?? "sin camión" },
+    valoresNuevos: { [acoplado.patente]: camionPatente ?? "sin camión" },
+    metadata: { origen: "camiones" },
+  });
+
+  revalidatePath("/camiones");
+  revalidatePath("/viajes/planilla-diaria");
+  revalidatePath("/compliance");
+  return { success: true, camion_patente: camionPatente };
 }
 
 const MANTENIMIENTO_TIPO_LABELS: Record<string, string> = {

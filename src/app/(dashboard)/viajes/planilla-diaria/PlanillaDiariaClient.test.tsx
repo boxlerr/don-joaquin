@@ -25,6 +25,19 @@ const CAMIONES = [
   { id: "cam-c", label: "AF696CW", activo: true, acoplado: "AE084UG" },
 ];
 
+/** El semi que lleva enganchado cada chasis (`camion_acoplados` vigente). Sale
+ *  de CAMIONES para que las dos listas no se contradigan: en el server salen del
+ *  mismo vínculo. Más uno suelto, que es lo que se puede enganchar. */
+const ACOPLADOS: PlanillaDiariaData["acoplados"] = [
+  ...CAMIONES.filter((c) => c.acoplado).map((c) => ({
+    id: `ac-${c.id}`,
+    label: c.acoplado as string,
+    camion_id: c.id,
+    activo: true,
+  })),
+  { id: "ac-libre", label: "AB901JW", camion_id: null, activo: true },
+];
+
 /** Planilla de una fecha pasada (historial, solo lectura). */
 function historial(
   overrides: Partial<PlanillaDiariaData["choferes"][number]>[] = [],
@@ -40,6 +53,9 @@ function historial(
       // Ese día pasó de AD916TF a AE601GF.
       camion_previo_id: "cam-a",
       camion_previo_patente: "AD916TF",
+      // Bustos está en cam-b, que no lleva semi.
+      acoplado_id: null,
+      acoplado_patente: null,
       observaciones: null,
     },
     {
@@ -52,6 +68,8 @@ function historial(
       // Sin cambio: el previo es el mismo camión.
       camion_previo_id: "cam-c",
       camion_previo_patente: "AF696CW",
+      acoplado_id: "ac-cam-c",
+      acoplado_patente: "AE084UG",
       observaciones: null,
     },
   ];
@@ -62,6 +80,7 @@ function historial(
     editable: false,
     choferes: base.map((c, i) => ({ ...c, ...(overrides[i] ?? {}) })),
     camiones: CAMIONES,
+    acoplados: ACOPLADOS,
     guardado_por: "Bárbara Joaquín",
     guardado_el: "2026-07-13T12:36:13.000Z",
     fechas_guardadas: ["2026-07-06", "2026-07-13"],
@@ -240,6 +259,64 @@ describe("PlanillaDiariaClient · camión repetido", () => {
     render(<PlanillaDiariaClient data={hoy()} />);
 
     expect(screen.queryByText(/asignado a dos choferes/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlanillaDiariaClient · semi / acoplado", () => {
+  it("muestra el semi que lleva enganchado el camión de la fila", () => {
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    // Acosta va en cam-c, que lleva AE084UG.
+    expect(within(filaDe("Acosta")).getByText("AE084UG")).toBeInTheDocument();
+  });
+
+  it("no ofrece semi cuando el chofer quedó sin camión", () => {
+    // Sin camión no hay a qué enganchar el acoplado.
+    const data = hoy([{ camion_asignado_id: null, acoplado_id: null, acoplado_patente: null }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    const fila = filaDe("Bustos");
+    expect(within(fila).queryByText("— Sin semi —")).not.toBeInTheDocument();
+  });
+
+  it("al cambiar de camión trae el semi de la unidad nueva, no el que traía", () => {
+    // Nico, 01/09: el semi va con el chasis. Si el chofer se sube a otra unidad
+    // no se lleva el acoplado de la anterior.
+    render(<PlanillaDiariaClient data={hoy()} />);
+
+    const fila = filaDe("Bustos"); // arranca en cam-b (sin semi)
+    fireEvent.click(within(fila).getByText("AE601GF"));
+    fireEvent.click(screen.getByRole("option", { name: /AD916TF/ }));
+
+    // cam-a lleva AA373XW: ese es el que tiene que aparecer.
+    expect(within(filaDe("Bustos")).getByText("AA373XW")).toBeInTheDocument();
+  });
+
+  it("avisa cuál semi quedó enganchado a dos camiones", () => {
+    // Los dos con el mismo acoplado: la base no lo permite, así que hay que
+    // decir cuál y entre quiénes antes de que falle el guardado.
+    const data = hoy([{ acoplado_id: "ac-cam-c" }, { acoplado_id: "ac-cam-c" }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    const aviso = screen.getByText("Hay un semi enganchado a dos camiones.")
+      .parentElement as HTMLElement;
+    expect(within(aviso).getByText("AE084UG").closest("li")?.textContent).toMatch(
+      /Bustos, Marcelo y Acosta, Pablo/,
+    );
+  });
+
+  it("sigue nombrando el camión cuando lo repetido es sólo un chasis", () => {
+    const data = hoy([{ camion_asignado_id: "cam-b" }, { camion_asignado_id: "cam-b" }]);
+    render(<PlanillaDiariaClient data={data} />);
+
+    expect(screen.getByText("Hay un camión asignado a dos choferes.")).toBeInTheDocument();
+  });
+
+  it("el historial es de solo lectura también para el semi", () => {
+    render(<PlanillaDiariaClient data={historial()} />);
+
+    const fila = filaDe("Acosta");
+    expect(within(fila).getByText("AE084UG").closest("button")).toBeDisabled();
   });
 });
 

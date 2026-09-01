@@ -41,6 +41,10 @@ type Fila = {
   /** Camión que tenía antes de esta planilla. "" = ninguno. */
   camion_previo_id: string;
   camion_previo_patente: string | null;
+  /** Semi enganchado al camión de la fila. "" = sin acoplado. */
+  acoplado_id: string;
+  /** El que traía al abrir, para marcar el cambio. "" = ninguno. */
+  acoplado_previo_id: string;
   observaciones: string;
 };
 
@@ -60,6 +64,8 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
     camion_id: c.camion_asignado_id ?? "",
     camion_previo_id: c.camion_previo_id ?? "",
     camion_previo_patente: c.camion_previo_patente,
+    acoplado_id: c.acoplado_id ?? "",
+    acoplado_previo_id: c.acoplado_id ?? "",
     observaciones: c.observaciones ?? "",
   }));
 }
@@ -75,7 +81,10 @@ function buildFilas(data: PlanillaDiariaData): Fila[] {
  * tocó —el mismo error que ya está documentado en la hoja de ruta—. Acá vuelve
  * sólo lo que la persona eligió: el camión del día y la observación.
  */
-type BorradorPlanilla = Record<string, { camion_id: string; observaciones: string }>;
+type BorradorPlanilla = Record<
+  string,
+  { camion_id: string; acoplado_id: string; observaciones: string }
+>;
 
 function normalizarBorradorPlanilla(crudo: unknown): BorradorPlanilla | null {
   if (!crudo || typeof crudo !== "object" || Array.isArray(crudo)) return null;
@@ -83,9 +92,10 @@ function normalizarBorradorPlanilla(crudo: unknown): BorradorPlanilla | null {
   const out: BorradorPlanilla = {};
   for (const [choferId, v] of Object.entries(crudo as Record<string, unknown>)) {
     if (!v || typeof v !== "object" || Array.isArray(v)) continue;
-    const { camion_id, observaciones } = v as Record<string, unknown>;
+    const { camion_id, acoplado_id, observaciones } = v as Record<string, unknown>;
     out[choferId] = {
       camion_id: typeof camion_id === "string" ? camion_id : "",
+      acoplado_id: typeof acoplado_id === "string" ? acoplado_id : "",
       observaciones: typeof observaciones === "string" ? observaciones : "",
     };
   }
@@ -136,6 +146,17 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     () => new Map(data.camiones.map((c) => [c.id, c.label])),
     [data.camiones],
   );
+  const patenteAcoplado = useMemo(
+    () => new Map(data.acoplados.map((a) => [a.id, a.label])),
+    [data.acoplados],
+  );
+  /** Qué semi tiene enganchado cada camión según el servidor (antes de tocar
+   *  nada). Es lo que se pone solo al cambiar de unidad. */
+  const acopladoOriginalDeCamion = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of data.acoplados) if (a.camion_id) m.set(a.camion_id, a.id);
+    return m;
+  }, [data.acoplados]);
 
   // ── Borrador: la planilla del día sobrevive a un F5 o a un corte.
   // La clave lleva la fecha: cada día es una planilla distinta y el borrador de
@@ -147,8 +168,16 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     for (const f of filas) {
       const original = filasOriginales.get(f.chofer_id);
       if (!original) continue;
-      if (f.camion_id !== original.camion_id || f.observaciones !== original.observaciones) {
-        out[f.chofer_id] = { camion_id: f.camion_id, observaciones: f.observaciones };
+      if (
+        f.camion_id !== original.camion_id ||
+        f.acoplado_id !== original.acoplado_id ||
+        f.observaciones !== original.observaciones
+      ) {
+        out[f.chofer_id] = {
+          camion_id: f.camion_id,
+          acoplado_id: f.acoplado_id,
+          observaciones: f.observaciones,
+        };
       }
     }
     return out;
@@ -248,6 +277,18 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     [data.camiones],
   );
 
+  /** Semi de un equipo que quedó sin chofer. Si alguien acaba de llevárselo a
+   *  otra unidad en esta pantalla, acá ya no aparece: la lista dice qué queda
+   *  parado y con qué, y mentiría si mostrara el semi de antes de tocar nada. */
+  const semiDeEquipo = (camionId: string): string | null => {
+    const original = acopladoOriginalDeCamion.get(camionId);
+    if (!original) return null;
+    const seLoLlevaron = filas.some(
+      (f) => f.acoplado_id === original && f.camion_id && f.camion_id !== camionId,
+    );
+    return seLoLlevaron ? null : patenteAcoplado.get(original) ?? null;
+  };
+
   // Opciones del selector de UNA fila: verde = libre · ámbar = ocupado por otro
   // chofer ese día (mostrando su apellido).
   const opcionesCamion = (f: Fila): ComboboxOption[] =>
@@ -263,6 +304,57 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         : { id: c.id, label: c.label, tone: "free" as const };
     });
 
+  // Qué chofer se quedó con cada semi — para marcar libre/ocupado en el selector.
+  const acopladoOcupadoPor = useMemo(() => {
+    const m = new Map<string, { id: string; label: string }[]>();
+    for (const f of filas) {
+      if (!f.acoplado_id) continue;
+      const arr = m.get(f.acoplado_id) ?? [];
+      arr.push({ id: f.chofer_id, label: nombreCompletoPersona(f.apellido, f.nombre) });
+      m.set(f.acoplado_id, arr);
+    }
+    return m;
+  }, [filas]);
+
+  /** Opciones del selector de semi de UNA fila. */
+  const opcionesAcoplado = (f: Fila): ComboboxOption[] =>
+    data.acoplados.map((a) => {
+      const otros = (acopladoOcupadoPor.get(a.id) ?? []).filter((o) => o.id !== f.chofer_id);
+      return otros.length
+        ? {
+            id: a.id,
+            label: a.label,
+            tone: "busy" as const,
+            note: otros.map((o) => o.label).join(", "),
+          }
+        : { id: a.id, label: a.label, tone: "free" as const };
+    });
+
+  const acopladosDuplicados = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const f of filas) {
+      if (f.acoplado_id) cuenta.set(f.acoplado_id, (cuenta.get(f.acoplado_id) ?? 0) + 1);
+    }
+    return new Set([...cuenta.entries()].filter(([, n]) => n > 1).map(([id]) => id));
+  }, [filas]);
+
+  const detalleAcopladosDuplicados = useMemo(
+    () =>
+      [...acopladosDuplicados].map((acId) => ({
+        patente: patenteAcoplado.get(acId) ?? "sin patente",
+        choferes: filas
+          .filter((f) => f.acoplado_id === acId)
+          .map((f) => nombreCompletoPersona(f.apellido, f.nombre)),
+      })),
+    [acopladosDuplicados, patenteAcoplado, filas],
+  );
+
+  /** Filas en las que se cambió el semi respecto de lo que traía la unidad. */
+  const filasCambioAcoplado = useMemo(
+    () => filas.filter((f) => f.camion_id && f.acoplado_id !== f.acoplado_previo_id),
+    [filas],
+  );
+
   // Detección de camión repetido en el mismo día.
   const camionesDuplicados = useMemo(() => {
     const cuenta = new Map<string, number>();
@@ -272,7 +364,8 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     return new Set([...cuenta.entries()].filter(([, n]) => n > 1).map(([id]) => id));
   }, [filas]);
 
-  const hayDuplicados = camionesDuplicados.size > 0;
+  const hayDuplicados = camionesDuplicados.size > 0 || acopladosDuplicados.size > 0;
+
   const asignados = filas.filter((f) => f.camion_id).length;
 
   /** "AF671SI — Schwindt, Jorge y Cepeda, Tomas": qué unidad está repetida y entre
@@ -289,9 +382,40 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
     [camionesDuplicados, patentePorCamion, filas],
   );
 
+  /** El cartel nombra lo que está repetido: decir "unidad" cuando lo único
+   *  repetido es un camión obliga a leer la lista para entender de qué habla. */
+  const tituloDuplicados = (() => {
+    const cam = detalleDuplicados.length;
+    const sem = detalleAcopladosDuplicados.length;
+    if (sem === 0) {
+      return cam === 1
+        ? "Hay un camión asignado a dos choferes."
+        : `Hay ${cam} camiones asignados a más de un chofer.`;
+    }
+    if (cam === 0) {
+      return sem === 1
+        ? "Hay un semi enganchado a dos camiones."
+        : `Hay ${sem} semis enganchados a más de un camión.`;
+    }
+    return `Hay ${cam + sem} unidades asignadas a más de un chofer.`;
+  })();
+
   const setCamion = (choferId: string, camionId: string) =>
     setFilas((prev) =>
-      prev.map((f) => (f.chofer_id === choferId ? { ...f, camion_id: camionId } : f)),
+      prev.map((f) => {
+        if (f.chofer_id !== choferId) return f;
+        // El semi va con el CAMIÓN: si el chofer se sube a otra unidad, el
+        // acoplado que aparece es el de esa unidad, no el que traía de la
+        // anterior. Dejarlo pegado al chofer arrastraría el semi de un camión al
+        // otro sin que nadie lo pidiera.
+        const deLaUnidad = camionId ? acopladoOriginalDeCamion.get(camionId) ?? "" : "";
+        return { ...f, camion_id: camionId, acoplado_id: deLaUnidad };
+      }),
+    );
+
+  const setAcoplado = (choferId: string, acopladoId: string) =>
+    setFilas((prev) =>
+      prev.map((f) => (f.chofer_id === choferId ? { ...f, acoplado_id: acopladoId } : f)),
     );
 
   const setObs = (choferId: string, obs: string) =>
@@ -301,7 +425,15 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
   const restaurarHabituales = () => {
     setFilas((prev) =>
-      prev.map((f) => ({ ...f, camion_id: f.camion_habitual_id ?? "", observaciones: "" })),
+      prev.map((f) => {
+        const camion = f.camion_habitual_id ?? "";
+        return {
+          ...f,
+          camion_id: camion,
+          acoplado_id: camion ? acopladoOriginalDeCamion.get(camion) ?? "" : "",
+          observaciones: "",
+        };
+      }),
     );
     setResultado(null);
   };
@@ -316,12 +448,13 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
 
   const handleGuardar = async () => {
     if (hayDuplicados) {
-      setResultado({
-        ok: false,
-        mensaje: `Corregí antes de guardar: ${detalleDuplicados
-          .map((d) => `${d.patente} está en ${d.choferes.join(" y ")}`)
-          .join("; ")}.`,
-      });
+      const partes = [
+        ...detalleDuplicados.map((d) => `${d.patente} está en ${d.choferes.join(" y ")}`),
+        ...detalleAcopladosDuplicados.map(
+          (d) => `el semi ${d.patente} está en ${d.choferes.join(" y ")}`,
+        ),
+      ];
+      setResultado({ ok: false, mensaje: `Corregí antes de guardar: ${partes.join("; ")}.` });
       return;
     }
     setGuardando(true);
@@ -335,17 +468,24 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         items: filas.map((f) => ({
           chofer_id: f.chofer_id,
           camion_id: f.camion_id || null,
+          acoplado_id: f.acoplado_id || null,
           observaciones: f.observaciones.trim() || null,
         })),
       });
 
       if (res.ok) {
+        const semis =
+          res.cambiosAcoplado > 0
+            ? ` Y ${res.cambiosAcoplado} cambio(s) de semi.`
+            : "";
         setResultado({
           ok: true,
           mensaje:
             res.cambios > 0
-              ? `Planilla guardada: ${res.cambios} cambio(s) de camión sobre ${res.guardadas} chofer(es). Queda fijo hasta que lo cambies y el cambio queda registrado en el historial.`
-              : `Planilla guardada: ${res.guardadas} chofer(es) con camión, sin cambios de unidad.`,
+              ? `Planilla guardada: ${res.cambios} cambio(s) de camión sobre ${res.guardadas} chofer(es).${semis} Queda fijo hasta que lo cambies y el cambio queda registrado en el historial.`
+              : res.cambiosAcoplado > 0
+                ? `Planilla guardada: ${res.guardadas} chofer(es) con camión, sin cambios de unidad.${semis}`
+                : `Planilla guardada: ${res.guardadas} chofer(es) con camión, sin cambios de unidad.`,
         });
         // Recién con el OK del servidor el borrador deja de hacer falta.
         borrador.limpiar();
@@ -550,6 +690,17 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               </span>
             </button>
           )}
+          {filasCambioAcoplado.length > 0 && (
+            <span className="flex items-center gap-1.5 px-1.5 py-0.5">
+              <Repeat2 size={12} className="text-amber-600" />
+              <span>
+                <strong className="font-semibold text-amber-700">
+                  {filasCambioAcoplado.length}
+                </strong>{" "}
+                {filasCambioAcoplado.length === 1 ? "cambio" : "cambios"} de semi
+              </span>
+            </span>
+          )}
         </div>
       </div>
 
@@ -632,11 +783,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
         <div className="flex items-start gap-3 rounded-[8px] px-4 py-3 text-sm border border-border bg-card">
           <AlertTriangle size={16} className="shrink-0 mt-0.5 text-red-500" />
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground">
-              {detalleDuplicados.length === 1
-                ? "Hay un camión asignado a dos choferes."
-                : `Hay ${detalleDuplicados.length} camiones asignados a más de un chofer.`}
-            </p>
+            <p className="font-medium text-foreground">{tituloDuplicados}</p>
             <ul className="text-xs mt-1 space-y-0.5 text-muted-foreground">
               {detalleDuplicados.map((d) => (
                 <li key={d.patente}>
@@ -646,13 +793,35 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                   — {d.choferes.join(" y ")}
                 </li>
               ))}
+              {detalleAcopladosDuplicados.map((d) => (
+                <li key={`semi-${d.patente}`}>
+                  semi{" "}
+                  <strong className="font-mono font-semibold text-red-600">
+                    {d.patente}
+                  </strong>{" "}
+                  — {d.choferes.join(" y ")}
+                </li>
+              ))}
             </ul>
-            <p className="text-xs mt-1.5 text-muted-foreground">
-              En la planilla del día cada unidad va con un solo chofer. Si el camión
-              se lo pasaron entre los dos, dejalo acá con el que lo tiene y cargá el
-              viaje del otro desde <strong className="font-semibold">Carga rápida</strong>,
-              que sí permite repetir la unidad.
-            </p>
+            {detalleDuplicados.length > 0 && (
+              <p className="text-xs mt-1.5 text-muted-foreground">
+                En la planilla del día cada unidad va con un solo chofer. Si el camión
+                se lo pasaron entre los dos, dejalo acá con el que lo tiene y cargá el
+                viaje del otro desde <strong className="font-semibold">Carga rápida</strong>,
+                que sí permite repetir la unidad.
+              </p>
+            )}
+            {/* El semi es otro problema: no es que dos choferes se turnen la
+                unidad, es que el acoplado está físicamente en un solo chasis. La
+                salida no es Carga rápida, es sacárselo al otro camión. */}
+            {detalleAcopladosDuplicados.length > 0 && (
+              <p className="text-xs mt-1.5 text-muted-foreground">
+                Un acoplado va enganchado a un solo chasis. Para pasarlo, primero
+                sacáselo al otro camión (dejale{" "}
+                <strong className="font-semibold">— Sin semi —</strong> o el que le
+                corresponda) y recién ahí ponéselo a este.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -663,7 +832,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
           <table className="w-full text-sm border-separate border-spacing-0">
             <thead>
               <tr className="bg-muted/40">
-                {["Chofer", "Camión del día", "Cambio", "Observaciones"].map((h, i) => (
+                {["Chofer", "Camión del día", "Semi / acoplado", "Cambio", "Observaciones"].map((h, i) => (
                   <th
                     key={h}
                     // El chofer queda fijo a la izquierda: en el celular la
@@ -682,12 +851,18 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               {filasVisibles.map((f) => {
                 const esHabitual = !!f.camion_id && f.camion_id === f.camion_habitual_id;
                 const duplicado = !!f.camion_id && camionesDuplicados.has(f.camion_id);
+                const acopladoDuplicado = !!f.acoplado_id && acopladosDuplicados.has(f.acoplado_id);
+                const cambioAcoplado = !!f.camion_id && f.acoplado_id !== f.acoplado_previo_id;
                 const cambio = tieneCambio(f);
                 return (
                   <tr
                     key={f.chofer_id}
                     className={`border-b border-border/60 hover:bg-muted/20 transition-colors ${
-                      duplicado ? "bg-red-50/50" : cambio ? "bg-amber-50/40" : ""
+                      duplicado || acopladoDuplicado
+                        ? "bg-red-50/50"
+                        : cambio || cambioAcoplado
+                          ? "bg-amber-50/40"
+                          : ""
                     }`}
                   >
                     {/* Chofer — columna fija al scrollear de costado. El fondo
@@ -695,7 +870,11 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                         contenido pasando por debajo). */}
                     <td
                       className={`px-3 py-1.5 whitespace-nowrap sticky left-0 z-10 ${
-                        duplicado ? "bg-[#FEF9F9]" : cambio ? "bg-[#FFFDF7]" : "bg-card"
+                        duplicado || acopladoDuplicado
+                          ? "bg-[#FEF9F9]"
+                          : cambio || cambioAcoplado
+                            ? "bg-[#FFFDF7]"
+                            : "bg-card"
                       }`}
                     >
                       <span className="font-medium text-foreground">
@@ -758,6 +937,47 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
                       </div>
                     </td>
 
+                    {/* Semi / acoplado — va con la UNIDAD. Cambiarlo acá reengancha
+                        el acoplado al camión de la fila: es lo que pidió Nico
+                        ("en general van siempre junto, pero a veces cambian solo
+                        el acoplado"). Sin camión no hay a qué engancharlo. */}
+                    <td className="px-3 py-1.5">
+                      {f.camion_id ? (
+                        <div className="flex items-center gap-2">
+                          <Combobox
+                            value={f.acoplado_id}
+                            onValueChange={(v) => setAcoplado(f.chofer_id, v)}
+                            options={opcionesAcoplado(f)}
+                            placeholder="— Sin semi —"
+                            searchPlaceholder="Buscar patente..."
+                            clearable
+                            disabled={!editable}
+                            invalid={acopladoDuplicado}
+                            triggerClassName="h-9 sm:h-8 w-44 text-xs"
+                          />
+                          {cambioAcoplado && !acopladoDuplicado && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 whitespace-nowrap">
+                              Cambió
+                              {f.acoplado_previo_id && (
+                                <span className="font-medium normal-case tracking-normal text-muted-foreground/60">
+                                  {" "}
+                                  (traía{" "}
+                                  {patenteAcoplado.get(f.acoplado_previo_id) ?? "otro"})
+                                </span>
+                              )}
+                            </span>
+                          )}
+                          {acopladoDuplicado && (
+                            <span title="Semi enganchado a otro camión en esta planilla">
+                              <AlertTriangle size={14} className="text-red-500" />
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground/40">—</span>
+                      )}
+                    </td>
+
                     {/* Cambio de unidad: de qué camión venía y a cuál pasó */}
                     <td className="px-3 py-1.5">
                       {cambio ? (
@@ -793,7 +1013,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               })}
               {filasVisibles.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={5} className="px-3 py-8 text-center text-sm text-muted-foreground">
                     {busqueda.trim()
                       ? `Ningún chofer ni patente coincide con "${busqueda.trim()}".`
                       : soloSinCamion
@@ -843,7 +1063,7 @@ export default function PlanillaDiariaClient({ data }: { data: PlanillaDiariaDat
               <li key={c.id} className="flex items-baseline gap-2 text-xs">
                 <span className="font-mono font-semibold text-foreground">{c.label}</span>
                 <span className="text-muted-foreground/70 truncate">
-                  {c.acoplado ? `· ${c.acoplado}` : "· sin semi"}
+                  {semiDeEquipo(c.id) ? `· ${semiDeEquipo(c.id)}` : "· sin semi"}
                 </span>
               </li>
             ))}

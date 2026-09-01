@@ -224,10 +224,12 @@ export async function updateChoferEstadoAction(id: string, estado: "activo" | "i
   return { success: true };
 }
 
-// El tipo vive en `domain/rotacion/motivo-egreso` porque este módulo es
-// "use server" y el dominio de rotación también lo necesita. Se re-exporta para
-// no tocar a quien ya lo importaba de acá (EgresarChoferDialog).
-export type { ChoferMotivoEgreso };
+// OJO: acá NO va un `export type { ChoferMotivoEgreso }`. Este módulo es
+// "use server" y ahí Turbopack envuelve TODOS los exports con
+// `registerServerReference`, incluso los de tipo: el tipo se borra al compilar y
+// queda una referencia a una variable que no existe, así que el legajo se caía
+// con "ChoferMotivoEgreso is not defined" y la pantalla quedaba cargando.
+// El tipo se importa de `@/domain/rotacion/motivo-egreso`, que es su casa.
 
 /**
  * Soft delete del chofer: lo marca como "baja" con motivo + fecha de egreso.

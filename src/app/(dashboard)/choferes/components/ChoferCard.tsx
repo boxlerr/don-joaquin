@@ -23,8 +23,8 @@ import {
 import {
   uploadFotoChoferAction,
   deleteFotoChoferAction,
-  type ChoferMotivoEgreso,
 } from "../actions";
+import type { ChoferMotivoEgreso } from "@/domain/rotacion/motivo-egreso";
 import EgresarChoferDialog from "./EgresarChoferDialog";
 import { useChoferAcciones } from "./useChoferAcciones";
 import { choferSlug } from "@/lib/chofer-slug";

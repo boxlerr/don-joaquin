@@ -31,6 +31,8 @@ export type Acoplado = Pick<
   | "es_tolva"
   | "estado"
 > & {
+  /** Camión al que está enganchado hoy (`camion_acoplados.hasta is null`). */
+  camion_id_vinculado?: string | null;
   camion_patente?: string | null;
   chofer_nombre?: string | null;
 };

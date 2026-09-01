@@ -12,7 +12,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { egresarChoferAction, type ChoferMotivoEgreso } from "../actions";
+import { egresarChoferAction } from "../actions";
+import type { ChoferMotivoEgreso } from "@/domain/rotacion/motivo-egreso";
 
 interface Props {
   open: boolean;

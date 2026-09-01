@@ -384,6 +384,7 @@ export default function EntrevistaDrawer({
               <section className="space-y-2">
                 <SectionTitle>CV y documentos</SectionTitle>
                 <AdjuntosEditable
+                  permitirFoto
                   entidadId={e.id}
                   getArchivos={getCvsAction}
                   crearUrlSubida={crearUrlSubidaCvAction}

@@ -6,6 +6,11 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import {
+  aplicarEnganches,
+  engancheEnFechaPorCamion,
+  engancheVigentePorCamion,
+} from "@/lib/acoplado-enganche";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -37,7 +42,21 @@ export type PlanillaChofer = {
    *  asignado, ese día hubo un cambio de unidad y se marca en la grilla. */
   camion_previo_id: string | null;
   camion_previo_patente: string | null;
+  /** Semi/acoplado enganchado al camión asignado. El acoplado va con la UNIDAD,
+   *  no con la persona: cambiarlo acá cambia el enganche del camión. */
+  acoplado_id: string | null;
+  acoplado_patente: string | null;
   observaciones: string | null;
+};
+
+export type PlanillaAcoplado = {
+  id: string;
+  /** Patente del acoplado. */
+  label: string;
+  /** Camión al que está enganchado en la fecha consultada. null = suelto. */
+  camion_id: string | null;
+  /** false = dado de baja; sólo aparece si además sigue enganchado. */
+  activo: boolean;
 };
 
 export type PlanillaCamion = {
@@ -61,6 +80,7 @@ export type PlanillaDiariaData = {
   editable: boolean;
   choferes: PlanillaChofer[];
   camiones: PlanillaCamion[];
+  acoplados: PlanillaAcoplado[];
   guardado_por?: string | null;
   guardado_el?: string | null;
   /** Días con planilla guardada (se marcan en el calendario). */
@@ -122,8 +142,13 @@ export async function getPlanillaDiariaData(
       .select("fecha, hubo_cambios")
       .order("fecha", { ascending: false })
       .limit(1000),
-    supabase.from("camion_acoplados").select("camion_id, acoplado_id").is("hasta", null),
-    supabase.from("acoplados").select("id, patente"),
+    // El enganche del semi es histórico: para hoy va el vigente y para una fecha
+    // pasada, el que regía ESE día. Así el historial no muestra el acoplado de
+    // hoy en una planilla de hace un mes.
+    editable
+      ? engancheVigentePorCamion(supabase)
+      : engancheEnFechaPorCamion(supabase, fecha),
+    supabase.from("acoplados").select("id, patente, estado").order("patente"),
   ]);
 
   if (choferesRes.error || camionesRes.error) {
@@ -138,14 +163,16 @@ export async function getPlanillaDiariaData(
     if (chid) habitualPorChofer.set(chid, cam.id);
   }
 
-  // Qué semi/acoplado lleva enganchado cada camión hoy (vínculo abierto).
+  // Qué semi/acoplado lleva enganchado cada camión en esta fecha.
   const patenteAcoplado = new Map<string, string>();
   for (const a of acopladosRes.data ?? []) patenteAcoplado.set(a.id, a.patente);
+  const acopladoIdPorCamion = vinculosRes;
+  const camionPorAcoplado = new Map<string, string>();
   const acopladoPorCamion = new Map<string, string>();
-  for (const v of vinculosRes.data ?? []) {
-    if (acopladoPorCamion.has(v.camion_id)) continue;
-    const pat = patenteAcoplado.get(v.acoplado_id);
-    if (pat) acopladoPorCamion.set(v.camion_id, pat);
+  for (const [camionId, acopladoId] of acopladoIdPorCamion) {
+    camionPorAcoplado.set(acopladoId, camionId);
+    const pat = patenteAcoplado.get(acopladoId);
+    if (pat) acopladoPorCamion.set(camionId, pat);
   }
 
   // Días con planilla guardada y, de esos, cuáles tuvieron algún cambio de camión.
@@ -233,6 +260,8 @@ export async function getPlanillaDiariaData(
       ? asig.camion_anterior_id
       : previoSnapshotAnterior.get(c.id) ?? asignado;
 
+    const acopladoId = asignado ? acopladoIdPorCamion.get(asignado) ?? null : null;
+
     return {
       chofer_id: c.id,
       nombre: c.nombre,
@@ -242,6 +271,8 @@ export async function getPlanillaDiariaData(
       camion_asignado_id: asignado,
       camion_previo_id: previo,
       camion_previo_patente: previo ? patentePorCamion.get(previo) ?? null : null,
+      acoplado_id: acopladoId,
+      acoplado_patente: acopladoId ? patenteAcoplado.get(acopladoId) ?? null : null,
       observaciones: asig?.observaciones ?? null,
     };
   });
@@ -291,6 +322,16 @@ export async function getPlanillaDiariaData(
         label: c.patente,
         activo: (c as { estado?: string | null }).estado === "activo",
         acoplado: acopladoPorCamion.get(c.id) ?? null,
+      })),
+    // Los de baja quedan fuera del selector, salvo que alguno siga enganchado:
+    // en ese caso hay que poder verlo (y soltarlo) en vez de que desaparezca.
+    acoplados: (acopladosRes.data ?? [])
+      .filter((a) => a.estado === "activo" || camionPorAcoplado.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        label: a.patente,
+        camion_id: camionPorAcoplado.get(a.id) ?? null,
+        activo: a.estado === "activo",
       })),
     guardado_por,
     guardado_el,
@@ -428,6 +469,8 @@ const guardarSchema = z.object({
     z.object({
       chofer_id: z.string().uuid(),
       camion_id: z.string().uuid().nullable(),
+      /** Semi enganchado a ESE camión. Va con la unidad, no con la persona. */
+      acoplado_id: z.string().uuid().nullable().optional(),
       observaciones: z.string().max(500).nullable().optional(),
     }),
   ),
@@ -435,7 +478,7 @@ const guardarSchema = z.object({
 
 export type GuardarPlanillaInput = z.infer<typeof guardarSchema>;
 export type GuardarPlanillaResult =
-  | { ok: true; guardadas: number; cambios: number }
+  | { ok: true; guardadas: number; cambios: number; cambiosAcoplado: number }
   | { ok: false; error: string };
 
 /**
@@ -485,6 +528,21 @@ export async function guardarPlanillaDiariaAction(
       };
     }
     camionVisto.add(it.camion_id);
+  }
+
+  // Lo mismo con el semi: un acoplado está en un solo camión, y la base lo exige
+  // con un índice único. Sin este chequeo el insert fallaba con un error crudo de
+  // Postgres en vez de decir cuál quedó repetido.
+  const acopladoVisto = new Set<string>();
+  for (const it of items) {
+    if (!it.camion_id || !it.acoplado_id) continue;
+    if (acopladoVisto.has(it.acoplado_id)) {
+      return {
+        ok: false,
+        error: "Hay un acoplado enganchado a dos camiones. Revisá la planilla.",
+      };
+    }
+    acopladoVisto.add(it.acoplado_id);
   }
 
   const supabase = createAdminClient();
@@ -545,6 +603,51 @@ export async function guardarPlanillaDiariaAction(
 
   const guardadas = items.filter((i) => i.camion_id).length;
 
+  // El semi va con la UNIDAD, no con la persona: se reconcilia aparte, sobre
+  // `camion_acoplados`. Va después de la RPC porque recién ahí sabemos que la
+  // asignación de camiones quedó firme; si esto fallara, los camiones ya están
+  // guardados y el error dice exactamente qué faltó.
+  const enganches = items
+    .filter((i) => i.camion_id && i.acoplado_id !== undefined)
+    .map((i) => ({ camion_id: i.camion_id as string, acoplado_id: i.acoplado_id ?? null }));
+
+  const resEnganches = await aplicarEnganches(supabase, enganches, hoy, user.id);
+  if (resEnganches.error) {
+    return { ok: false, error: `${resEnganches.error} Los camiones sí se guardaron.` };
+  }
+
+  if (resEnganches.cambios.length > 0) {
+    const { data: acopladosCambiados } = await supabase
+      .from("acoplados")
+      .select("id, patente")
+      .in(
+        "id",
+        resEnganches.cambios.flatMap((c) => [c.de, c.a].filter(Boolean) as string[]),
+      );
+    const patenteAcoplado = new Map<string, string>(
+      (acopladosCambiados ?? []).map((a) => [a.id, a.patente]),
+    );
+    await logAudit({
+      client: supabase,
+      usuarioId: user.id,
+      accion: "actualizar",
+      entidadTipo: "camion_acoplados",
+      valoresAnteriores: Object.fromEntries(
+        resEnganches.cambios.map((c) => [
+          patentePorCamion.get(c.camion_id) ?? c.camion_id,
+          c.de ? patenteAcoplado.get(c.de) ?? c.de : "sin acoplado",
+        ]),
+      ),
+      valoresNuevos: Object.fromEntries(
+        resEnganches.cambios.map((c) => [
+          patentePorCamion.get(c.camion_id) ?? c.camion_id,
+          c.a ? patenteAcoplado.get(c.a) ?? c.a : "sin acoplado",
+        ]),
+      ),
+      metadata: { origen: "planilla-diaria", fecha, cambios: resEnganches.cambios.length },
+    });
+  }
+
   if (cambios.length > 0) {
     // Un par antes/después por chofer: así el panel de auditoría lo muestra como
     // un diff legible ("Bustos: AD916TF → AE601GF") y no como "N elemento(s)".
@@ -570,7 +673,12 @@ export async function guardarPlanillaDiariaAction(
   revalidatePath("/choferes");
   revalidatePath("/choferes/[slug]", "page");
   revalidatePath("/camiones");
-  return { ok: true, guardadas, cambios: cambios.length };
+  return {
+    ok: true,
+    guardadas,
+    cambios: cambios.length,
+    cambiosAcoplado: resEnganches.cambios.length,
+  };
 }
 
 export type PlanillaCambioRow = {

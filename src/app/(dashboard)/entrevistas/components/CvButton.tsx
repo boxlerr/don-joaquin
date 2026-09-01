@@ -39,6 +39,7 @@ export default function CvButton({
               <DialogTitle>CVs — {nombre}</DialogTitle>
             </DialogHeader>
             <AdjuntosEditable
+              permitirFoto
               entidadId={entrevistaId}
               getArchivos={getCvsAction}
               crearUrlSubida={crearUrlSubidaCvAction}

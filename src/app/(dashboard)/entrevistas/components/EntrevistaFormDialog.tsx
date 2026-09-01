@@ -422,6 +422,7 @@ export default function EntrevistaFormDialog({
             <Label className="text-sm font-medium text-foreground">CV / documentos</Label>
             {isEdit ? (
               <AdjuntosEditable
+                permitirFoto
                 entidadId={entrevista!.id}
                 getArchivos={getCvsAction}
                 crearUrlSubida={crearUrlSubidaCvAction}

@@ -396,6 +396,7 @@ export default function CamionesTableClient({
       {selectedCamion && (
         <CamionDetailSheet
           camion={selectedCamion}
+          acoplados={acoplados}
           tiposServicio={tiposServicio}
           open={isSheetOpen}
           onOpenChange={handleOpenChange}
@@ -406,6 +407,7 @@ export default function CamionesTableClient({
       {selectedAcoplado && (
         <AcopladoDetailSheet
           acoplado={selectedAcoplado}
+          camiones={camiones}
           open={isAcopladoSheetOpen}
           onOpenChange={setIsAcopladoSheetOpen}
         />

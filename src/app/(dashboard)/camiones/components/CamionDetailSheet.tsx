@@ -17,9 +17,9 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Badge } from "@/components/ui/badge";
 import InlineFeedback from "@/components/ui/InlineFeedback";
 import {
-  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge, Check, CircleDot, Users, Activity,
+  Trash2, Save, Truck, Wrench, Fuel, FileText, Calendar, MapPin, Plus, Pencil, Camera, Receipt, Building2, Gauge, Check, CircleDot, Activity,
 } from "lucide-react";
-import CamionChoferesTab from "./CamionChoferesTab";
+import CamionEquipoPanel from "./CamionEquipoPanel";
 import CamionMetricasTab from "./CamionMetricasTab";
 import type { Database } from "@/types/database";
 import { marcarAlertasVistas } from "@/app/(dashboard)/notificaciones/actions";
@@ -37,6 +37,7 @@ import {
   type RoturaCamionRecord,
 } from "../actions";
 import type {
+  Acoplado,
   Camion,
   ServiceRecord,
   GasoilRecord,
@@ -50,7 +51,10 @@ import CamionGastosTab from "./CamionGastosTab";
 import AddServiceDialog, { type ServiceEditing } from "./AddServiceDialog";
 import AddGasoilDialog, { type GasoilEditing } from "./AddGasoilDialog";
 
-export type TabId = "info" | "metricas" | "fotos" | "services" | "roturas" | "gasoil" | "gastos" | "docs" | "choferes";
+// El chofer ya no es una solapa: es un dato de la ficha y vive en Información,
+// junto al acoplado (panel "Equipo"). Una pantalla entera para mostrar un nombre
+// era una vuelta de más.
+export type TabId = "info" | "metricas" | "fotos" | "services" | "roturas" | "gasoil" | "gastos" | "docs";
 
 type TercerizacionEstado = Database["public"]["Enums"]["tercerizacion_estado"];
 
@@ -83,6 +87,22 @@ const ESTADO_STYLES: Record<string, string> = {
   en_mantenimiento: "bg-[#FEF3C7] text-[#92400E] font-medium",
   inactivo: "bg-muted text-muted-foreground font-medium",
   baja: "bg-[#FEF2F2] text-[#7F1D1D] font-medium",
+};
+
+// Cómo se escribe cada valor en el gatillo del desplegable: la primitiva, sola,
+// muestra el valor tal cual está en la base ("en_mantenimiento", "chasis_rigido").
+const ESTADO_LABELS_UI: Record<string, string> = {
+  activo: "Activo",
+  en_mantenimiento: "En mantenimiento",
+  inactivo: "Inactivo",
+  baja: "Baja",
+};
+
+const TIPO_CAMION_LABELS: Record<string, string> = {
+  tractor: "Tractor",
+  chasis_rigido: "Chasis rígido",
+  batea: "Batea",
+  otro: "Otro",
 };
 
 const ESTADO_DOT: Record<string, string> = {
@@ -136,12 +156,15 @@ function shallowEq(a: FormData, b: FormData): boolean {
 
 export default function CamionDetailSheet({
   camion,
+  acoplados,
   tiposServicio,
   open,
   onOpenChange,
   initialTab,
 }: {
   camion: Camion;
+  /** Toda la flota de acoplados: el panel de equipo deja cambiar el enganche. */
+  acoplados: Acoplado[];
   tiposServicio: TipoServicio[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -225,7 +248,8 @@ export default function CamionDetailSheet({
       setError(null);
       setSuccess(null);
 
-      const tabToUse = initialTab || "info";
+      // `?tab=choferes` es un link viejo: esa solapa se fusionó con Información.
+      const tabToUse = initialTab && initialTab !== ("choferes" as TabId) ? initialTab : "info";
       setActiveTab(tabToUse);
 
       // eslint-disable-next-line react-hooks/immutability -- llamada a fetch dentro del effect de apertura; intencional
@@ -426,11 +450,15 @@ export default function CamionDetailSheet({
         else onOpenChange(v);
       }}
     >
-      {/* En celular el panel va a pantalla completa: tiene 9 solapas y un
-          formulario entero, con el diálogo chico no se podía trabajar. */}
+      {/* En celular el panel va a pantalla completa: tiene 8 solapas y un
+          formulario entero, con el diálogo chico no se podía trabajar.
+          En escritorio el alto también es fijo (88dvh, con techo) en vez de
+          crecer con el contenido: así el formulario y los historiales usan la
+          pantalla en lugar de scrollear dentro de una ventanita, y las solapas
+          no saltan de alto al cambiar. */}
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-[680px] p-0 sm:p-0 gap-0 overflow-hidden max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:grid-rows-[auto_auto_1fr_auto]"
+        className="sm:max-w-[1060px] sm:h-[min(88dvh,880px)] p-0 sm:p-0 gap-0 overflow-hidden grid-rows-[auto_auto_1fr_auto] max-sm:h-[100dvh] max-sm:max-h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none"
       >
         <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 border-b border-border bg-card">
           <div className="flex items-center justify-between gap-2 mb-3">
@@ -485,7 +513,6 @@ export default function CamionDetailSheet({
           {[
             { id: "info" as TabId, label: "Información", icon: Truck },
             { id: "metricas" as TabId, label: "Métricas", icon: Activity },
-            { id: "choferes" as TabId, label: "Choferes", icon: Users },
             { id: "fotos" as TabId, label: "Fotos", icon: Camera },
             { id: "services" as TabId, label: "Services", icon: Wrench },
             { id: "roturas" as TabId, label: "Roturas", icon: CircleDot },
@@ -509,9 +536,9 @@ export default function CamionDetailSheet({
           ))}
         </div>
 
-        {/* En celular el alto lo pone la pantalla (el panel es full screen), así
-            que el área de contenido se estira; en desktop sigue acotada. */}
-        <div className="overflow-y-auto max-h-none sm:max-h-[50dvh] p-4 sm:p-6 bg-card">
+        {/* El alto lo pone la fila 1fr de la grilla del diálogo, en celular y en
+            escritorio: el área de contenido ocupa todo lo que sobra. */}
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-6 bg-card">
           {error && (
             <div className="mb-4">
               <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />
@@ -524,6 +551,9 @@ export default function CamionDetailSheet({
           )}
 
           {activeTab === "info" && (
+            /* Dos columnas a partir de lg: los datos de la unidad a la izquierda
+               y con quién/con qué sale a la derecha. Abajo de lg se apila. */
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_290px] lg:gap-6 lg:items-start">
             <div className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -545,7 +575,11 @@ export default function CamionDetailSheet({
                     <SelectTrigger
                       className={`w-full ${ESTADO_STYLES[formData.estado] ?? ""} ${fieldClass("estado")}`}
                     >
-                      <SelectValue placeholder="Estado" />
+                      {/* La primitiva muestra el valor crudo ("en_mantenimiento")
+                          si no se le dice cómo escribirlo. */}
+                      <SelectValue placeholder="Estado">
+                        {(v: string) => ESTADO_LABELS_UI[v] ?? v}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="activo">
@@ -621,7 +655,9 @@ export default function CamionDetailSheet({
                     onValueChange={(val) => updateField("tipo_camion", val ?? formData.tipo_camion)}
                   >
                     <SelectTrigger className={`w-full ${fieldClass("tipo_camion")}`}>
-                      <SelectValue placeholder="Tipo" />
+                      <SelectValue placeholder="Tipo">
+                        {(v: string) => TIPO_CAMION_LABELS[v] ?? v}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="tractor">Tractor</SelectItem>
@@ -649,7 +685,11 @@ export default function CamionDetailSheet({
                     }
                   >
                     <SelectTrigger className={`w-full ${fieldClass("tercerizacion_estado")}`}>
-                      <SelectValue placeholder="Tercerización" />
+                      <SelectValue placeholder="Tercerización">
+                        {(v: string) =>
+                          TERCERIZACIONES.find((t) => t.value === v)?.label ?? v
+                        }
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {TERCERIZACIONES.map((o) => (
@@ -698,6 +738,9 @@ export default function CamionDetailSheet({
                   (acoplado especializado)
                 </span>
               </label>
+            </div>
+
+            <CamionEquipoPanel camionId={camion.id} acoplados={acoplados} />
             </div>
           )}
 
@@ -975,9 +1018,6 @@ export default function CamionDetailSheet({
 
           {activeTab === "metricas" && <CamionMetricasTab camionId={camion.id} />}
 
-          {activeTab === "choferes" && (
-            <CamionChoferesTab camionId={camion.id} />
-          )}
           {activeTab === "docs" && docsLoaded && (
             <CamionDocumentosTab
               camion_id={camion.id}

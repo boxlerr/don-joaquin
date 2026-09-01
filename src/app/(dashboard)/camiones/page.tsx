@@ -130,6 +130,9 @@ export default async function CamionesPage({
     const camionId = camionDeAcopl.get(a.id) ?? null;
     return {
       ...a,
+      // El id además de la patente: el selector de enganche compara por id, que
+      // es lo único estable si alguien corrige una patente.
+      camion_id_vinculado: camionId,
       camion_patente: camionId ? camionPatente.get(camionId) ?? null : null,
       chofer_nombre: camionId ? camionChofer.get(camionId) ?? null : null,
     };

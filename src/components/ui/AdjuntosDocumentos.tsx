@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { subirArchivoConUrlFirmada } from "@/lib/client-upload";
-import { Upload, Trash2, FileText, ImageIcon, Download, Eye, Loader2, Paperclip } from "lucide-react";
+import { Upload, Trash2, FileText, ImageIcon, Download, Eye, Loader2, Paperclip, Camera } from "lucide-react";
 
 // Metadatos de un archivo ya subido al Storage, listos para vincular a la entidad.
 export type AdjuntoMeta = {
@@ -189,6 +189,9 @@ export default function AdjuntosDocumentos({
 }) {
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Input aparte para la cámara: poner `capture` en el general le sacaría al
+  // teléfono la opción de elegir un archivo que ya tiene guardado.
+  const camaraRef = useRef<HTMLInputElement>(null);
   const { pendientes, existentes, loadingArchivos, deletingArchivoId, subiendo } = ctrl;
   const tieneAdjuntos = existentes.length > 0 || pendientes.length > 0;
 
@@ -203,6 +206,23 @@ export default function AdjuntosDocumentos({
         ref={fileRef}
         type="file"
         multiple
+        className="hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          ctrl.agregarArchivos(e.target.files);
+          e.target.value = "";
+        }}
+      />
+
+      <input
+        ref={camaraRef}
+        type="file"
+        // `capture="environment"` abre directo la cámara trasera. Sin esto el
+        // teléfono muestra un menú y hay que elegir "Sacar foto" ahí, que es
+        // justo el paso que sobraba cuando lo que se sube es un papel que está
+        // sobre la mesa: un CV, un remito, una factura del taller.
+        accept="image/*"
+        capture="environment"
         className="hidden"
         disabled={disabled}
         onChange={(e) => {
@@ -329,6 +349,20 @@ export default function AdjuntosDocumentos({
           </span>
           <span className="text-[11px] text-muted-foreground/60">Cualquier formato — hasta {MAX_MB} MB c/u</span>
         </div>
+      )}
+
+      {/* Sacar foto — sólo en pantallas chicas: en la compu abre la webcam, que
+          no sirve para fotografiar un papel. Va afuera de la zona de arrastre
+          porque un botón dentro de otro botón no se puede tocar en el celular. */}
+      {!disabled && (
+        <button
+          type="button"
+          onClick={() => camaraRef.current?.click()}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[8px] border border-[#BAE6FD] bg-[#E1F5FE] text-sm font-semibold text-[#0369A1] transition-colors hover:bg-[#BAE6FD]/60 sm:hidden"
+        >
+          <Camera size={15} />
+          Sacar foto
+        </button>
       )}
 
       {/* Progreso de subida */}
