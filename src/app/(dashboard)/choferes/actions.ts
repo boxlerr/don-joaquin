@@ -7,6 +7,8 @@ import { logChoferAudit } from "./audit";
 import { normalizarDni, validarCuil, validarDni, validarFechasLegajo } from "@/lib/chofer-validation";
 import { formatNombrePersona } from "@/lib/nombres";
 import { liberarCamionDeChofer } from "@/lib/chofer-egreso";
+import type { ChoferMotivoEgreso } from "@/domain/rotacion/motivo-egreso";
+import { sincronizarBajaRotacion, borrarBajaRotacionDe } from "@/lib/rotacion-baja";
 import * as XLSX from "xlsx";
 import { normalizeDate, formatIsoDate, normKey } from "@/lib/excel-utils";
 
@@ -222,7 +224,10 @@ export async function updateChoferEstadoAction(id: string, estado: "activo" | "i
   return { success: true };
 }
 
-export type ChoferMotivoEgreso = "renuncia" | "despido" | "jubilacion" | "otro";
+// El tipo vive en `domain/rotacion/motivo-egreso` porque este módulo es
+// "use server" y el dominio de rotación también lo necesita. Se re-exporta para
+// no tocar a quien ya lo importaba de acá (EgresarChoferDialog).
+export type { ChoferMotivoEgreso };
 
 /**
  * Soft delete del chofer: lo marca como "baja" con motivo + fecha de egreso.
@@ -238,7 +243,7 @@ export async function egresarChoferAction(
 
   const { data: previo } = await supabase
     .from("choferes")
-    .select("estado, motivo_egreso, fecha_egreso, observaciones")
+    .select("estado, motivo_egreso, fecha_egreso, observaciones, nombre, apellido, rol, localidad, fecha_ingreso")
     .eq("id", id)
     .single();
 
@@ -266,6 +271,23 @@ export async function egresarChoferAction(
   // el tramo, así que no se pierde quién manejó qué.
   const camionLiberado = await liberarCamionDeChofer(id, data.fecha_egreso);
 
+  // Y queda anotado en rotación. Hasta el 01/09/2026 no quedaba: Bárbara egresó
+  // dos choferes, refrescó la pantalla y el número de bajas no se movió, porque
+  // `rotacion_bajas` sólo se cargaba a mano. No frena el egreso si falla.
+  const bajaRotacion = await sincronizarBajaRotacion(
+    supabase,
+    {
+      id,
+      nombre: previo?.nombre ?? null,
+      apellido: previo?.apellido ?? null,
+      rol: previo?.rol ?? null,
+      localidad: previo?.localidad ?? null,
+      fecha_ingreso: previo?.fecha_ingreso ?? null,
+    },
+    data,
+    user.id,
+  );
+
   await logChoferAudit(
     id,
     "cambio_estado",
@@ -275,12 +297,14 @@ export async function egresarChoferAction(
       motivo_egreso: data.motivo,
       fecha_egreso: data.fecha_egreso,
       ...(camionLiberado.length > 0 ? { camion_liberado: camionLiberado.join(", ") } : {}),
+      ...(bajaRotacion.creada ? { baja_rotacion: "creada" } : {}),
     },
     user.id,
   );
 
   revalidatePath("/choferes");
   revalidatePath("/choferes/[slug]", "page");
+  if (bajaRotacion.creada) revalidatePath("/choferes/rotacion");
   if (camionLiberado.length > 0) {
     revalidatePath("/camiones");
     revalidatePath("/viajes/planilla-diaria");
@@ -317,6 +341,11 @@ export async function reactivarChoferAction(id: string) {
     return { error: "No se pudo reactivar el chofer." };
   }
 
+  // Vuelve a la nómina: la baja que dejó su egreso ya no corresponde. Sólo se
+  // borra la que puso el sistema (la que tiene `chofer_id`); las del Excel lo
+  // tienen en null y no se tocan.
+  await borrarBajaRotacionDe(supabase, id);
+
   await logChoferAudit(
     id,
     "cambio_estado",
@@ -326,6 +355,7 @@ export async function reactivarChoferAction(id: string) {
   );
 
   revalidatePath("/choferes");
+  revalidatePath("/choferes/rotacion");
   return { success: true };
 }
 
