@@ -90,6 +90,33 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "egresar-a-alguien-ya-suma-la-baja-en",
+    fecha: "2026-09-01",
+    tipo: "arreglo",
+    ver: "choferes_rotacion",
+    titulo: "Egresar a alguien ya suma la baja en Rotación",
+    detalle: "Antes había que cargarla dos veces: se egresaba del legajo y el número de bajas no se movía por más que se refrescara la pantalla. Ahora se carga sola con el motivo y la fecha del egreso, y si se reactiva a la persona se va. Los fleteros no cuentan para el índice.",
+    href: "/choferes/rotacion",
+  },
+  {
+    id: "compliance-ya-no-dice-ninguno-vencido-si",
+    fecha: "2026-09-01",
+    tipo: "arreglo",
+    ver: "compliance",
+    titulo: "Compliance ya no dice \"ninguno vencido\" si falta presentar un F931",
+    detalle: "La pantalla contaba sólo la papeleta y no los períodos del Formulario 931, así que marcaba 0 vencidos mientras el resumen del día avisaba de 2. Ahora la fila del F931 muestra el estado real de sus períodos, con la fecha del más atrasado.",
+    href: "/compliance",
+  },
+  {
+    id: "el-aviso-de-documentos-vencidos-te-abre-los",
+    fecha: "2026-09-01",
+    tipo: "mejora",
+    ver: "choferes",
+    titulo: "El aviso de documentos vencidos te abre los legajos",
+    detalle: "Antes, tocar \"Ver los vencidos\" en el resumen del día abría la lista de avisos y había que rearmar el filtro a mano. Ahora, cuando los vencidos son todos de choferes, abre Legajos con esas personas ya filtradas y ordenadas por urgencia.",
+    href: "/choferes",
+  },
+  {
     id: "los-meses-apretados-ahora-te-avisan-solos",
     fecha: "2026-09-01",
     tipo: "nuevo",
