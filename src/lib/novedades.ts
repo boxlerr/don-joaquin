@@ -90,6 +90,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-indice-de-rotacion-ya-cuenta-a-todos-los",
+    fecha: "2026-09-01",
+    tipo: "arreglo",
+    ver: "choferes_rotacion",
+    titulo: "El índice de rotación ya cuenta a todos los que se fueron",
+    detalle: "Faltaban 6 egresos de 2026 que estaban en el legajo pero no habían llegado acá, así que el número daba más bajo de lo real: 2026 pasa de 8,2% a 18%. Los fleteros siguen sin contar.",
+    href: "/choferes/rotacion",
+  },
+  {
+    id: "la-pantalla-avisa-si-quedo-alguien-egresado",
+    fecha: "2026-09-01",
+    tipo: "nuevo",
+    ver: "choferes_rotacion",
+    titulo: "La pantalla avisa si quedó alguien egresado sin cargar",
+    detalle: "Si en el legajo hay un chofer dado de baja que no figura en rotación, sale un aviso arriba con su nombre y la fecha, en vez de que el índice quede bajo sin que se note.",
+    href: "/choferes/rotacion",
+  },
+  {
     id: "el-cambio-de-semi-queda-anotado-igual-que",
     fecha: "2026-09-01",
     tipo: "mejora",

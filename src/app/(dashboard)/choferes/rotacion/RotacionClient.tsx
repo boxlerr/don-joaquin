@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Users, UserPlus, UserMinus, Percent, Plus, Pencil, Trash2, ArrowRight,
   TrendingUp, TrendingDown, Minus, Loader2, GitCompareArrows, Calendar, X,
+  AlertTriangle,
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -111,6 +112,45 @@ export default function RotacionClient({
           </div>
         }
       />
+
+      {/* Egresados del legajo que no llegaron a rotación. Lo normal es que esto
+          no se vea nunca. Si aparece, el índice está por debajo de la realidad —
+          que fue exactamente lo que encontró Bárbara el 31/08/2026, sumando a
+          mano. Se avisa acá para que no haya que darse cuenta. */}
+      {dataset.sin_cruzar.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-[8px] border border-amber-300/70 bg-amber-50/60 px-4 py-3 sm:flex-row sm:items-start sm:gap-3">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-foreground">
+              {dataset.sin_cruzar.length === 1
+                ? "Hay un chofer egresado en el legajo que no figura acá."
+                : `Hay ${dataset.sin_cruzar.length} choferes egresados en el legajo que no figuran acá.`}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              El índice está calculado sin ellos, así que da más bajo de lo que
+              corresponde. Cargalos con <strong className="font-semibold">Cargar baja</strong>{" "}
+              (los fleteros no cuentan y no se listan).
+            </p>
+            <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              {dataset.sin_cruzar.map((c) => (
+                <li key={c.id}>
+                  <Link
+                    href={`/choferes/${choferSlug(c)}`}
+                    className="font-medium text-foreground hover:text-primary hover:underline"
+                  >
+                    {[c.apellido, c.nombre].filter(Boolean).join(", ")}
+                  </Link>
+                  {c.fecha_egreso && (
+                    <span className="ml-1 text-muted-foreground/70">
+                      · {c.fecha_egreso.split("-").reverse().join("/")}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Barra de control: año + modo + comparar + filtros */}
       <div className={`${card} flex flex-wrap items-center gap-2 sm:gap-3`}>

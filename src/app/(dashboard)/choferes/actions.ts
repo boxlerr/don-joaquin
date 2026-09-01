@@ -299,7 +299,15 @@ export async function egresarChoferAction(
       motivo_egreso: data.motivo,
       fecha_egreso: data.fecha_egreso,
       ...(camionLiberado.length > 0 ? { camion_liberado: camionLiberado.join(", ") } : {}),
-      ...(bajaRotacion.creada ? { baja_rotacion: "creada" } : {}),
+      // Se anota tanto cuando salió como cuando NO: una baja de rotación que
+      // falló en silencio es justo lo que dejó el índice mintiendo durante
+      // meses. Igual la pantalla de rotación lo detecta sola, pero acá queda
+      // el momento exacto y el motivo.
+      ...(bajaRotacion.creada
+        ? { baja_rotacion: "creada" }
+        : bajaRotacion.motivo === "fletero"
+          ? {}
+          : { baja_rotacion: `no se creó (${bajaRotacion.motivo ?? "desconocido"})` }),
     },
     user.id,
   );

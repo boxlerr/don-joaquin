@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { computeMetricas } from "./compute";
 import type { BajaRotacion, AltaDelAnio, ParamAnio, DotacionEstimada } from "./compute";
+import { egresadosSinCruzar } from "@/domain/rotacion/cruce-legajo";
 
 // Data layer de rotación: arma el dataset crudo (bajas + parámetros + altas +
 // dotación estimada por año) y el cliente recalcula KPIs/charts/tabla al filtrar
@@ -16,6 +17,16 @@ export type RotacionDataset = {
   bases: string[];
   dotacion_actual: number;
   anio_actual: number;
+  /** Egresados del legajo que NO están en `rotacion_bajas` (fleteros aparte).
+   *  Vacío es lo normal; si trae gente, el índice está mintiendo para abajo. */
+  sin_cruzar: EgresadoSinCruzar[];
+};
+
+export type EgresadoSinCruzar = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  fecha_egreso: string | null;
 };
 
 type ChoferRow = {
@@ -26,6 +37,7 @@ type ChoferRow = {
   fecha_ingreso: string | null;
   fecha_egreso: string | null;
   estado: string;
+  rol: string | null;
   updated_at: string | null;
 };
 
@@ -50,7 +62,7 @@ export async function getRotacionDataset(): Promise<RotacionDataset> {
   const [{ data: choferesRaw }, bajasRes, anualRes] = await Promise.all([
     supabase
       .from("choferes")
-      .select("id, nombre, apellido, localidad, fecha_ingreso, fecha_egreso, estado, updated_at"),
+      .select("id, nombre, apellido, localidad, fecha_ingreso, fecha_egreso, estado, rol, updated_at"),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from("rotacion_bajas").select("*").order("fecha_egreso", { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -95,7 +107,19 @@ export async function getRotacionDataset(): Promise<RotacionDataset> {
   const bases = [...new Set(bajas.map((b) => b.base_zona).filter((b): b is string => !!b))].sort();
   const dotacion_actual = choferes.filter((c) => c.estado === "activo").length;
 
-  return { bajas, params, estimadas, altas, anios, bases, dotacion_actual, anio_actual };
+  // El cruce con el legajo. Se calcula acá y no en un script porque tiene que
+  // estar SIEMPRE: si el día de mañana alguien queda egresado sin baja —por el
+  // importador, o porque falló el guardado— la pantalla lo dice sola.
+  const sin_cruzar: EgresadoSinCruzar[] = egresadosSinCruzar(choferes, bajas)
+    .map((c) => ({
+      id: c.id,
+      nombre: c.nombre ?? "",
+      apellido: c.apellido ?? "",
+      fecha_egreso: c.fecha_egreso,
+    }))
+    .sort((a, b) => (b.fecha_egreso ?? "").localeCompare(a.fecha_egreso ?? ""));
+
+  return { bajas, params, estimadas, altas, anios, bases, dotacion_actual, anio_actual, sin_cruzar };
 }
 
 /**
