@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "calcula-los-litros-que-le-corresponden-para",
+    fecha: "2026-09-01",
+    tipo: "nuevo",
+    ver: "combustible",
+    titulo: "Calculá los litros que le corresponden para la vuelta",
+    detalle: "En Combustible › Litros para la vuelta elegís desde dónde salió, a dónde va y cuántas toneladas cargó, y te dice cuántos litros puede cargar. Podés dejar anotado a qué chofer se le autorizó, y cambiar cuánto rinde cada tramo cuando haga falta.",
+    href: "/combustible/litros",
+  },
+  {
     id: "egresar-a-alguien-ya-suma-la-baja-en",
     fecha: "2026-09-01",
     tipo: "arreglo",
