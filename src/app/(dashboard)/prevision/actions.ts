@@ -11,8 +11,6 @@ import {
 } from "@/domain/finanzas/proyeccion";
 import { revalidatePath } from "next/cache";
 
-export type { DatosPrevision };
-
 export async function getPrevisionAction(): Promise<DatosPrevision> {
   // La sección tiene permiso propio: lo que muestra —masa salarial y deuda
   // bancaria en un solo número— no se lo damos a cualquiera que vea préstamos.

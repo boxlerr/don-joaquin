@@ -10,7 +10,10 @@ import {
   primerMesComplicado,
   type MesProyectado,
 } from "@/domain/finanzas/proyeccion";
-import type { DatosPrevision } from "./actions";
+// El tipo viene del módulo de datos y NO de `./actions`: un módulo "use server"
+// sólo puede exportar funciones async, y re-exportar el tipo desde ahí rompe el
+// build de producción sin que `tsc` diga nada (le pasó antes a cheques, b2a5d12).
+import type { DatosPrevision } from "@/lib/prevision-datos";
 
 /**
  * Qué meses vienen apretados.
