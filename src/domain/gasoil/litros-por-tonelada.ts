@@ -71,6 +71,10 @@ export function calcularLitros(
   toneladas: number | null | undefined,
 ): ResultadoLitros {
   if (!tarifa) {
+    // No se completa con nada ni se estima por parecido. **El cuadro va tal cual
+    // lo pasó Nico** (decisión de Julián, 01/09/2026): son doce tramos y punto.
+    // "LAJE 20", por ejemplo, existe como punto de ruta pero no está en el
+    // cuadro — y no se le inventa un rinde: la pantalla lo dice y ahí se corta.
     return {
       ok: false,
       error: "sin_tramo",
