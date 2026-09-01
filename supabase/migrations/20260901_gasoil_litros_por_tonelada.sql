@@ -43,7 +43,7 @@ create table if not exists gasoil_tarifas (
 );
 
 comment on table gasoil_tarifas is
-  'Litros de gasoil por tonelada para cada tramo origen→destino. Cuadro que pasó Nico el 31/08/2026; se edita desde /combustible/litros.';
+  'Litros de gasoil por tonelada para cada tramo origen→destino. Cuadro que pasó Nico el 31/08/2026; se edita desde /combustible/autoconsumo.';
 
 -- Un solo valor vigente por tramo: si hace falta corregirlo se edita, no se
 -- apila otra fila. El historial de quién lo cambió y cuándo lo lleva `audit_log`.

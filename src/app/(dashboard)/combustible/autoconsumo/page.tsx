@@ -5,15 +5,15 @@ import {
   getChoferesParaGasoilAction,
   getTarifasGasoilAction,
 } from "./actions";
-import LitrosClient from "./LitrosClient";
+import AutoconsumoClient from "./AutoconsumoClient";
 
 /**
- * Litros para la vuelta — pedido de Nico por WhatsApp del 31/08/2026.
+ * Autoconsumo — pedido de Nico por WhatsApp del 31/08/2026.
  *
  * Vive dentro de Combustible porque es gasoil, y no en Viajes: lo que se decide
  * acá es cuánto puede cargar el camión en el surtidor, no qué viaje hizo.
  */
-export default async function LitrosPage() {
+export default async function AutoconsumoPage() {
   const user = await requireArea("combustible", "read");
   const canWrite = hasArea(user, "combustible", "write");
 
@@ -26,8 +26,8 @@ export default async function LitrosPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <PageHeader
-        title="Litros para la vuelta"
-        description="Cuánto gasoil le corresponde según las toneladas que cargó"
+        title="Autoconsumo"
+        description="Cuánto gasoil le corresponde según las toneladas que cargó. Es la misma cuenta que usa YPF."
       />
       {tarifas.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-6 text-center">
@@ -38,7 +38,7 @@ export default async function LitrosPage() {
           </p>
         </div>
       ) : (
-        <LitrosClient
+        <AutoconsumoClient
           tarifas={tarifas}
           choferes={choferes}
           autorizaciones={autorizaciones}

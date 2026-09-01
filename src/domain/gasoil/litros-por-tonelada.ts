@@ -129,3 +129,38 @@ export function destinosDe(
     .map(([id, nombre]) => ({ id, nombre }))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
+
+/**
+ * TODOS los destinos del cuadro, sin importar el origen.
+ *
+ * La tira de destinos los muestra siempre completos y marca los que ese origen
+ * no tiene. Ofrecer sólo los válidos parece más prolijo, pero esconde el hueco:
+ * si mañana entra un destino nuevo sin rinde, nadie se entera de que falta
+ * cargarlo — simplemente no está. Así se ve, se toca, y la pantalla explica.
+ */
+export function destinosTodos(tarifas: TarifaGasoil[]): { id: string; nombre: string }[] {
+  const m = new Map<string, string>();
+  for (const t of tarifas) m.set(t.destinoId, t.destino);
+  return [...m.entries()]
+    .map(([id, nombre]) => ({ id, nombre }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * ¿Se puede elegir con tiras de botones, o hace falta un desplegable?
+ *
+ * El `Combobox` del proyecto sólo dibuja buscador arriba de 7 opciones
+ * (`combobox.tsx`, `searchThreshold`). Con 3 orígenes y 4 destinos son dos clics
+ * y un popup para elegir entre algo que entra entero en la pantalla — y el que
+ * lo va a tocar tiene el camión al lado, no un mouse.
+ *
+ * El umbral está acá y no en la vista para que sea una decisión y no una
+ * apuesta: el día que las canteras sean quince, la pantalla vuelve sola al
+ * desplegable sin que nadie se acuerde de mirarlo.
+ */
+export const MAX_ORIGENES_EN_TIRA = 6;
+export const MAX_DESTINOS_EN_TIRA = 8;
+
+export function conviveConTiras(origenes: number, destinos: number): boolean {
+  return origenes <= MAX_ORIGENES_EN_TIRA && destinos <= MAX_DESTINOS_EN_TIRA;
+}

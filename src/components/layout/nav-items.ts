@@ -92,7 +92,7 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "Cargas de gasoil", href: "/combustible" },
           // Cuánto le corresponde cargar para la vuelta según lo que llevó
           // (pedido de Nico, 31/08/2026).
-          { label: "Litros para la vuelta", href: "/combustible/litros" },
+          { label: "Autoconsumo", href: "/combustible/autoconsumo" },
         ],
       },
     ],

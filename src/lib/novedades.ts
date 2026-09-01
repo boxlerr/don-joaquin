@@ -94,9 +94,9 @@ export const NOVEDADES: Novedad[] = [
     fecha: "2026-09-01",
     tipo: "nuevo",
     ver: "combustible",
-    titulo: "Calculá los litros que le corresponden para la vuelta",
-    detalle: "En Combustible › Litros para la vuelta elegís desde dónde salió, a dónde va y cuántas toneladas cargó, y te dice cuántos litros puede cargar. Podés dejar anotado a qué chofer se le autorizó, y cambiar cuánto rinde cada tramo cuando haga falta.",
-    href: "/combustible/litros",
+    titulo: "Autoconsumo: calculá los litros que le corresponden para la vuelta",
+    detalle: "En Combustible › Autoconsumo tocás desde dónde salió, a dónde va y cuántas toneladas cargó, y te dice cuántos litros puede cargar. Podés dejar anotado a qué chofer se le autorizó, y cambiar cuánto rinde cada tramo cuando haga falta.",
+    href: "/combustible/autoconsumo",
   },
   {
     id: "egresar-a-alguien-ya-suma-la-baja-en",

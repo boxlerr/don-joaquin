@@ -171,7 +171,7 @@ export async function guardarAutorizacionAction(input: {
     },
   });
 
-  revalidatePath("/combustible/litros");
+  revalidatePath("/combustible/autoconsumo");
   return { ok: true, litros: calculo.litros };
 }
 
@@ -231,7 +231,7 @@ export async function guardarTarifaAction(input: {
     valoresNuevos: { litros_por_tonelada: ltn },
   });
 
-  revalidatePath("/combustible/litros");
+  revalidatePath("/combustible/autoconsumo");
   return { ok: true };
 }
 
