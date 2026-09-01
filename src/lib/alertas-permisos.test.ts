@@ -46,9 +46,10 @@ describe("columnasBloqueadas", () => {
       gastos_pendientes: [],
       cambios_caja: [],
       viaticos_sin_rendir: [],
+      prevision_financiera: [],
     });
     expect(columnasBloqueadas("paula", p).sort()).toEqual(
-      ["cambios_caja", "gastos_pendientes", "impuestos", "viaticos_sin_rendir"].sort(),
+      ["cambios_caja", "gastos_pendientes", "impuestos", "viaticos_sin_rendir", "prevision_financiera"].sort(),
     );
   });
 

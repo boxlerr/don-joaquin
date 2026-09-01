@@ -15,6 +15,8 @@ import {
   type DocCompliance,
 } from "@/lib/alertas-obsoletas";
 import { hoyArgentina } from "@/lib/fecha-ar";
+import { cargarPrevision } from "@/lib/prevision-datos";
+import { FUENTE_LABEL, hayAlgunTopeFinanzas } from "@/domain/finanzas/proyeccion";
 import { ensureProximoForm931 } from "@/app/(dashboard)/compliance/form-931/periodo";
 
 // Hitos de antigüedad (en años) para los que se emite una alerta de aniversario.
@@ -1507,6 +1509,75 @@ export async function generarAlertas() {
     }
   } catch (e) {
     console.error("[alertas] tope de gastos de la caja:", e);
+  }
+
+  // ── Los meses que vienen apretados ────────────────────────────────────────
+  // El pedido original de Bárbara (audios del 30/07) era un AVISO, no una
+  // pantalla: la pantalla /prevision existe desde el 25/08, pero el que no
+  // entraba a mirarla no se enteraba de nada. Esto es la otra mitad.
+  //
+  // La cuenta NO se rehace acá: se pide la misma que dibuja la pantalla
+  // (`cargarPrevision`). Si algún día difieren, difieren las dos juntas.
+  try {
+    const { proyeccion, topes } = await cargarPrevision();
+
+    // Sin umbral no hay aviso. No es un caso borde: es la decisión de Julián del
+    // 14/08 —"no definimos nosotros qué es un mes complicado"— y por eso el
+    // sistema se queda callado hasta que alguien ponga la raya.
+    if (hayAlgunTopeFinanzas(topes)) {
+      const MESES_PREV = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+      ];
+      const plataPrev = (n: number) => `$ ${Math.round(n).toLocaleString("es-AR")}`;
+
+      for (const m of proyeccion) {
+        if (m.nivel !== "excedido" || !m.exceso) continue;
+
+        // Una vez por mes excedido. Misma forma que préstamos y caja: el
+        // `entidad_id` va en null y la clave lo incluye, porque así se arma el
+        // set de existentes — con el mes acá adentro nunca coincidía y el aviso
+        // renacía en cada corrida del cron.
+        const key = `otro:null:prevision_mes_apretado:${m.mes}-01`;
+        if (existentesSet.has(key)) continue;
+
+        const [y, mm] = m.mes.split("-").map(Number);
+        const nombreMes = `${MESES_PREV[(mm ?? 1) - 1]} de ${y}`;
+        const pct = Math.round(m.exceso.porcentaje);
+
+        // De qué está hecho el número, para que el aviso no sea un total pelado.
+        const detalle = m.aportes
+          .filter((a) => a.monto > 0)
+          .map((a) => `${FUENTE_LABEL[a.fuente].toLowerCase()} ${plataPrev(a.monto)}`)
+          .join(", ");
+
+        const razon =
+          m.motivo === "pct_facturacion" && m.facturacionProyectada
+            ? `se lleva el ${Math.round((m.totalEgresos / m.facturacionProyectada) * 100)}% de lo que se espera facturar (${plataPrev(m.facturacionProyectada)}), por encima del ${topes.pctFacturacion}% que fijaron`
+            : `${plataPrev(m.exceso.exceso)} más que el límite de ${plataPrev(topes.egresosMes ?? 0)} (${pct}% por encima)`;
+
+        // El total es un piso, nunca el total real: si alguna fuente no está
+        // cargada hay que decirlo en el mismo aviso. Callarlo haría que el
+        // número se lea como cerrado cuando no lo es.
+        const aclaracion =
+          m.huecos.length > 0
+            ? ` Y es un piso: falta cargar ${m.huecos.map((h) => FUENTE_LABEL[h].toLowerCase()).join(" y ")}.`
+            : "";
+
+        nuevasAlertas.push({
+          tipo: "otro",
+          severidad: "advertencia",
+          titulo: `${nombreMes.charAt(0).toUpperCase()}${nombreMes.slice(1)} viene apretado`,
+          mensaje: `En ${nombreMes} hay que pagar ${plataPrev(m.totalEgresos)}: ${razon}.${detalle ? ` Sale de ${detalle}.` : ""}${aclaracion} Si el límite quedó corto, cambialo desde Previsión.`,
+          entidad_id: null,
+          entidad_tipo: "prevision_mes_apretado",
+          fecha_disparo: new Date().toISOString(),
+          fecha_vencimiento: `${m.mes}-01`,
+        });
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] meses apretados de la previsión:", e);
   }
 
   if (nuevasAlertas.length > 0) {

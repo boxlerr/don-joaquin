@@ -27,6 +27,13 @@ export const RRHH_EVENTOS_COL = "rrhh_eventos";
  * que ser así de completo, es incluso más importante"*.
  */
 export const AUSENCIAS_COL = "ausencias_vacaciones";
+/**
+ * Los meses que vienen apretados. Columna propia y no "Otros avisos" porque
+ * arrastra el número más sensible del sistema —masa salarial y deuda bancaria
+ * sumadas en un solo peso— y porque el umbral lo fijan ellos: quien no fijó
+ * ninguno no recibe nada, por diseño.
+ */
+export const PREVISION_COL = "prevision_financiera";
 
 /**
  * Efemérides: los eventos de calendario del personal. Se guardan con
@@ -178,6 +185,9 @@ const ENTIDAD_A_COLUMNA: Record<string, string> = {
   // Caja (confidencial: el aviso trae los montos del mes).
   "caja_tope_mensual:": "cambios_caja",
 
+  // Previsión (confidencial: el aviso trae los egresos comprometidos del mes).
+  "prevision_mes_apretado": PREVISION_COL,
+
   // Finanzas
   "impuesto:": "impuestos",
 
@@ -196,7 +206,8 @@ const ENTIDAD_A_COLUMNA: Record<string, string> = {
 export const COLUMNAS_TODAS = [
   "vencimiento_docs", "cheques_vencidos", "viaticos_sin_rendir", "gastos_pendientes",
   "cambios_caja", "nuevo_viaje", "vencimiento_compliance", PRESTAMOS_COL,
-  "impuestos", "mantenimiento", "rrhh_eventos", "ausencias_vacaciones", OTROS_AVISOS,
+  "impuestos", "mantenimiento", "rrhh_eventos", "ausencias_vacaciones", PREVISION_COL,
+  OTROS_AVISOS,
 ];
 
 /**
@@ -234,6 +245,9 @@ export const COLUMNA_CONFIDENCIAL: Record<string, SeccionCodigo> = {
   // Sin generador hoy, pero la columna es tildable: si mañana alguien emite un
   // aviso de caja, nace tapado en vez de nacer abierto.
   cambios_caja: "caja_saldo",
+  // Egresos comprometidos del mes: cuotas, cheques nuestros y sueldos en un
+  // solo número. Es la sección más cerrada de Finanzas.
+  [PREVISION_COL]: "prevision",
 };
 
 /** Subsección que hay que tener para recibir esta columna, o null si es pública. */

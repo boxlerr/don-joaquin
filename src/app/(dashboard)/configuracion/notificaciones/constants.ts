@@ -125,6 +125,16 @@ export const ALERTAS = [
     ],
   },
   {
+    key: "prevision_financiera",
+    nombre: "Meses apretados",
+    descripcion:
+      "Aviso cuando un mes que viene se pasa del límite fijado en Previsión. Suma cuotas, cheques nuestros y sueldos: sección confidencial",
+    cubre: [
+      "Un mes que se pasa del límite en pesos",
+      "Un mes en el que los pagos se llevan más del % de la facturación fijado",
+    ],
+  },
+  {
     key: "impuestos",
     nombre: "Impuestos",
     descripcion: "Vencimientos impositivos sin marcar como presentados",
