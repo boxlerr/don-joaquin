@@ -19,13 +19,13 @@ import { urlesFirmadas, claveArchivo } from "@/lib/storage-urls";
 export default async function ChoferesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ documentoId?: string }>;
+  searchParams: Promise<{ documentoId?: string; rapido?: string }>;
 }) {
   const user = await requireSeccion("choferes", "read");
   const canWrite = hasSeccion(user, "choferes", "write");
   const supabase = createAdminClient();
 
-  const { documentoId } = await searchParams;
+  const { documentoId, rapido } = await searchParams;
   if (documentoId) {
     const { data: docData } = await supabase
       .from("chofer_documentos")
@@ -294,7 +294,15 @@ export default async function ChoferesPage({
 
       <ChoferesLocalidades localidades={localidadData} sinLocalidad={sinLocalidad} />
 
-      <ChoferesList choferes={choferesMapeados ?? []} docsPorChofer={docsPorChofer} />
+      {/* `rapido` llega desde un aviso que quiere abrir la pantalla ya filtrada
+          (el pop-up del día: "Documentos · 2 vencidos"). Se resuelve en el
+          server y viaja como prop: con `useSearchParams` en el cliente la lista
+          se pinta una vez sin filtrar y recién después se acomoda. */}
+      <ChoferesList
+        choferes={choferesMapeados ?? []}
+        docsPorChofer={docsPorChofer}
+        rapidoInicial={rapido}
+      />
     </div>
   );
 }

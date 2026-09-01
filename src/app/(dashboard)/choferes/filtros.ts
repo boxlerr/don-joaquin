@@ -420,3 +420,35 @@ export function normalizarFiltros(raw: unknown): EstadoFiltros {
     },
   };
 }
+
+/**
+ * Accesos rápidos pedidos por la URL: `/choferes?rapido=vencidos`.
+ *
+ * Existe para que un aviso pueda abrir la pantalla YA filtrada. El pop-up del
+ * día decía "Documentos · 2 vencidos" y el pie caía en la lista de avisos, así
+ * que había que rearmar a mano el filtro que produjo el número — que es
+ * exactamente lo que Julián pidió que dejara de pasar (27/08/2026), y volvió a
+ * pedirlo para documentos el 01/09.
+ *
+ * Acepta varios separados por coma porque los chips se acumulan. Lo que no sea
+ * un acceso rápido conocido se descarta en silencio: un link viejo o mal escrito
+ * tiene que abrir la pantalla sin filtrar, nunca romperla.
+ */
+export function rapidosDesdeUrl(valor: string | null | undefined): QuickFilter[] {
+  if (!valor) return [];
+  const pedidos = valor.split(",").map((s) => s.trim()).filter(Boolean);
+  const validos = pedidos.filter((q): q is QuickFilter =>
+    (QUICK_FILTERS as readonly string[]).includes(q),
+  );
+  // Sin duplicados: `?rapido=vencidos,vencidos` no puede activar el chip dos veces.
+  return [...new Set(validos)];
+}
+
+/** Estado inicial de la pantalla para un `?rapido=` de la URL. */
+export function filtrosDesdeUrl(valor: string | null | undefined): EstadoFiltros {
+  const rapidos = rapidosDesdeUrl(valor);
+  if (rapidos.length === 0) return FILTROS_VACIOS;
+  // Con documentos vencidos a la vista, ordenar por urgencia es lo que se espera.
+  const porUrgencia = rapidos.includes("vencidos") || rapidos.includes("por_vencer");
+  return { ...FILTROS_VACIOS, rapidos, orden: porUrgencia ? "documentos" : FILTROS_VACIOS.orden };
+}

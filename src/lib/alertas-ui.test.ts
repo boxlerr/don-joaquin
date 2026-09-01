@@ -74,3 +74,96 @@ describe("textoSobre", () => {
     expect(textoSobre("rgb(1,2,3)")).toBe("#FFFFFF");
   });
 });
+
+/**
+ * "Documentos" mezcla papeles de choferes y de camiones, y por eso caía SIEMPRE
+ * en la lista de avisos.
+ *
+ * Julián, 01/09/2026: *"si abro el atajo de documento que veo que son 2 me abre
+ * notificaciones, no me lleva a donde están esos 2 documentos; podría llevarme a
+ * legajos con los 2 legajos de los choferes ya filtrados"*. La regla que se
+ * prueba acá es que se decide por lo que dice el NÚMERO GRANDE —los vencidos—,
+ * no por todo lo que la tarjeta llegó a listar.
+ */
+describe("destinoDeGrupo · documentos", () => {
+  const doc = (href: string | null, diasRestantes: number | null) => ({ href, diasRestantes });
+  const LISTA = "/notificaciones?categoria=documentacion";
+
+  it("el caso de la captura: los 2 vencidos son de choferes, el camión no está vencido", () => {
+    // Tal cual la tarjeta del 01/09: 2 vencidos (Paz Leonardo, Salto Maximiliano)
+    // y entre los próximos una VTV de camión. Antes ese camión arrastraba el
+    // destino entero a la lista de avisos.
+    expect(
+      destinoDeGrupo({
+        key: "vencimiento_docs",
+        vencidos: 2,
+        restantes: 0,
+        restantesVencidos: 0,
+        items: [
+          doc("/choferes?documentoId=a", -30),
+          doc("/choferes?documentoId=b", -8),
+          doc("/choferes?documentoId=c", 1),
+          doc("/camiones?documentoId=d", 2),
+          doc("/choferes?documentoId=e", 3),
+        ],
+      }),
+    ).toBe("/choferes?rapido=vencidos");
+  });
+
+  it("con los vencidos repartidos entre choferes y camiones, entra a la lista", () => {
+    expect(
+      destinoDeGrupo({
+        key: "vencimiento_docs",
+        vencidos: 2,
+        restantesVencidos: 0,
+        items: [doc("/choferes?documentoId=a", -30), doc("/camiones?documentoId=b", -2)],
+      }),
+    ).toBe(LISTA);
+  });
+
+  it("sin nada vencido, el número grande es el total: abre lo que está por vencer", () => {
+    expect(
+      destinoDeGrupo({
+        key: "vencimiento_docs",
+        vencidos: 0,
+        restantes: 0,
+        items: [doc("/choferes?documentoId=a", 3), doc("/choferes?documentoId=b", 5)],
+      }),
+    ).toBe("/choferes?rapido=por_vencer");
+  });
+
+  it("si quedaron vencidos fuera del recorte no se puede saber de qué lado son", () => {
+    // El grupo viaja recortado. Con vencidos que no viajaron, clasificar por los
+    // que sí llegaron sería adivinar con media lista.
+    expect(
+      destinoDeGrupo({
+        key: "vencimiento_docs",
+        vencidos: 9,
+        restantesVencidos: 7,
+        items: [doc("/choferes?documentoId=a", -30), doc("/choferes?documentoId=b", -8)],
+      }),
+    ).toBe(LISTA);
+  });
+
+  it("todo de camiones va a la lista: la flota todavía no filtra por documento vencido", () => {
+    expect(
+      destinoDeGrupo({
+        key: "vencimiento_docs",
+        vencidos: 2,
+        restantesVencidos: 0,
+        items: [doc("/camiones?documentoId=a", -4), doc("/camiones?documentoId=b", -1)],
+      }),
+    ).toBe(LISTA);
+  });
+
+  it("un aviso sin href no arrastra a nadie: se entra a la lista", () => {
+    expect(
+      destinoDeGrupo({
+        key: "vencimiento_docs",
+        vencidos: 2,
+        restantesVencidos: 0,
+        items: [doc("/choferes?documentoId=a", -30), doc(null, -8)],
+      }),
+    ).toBe(LISTA);
+  });
+});

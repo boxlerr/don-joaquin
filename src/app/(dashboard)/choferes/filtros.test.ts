@@ -8,6 +8,7 @@ import {
   hayFiltros,
   normalizarFiltros,
   FILTROS_VACIOS,
+  filtrosDesdeUrl,
   opcionesDe,
   ordenar,
   pasaAvanzados,
@@ -309,5 +310,44 @@ describe("aniosEnLaEmpresa", () => {
     expect(aniosEnLaEmpresa("2020-08-08", new Date("2026-08-07"))).toBe(5);
     expect(aniosEnLaEmpresa("2020-08-07", new Date("2026-08-07"))).toBe(6);
     expect(aniosEnLaEmpresa(null)).toBeNull();
+  });
+});
+
+/**
+ * Abrir Legajos ya filtrado desde un aviso.
+ *
+ * El pop-up del día decía "Documentos · 2 vencidos" y el pie caía en la lista de
+ * avisos: había que rearmar a mano el filtro que produjo el número (Julián,
+ * 01/09/2026). Lo que se cuida acá es que un link roto o viejo abra la pantalla
+ * entera en vez de romperla.
+ */
+describe("filtrosDesdeUrl", () => {
+  it("activa el acceso rápido pedido y ordena por urgencia", () => {
+    const f = filtrosDesdeUrl("vencidos");
+    expect(f.rapidos).toEqual(["vencidos"]);
+    expect(f.orden).toBe("documentos");
+  });
+
+  it("acepta varios separados por coma, porque los chips se acumulan", () => {
+    expect(filtrosDesdeUrl("vencidos,sin_telefono").rapidos).toEqual(["vencidos", "sin_telefono"]);
+  });
+
+  it("descarta lo que no es un acceso rápido conocido", () => {
+    expect(filtrosDesdeUrl("no_existe").rapidos).toEqual([]);
+    expect(filtrosDesdeUrl("no_existe,vencidos").rapidos).toEqual(["vencidos"]);
+  });
+
+  it("sin parámetro deja la pantalla como estaba", () => {
+    expect(filtrosDesdeUrl(null)).toEqual(FILTROS_VACIOS);
+    expect(filtrosDesdeUrl(undefined)).toEqual(FILTROS_VACIOS);
+    expect(filtrosDesdeUrl("")).toEqual(FILTROS_VACIOS);
+  });
+
+  it("no repite un chip aunque venga dos veces", () => {
+    expect(filtrosDesdeUrl("vencidos,vencidos").rapidos).toEqual(["vencidos"]);
+  });
+
+  it("un acceso rápido que no habla de documentos no cambia el orden", () => {
+    expect(filtrosDesdeUrl("sin_telefono").orden).toBe(FILTROS_VACIOS.orden);
   });
 });

@@ -112,16 +112,70 @@ export function tinte(color: string): string {
  * Compliance es el caso pendiente: su checklist todavía no sabe mostrar sólo lo
  * vencido, así que se entra a la pantalla entera.
  */
-const DESTINO_FILTRADO: Record<string, (vencidos: number) => string> = {
+export type GrupoDestino = {
+  key?: string;
+  vencidos?: number;
+  restantes?: number;
+  restantesVencidos?: number;
+  items: { href: string | null; diasRestantes?: number | null }[];
+};
+
+/** La lista de avisos, ya recortada a documentación. El destino de última instancia. */
+const LISTA_DOCS = "/notificaciones?categoria=documentacion";
+
+/**
+ * A dónde lleva "Documentos", que mezcla papeles de choferes y de camiones.
+ *
+ * Antes iba SIEMPRE a la lista de avisos, porque un grupo mezclado no tiene una
+ * pantalla única. Pero el grupo está mezclado pocas veces: lo que se mira son
+ * los VENCIDOS —el número grande de la tarjeta— y esos suelen ser todos del
+ * mismo lado. Julián, 01/09/2026: *"si abro el atajo de documento que veo que
+ * son 2 me abre notificaciones, podría llevarme a legajos con los 2 legajos de
+ * los choferes ya filtrados"*. Eran dos Manuales de Inducción; el camión del
+ * grupo no estaba vencido y arrastraba el destino igual.
+ *
+ * Sólo se decide cuando se puede VER de qué lado son. Si quedaron vencidos
+ * afuera del recorte, no se sabe: se entra a la lista, que los muestra a todos.
+ */
+function destinoDocumentos(g: GrupoDestino): string {
+  const hayVencidos = (g.vencidos ?? 0) > 0;
+  // Lo que no viajó no se puede clasificar. Adivinar con la mitad de la lista es
+  // peor que caer en la pantalla que las tiene todas.
+  const afuera = hayVencidos ? (g.restantesVencidos ?? 0) : (g.restantes ?? 0);
+  if (afuera > 0) return LISTA_DOCS;
+
+  // Se mira lo mismo que dice el número grande: los vencidos si los hay.
+  const mirados = hayVencidos
+    ? g.items.filter((i) => (i.diasRestantes ?? 0) < 0)
+    : g.items;
+  if (mirados.length === 0) return LISTA_DOCS;
+
+  const secciones = new Set<string>();
+  for (const i of mirados) {
+    const seg = i.href?.split("?")[0]?.split("/").filter(Boolean)[0];
+    if (!seg) return LISTA_DOCS;
+    secciones.add(`/${seg}`);
+  }
+  if (secciones.size !== 1) return LISTA_DOCS;
+
+  // Legajos sabe abrirse filtrado por estado de la documentación (los mismos
+  // accesos rápidos de la barra). La flota todavía no: mientras no tenga ese
+  // filtro, mandarla sin filtrar sería peor que la lista de avisos.
+  const seccion = [...secciones][0];
+  if (seccion !== "/choferes") return LISTA_DOCS;
+  return hayVencidos ? "/choferes?rapido=vencidos" : "/choferes?rapido=por_vencer";
+}
+
+const DESTINO_FILTRADO: Record<string, (g: GrupoDestino) => string> = {
   // Con algo vencido, el número grande son LOS VENCIDOS: el click tiene que
   // abrir esos y no la lista entera. "No entiendo 3 cheques de 21, le hago click
   // y no me filtra cuáles son" (Julián, 27/08/2026).
-  cheques_vencidos: (v) => (v > 0 ? "/cheques?vista=vencidos" : "/cheques?vista=avisos"),
-  impuestos: (v) => (v > 0 ? "/impuestos?estado=vencido" : "/impuestos?estado=por_vencer"),
-  prestamos_vencimiento: (v) => (v > 0 ? "/prestamos?foco=vencidas" : "/prestamos"),
-  // Documentos mezcla camiones y choferes: la única pantalla que los muestra
-  // juntos —con su fecha y cuánto falta— es la de avisos.
-  vencimiento_docs: () => "/notificaciones?categoria=documentacion",
+  cheques_vencidos: (g) =>
+    (g.vencidos ?? 0) > 0 ? "/cheques?vista=vencidos" : "/cheques?vista=avisos",
+  impuestos: (g) =>
+    (g.vencidos ?? 0) > 0 ? "/impuestos?estado=vencido" : "/impuestos?estado=por_vencer",
+  prestamos_vencimiento: (g) => ((g.vencidos ?? 0) > 0 ? "/prestamos?foco=vencidas" : "/prestamos"),
+  vencimiento_docs: destinoDocumentos,
   rrhh_eventos: () => "/notificaciones?categoria=personal",
 };
 
@@ -134,13 +188,9 @@ const DESTINO_FILTRADO: Record<string, (vencidos: number) => string> = {
  * se muda—. Y si los avisos apuntan a secciones distintas, no hay "la sección
  * del grupo": el destino honesto es la lista de notificaciones.
  */
-export function destinoDeGrupo(grupo: {
-  key?: string;
-  vencidos?: number;
-  items: { href: string | null }[];
-}): string {
+export function destinoDeGrupo(grupo: GrupoDestino): string {
   const filtrado = grupo.key ? DESTINO_FILTRADO[grupo.key] : undefined;
-  if (filtrado) return filtrado(grupo.vencidos ?? 0);
+  if (filtrado) return filtrado(grupo);
 
   let comun: string | null = null;
   for (const item of grupo.items) {

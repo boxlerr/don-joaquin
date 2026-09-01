@@ -9,8 +9,8 @@ import ChoferesTabla from "./ChoferesTabla";
 import ChoferesFiltros, { type Vista } from "./ChoferesFiltros";
 import {
   DOCS_VACIO,
-  FILTROS_VACIOS,
   QUICK_FILTERS,
+  filtrosDesdeUrl,
   ROLES,
   hayFiltros,
   opcionesDe,
@@ -32,12 +32,20 @@ const VISTA_KEY = "dj:legajos:vista";
 export default function ChoferesList({
   choferes,
   docsPorChofer,
+  rapidoInicial,
 }: {
   choferes: ChoferListado[];
   /** Resumen de documentación por persona (columna, accesos rápidos y orden por urgencia). */
   docsPorChofer: Record<string, DocsResumen>;
+  /**
+   * Accesos rápidos pedidos por la URL (`?rapido=vencidos`), para que un aviso
+   * abra la pantalla ya filtrada. Se aplica UNA vez, como estado inicial: a
+   * partir de ahí manda lo que toque la persona, así tocar un chip no pelea
+   * contra la URL que la trajo.
+   */
+  rapidoInicial?: string;
 }) {
-  const [filtros, setFiltros] = useState<EstadoFiltros>(FILTROS_VACIOS);
+  const [filtros, setFiltros] = useState<EstadoFiltros>(() => filtrosDesdeUrl(rapidoInicial));
   const [vista, setVista] = useState<Vista>("tarjetas");
   const [barraAbierta, setBarraAbierta] = useState(true);
   const [historialOpen, setHistorialOpen] = useState(false);
