@@ -32,6 +32,7 @@ import type {
   UnidadInfo,
 } from "./types";
 import type { Form931Row } from "./form-931/actions";
+import { reconciliarF931 } from "./estado-931";
 
 type ClienteData = {
   rows: ComplianceEstadoRow[];
@@ -111,6 +112,19 @@ export default function ComplianceUnifiedClient({
   // una solapa aparte y quedaba duplicado con el ítem de Documentación.
   const pendientes931 = periodos931.filter((p) => !(p.enviado_ypf && p.enviado_loma)).length;
 
+  // La fila "F931" de la papeleta tiene que decir lo que dicen sus períodos.
+  // Mientras no lo hizo, la pantalla mostraba "VENCIDOS 0 · Ninguno vencido" con
+  // dos Formularios 931 sin presentar —uno de hacía 50 días— porque la papeleta
+  // y la tabla de períodos son dos fuentes del mismo trámite y no se hablaban
+  // (Julián, 01/09/2026). Ver `estado-931.ts`.
+  const documentacionReal = useMemo(
+    () => ({
+      ...documentacion,
+      rows: reconciliarF931(documentacion.rows, periodos931, generadoEn),
+    }),
+    [documentacion, periodos931, generadoEn],
+  );
+
   const tabs = useMemo<TabDef[]>(() => {
     const out: TabDef[] = [];
 
@@ -118,8 +132,8 @@ export default function ComplianceUnifiedClient({
       id: "documentacion",
       label: "Documentación",
       icon: ClipboardList,
-      total: documentacion.rows.length,
-      vencidos: documentacion.rows.filter((r) => r.estado === "vencido").length,
+      total: documentacionReal.rows.length,
+      vencidos: documentacionReal.rows.filter((r) => r.estado === "vencido").length,
       acciones: (
         <>
           {/* Los dos botones de ayuda van juntos y marcados como uno: el último
@@ -142,7 +156,7 @@ export default function ComplianceUnifiedClient({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void exportarComplianceChecklistXlsx("Documentación", documentacion.rows)}
+            onClick={() => void exportarComplianceChecklistXlsx("Documentación", documentacionReal.rows)}
             className="border-border"
           >
             <FileSpreadsheet size={14} className="mr-1.5" />
@@ -164,10 +178,10 @@ export default function ComplianceUnifiedClient({
       render: () => (
         <ComplianceChecklistPage
           titulo="Documentación"
-          rows={documentacion.rows}
-          requisitos={documentacion.requisitos}
-          unidades={documentacion.unidades}
-          choferes={documentacion.choferes}
+          rows={documentacionReal.rows}
+          requisitos={documentacionReal.requisitos}
+          unidades={documentacionReal.unidades}
+          choferes={documentacionReal.choferes}
           canWrite={canWrite}
           embedded
           generadoEn={generadoEn}
@@ -201,7 +215,7 @@ export default function ComplianceUnifiedClient({
     }
 
     return out;
-  }, [documentacion, organismos, periodos931, envio931, canWrite, initialPlat, generadoEn]);
+  }, [documentacionReal, organismos, periodos931, envio931, canWrite, initialPlat, generadoEn]);
 
   // Resolver la solapa inicial (?plat=). Las rutas viejas (ypf/loma/generales)
   // caen todas en "Documentación", que ahora las junta.
@@ -223,7 +237,7 @@ export default function ComplianceUnifiedClient({
   const tab = tabs.find((t) => t.id === activo) ?? tabs[0];
 
   const pendientesDoc =
-    documentacion.rows.filter((r) => esPendiente(r.estado)).length + pendientes931;
+    documentacionReal.rows.filter((r) => esPendiente(r.estado)).length + pendientes931;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-4">
@@ -295,7 +309,7 @@ export default function ComplianceUnifiedClient({
           cargué nada"). Con pendientes, los números de arriba ya lo dicen. */}
       {tab?.id === "documentacion" && pendientesDoc === 0 && (
         <p className="text-[13px] font-medium text-[#166534] print:hidden">
-          Todo al día: los {documentacion.rows.length} documentos exigidos están presentados y vigentes.
+          Todo al día: los {documentacionReal.rows.length} documentos exigidos están presentados y vigentes.
         </p>
       )}
 
@@ -305,8 +319,8 @@ export default function ComplianceUnifiedClient({
 
       {agregando && (
         <AgregarDocumentoDialog
-          rows={documentacion.rows}
-          requisitos={documentacion.requisitos}
+          rows={documentacionReal.rows}
+          requisitos={documentacionReal.requisitos}
           open={agregando}
           onOpenChange={setAgregando}
           onSuccess={() => {
