@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "los-meses-apretados-ahora-te-avisan-solos",
+    fecha: "2026-09-01",
+    tipo: "nuevo",
+    ver: "prevision",
+    titulo: "Los meses apretados ahora te avisan solos",
+    detalle: "Antes había que entrar a Previsión a mirar. Ahora, cuando un mes que viene se pasa del límite que fijaron ustedes, el aviso sale en la campana y en el correo. Si no fijaron ningún límite, no avisa nada.",
+    href: "/prevision",
+  },
+  {
     id: "ves-que-equipos-quedan-sin-chofer",
     fecha: "2026-08-31",
     tipo: "mejora",
