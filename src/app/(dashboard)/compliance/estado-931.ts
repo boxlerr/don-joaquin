@@ -17,10 +17,15 @@
 // períodos**. No se toca la base ni se inventa una fila nueva — se corrige lo que
 // esa fila afirma, que es lo único que estaba mal.
 //
-// Los dos números siguen contando cosas distintas a propósito, y está bien: la
-// papeleta cuenta REQUISITOS (el F931 es uno solo) y el aviso cuenta PERÍODOS
-// (son dos meses). Lo que no puede pasar —y era el bug— es que una diga "ninguno"
-// mientras la otra dice "dos".
+// Y cuentan lo mismo. En la primera versión no: la papeleta contaba REQUISITOS
+// (el F931 es uno solo) y el aviso, PERÍODOS (eran dos meses), así que la campana
+// decía 2 y la pantalla 1. *"algo está mal ahí, tiene que reflejar los vencidos
+// reales"* (Julián, 01/09/2026). Desde entonces el generador emite **un aviso por
+// el F931** —el del período más atrasado, diciendo cuántos vienen atrás— y los dos
+// números son el mismo número.
+//
+// La otra mitad de ese reporte es la palabra: acá no vence nada, FALTA presentarlo.
+// Ver `etiqueta_estado` / `nota_estado` en `types.ts`.
 
 import type { ComplianceEstado, ComplianceEstadoRow } from "./types";
 
@@ -88,10 +93,19 @@ export function resumen931(periodos: Periodo931[], hoyISO: string): Resumen931 {
 /**
  * Devuelve las filas de la papeleta con la del F931 diciendo la verdad.
  *
- * Si no hay períodos cargados no se toca nada: sin datos, la fila sigue valiendo
- * lo que valía. Y nunca se ablanda un estado — si la papeleta ya la daba por
- * vencida por su propio motivo (no hay papel cargado), se respeta: el peor de
- * los dos es el que hay que atender.
+ * La fila del F931 es la del PAPEL: cuándo vence el formulario que está cargado,
+ * igual que cualquier otro documento de la papeleta. Que además haya que MANDARLO
+ * cada mes a YPF y a Loma Negra es otra obligación, y se sigue en la tabla de
+ * períodos que se despliega debajo.
+ *
+ * Por eso acá se toca la fila en un solo caso: cuando un envío quedó ATRASADO.
+ * Ahí sí gana, porque es lo urgente y porque si no la pantalla decía "ninguno
+ * vencido" con dos meses sin mandar (Julián, 01/09/2026).
+ *
+ * Mientras el plazo corre no se toca nada. Pisarla igual fue el error de la
+ * primera versión: la fila mostraba "hasta el 20/09 · Sin presentar" con el papel
+ * cargado y venciendo el 11/09 — *"por lo que veo sí hay cosas cargadas"*. Tapaba
+ * el vencimiento real con la fecha de un envío que todavía no debe nada.
  */
 export function reconciliarF931<T extends ComplianceEstadoRow>(
   rows: T[],
@@ -100,18 +114,39 @@ export function reconciliarF931<T extends ComplianceEstadoRow>(
 ): T[] {
   if (periodos.length === 0) return rows;
   const r = resumen931(periodos, hoyISO);
-  if (r.pendientes === 0) return rows;
+  if (r.vencidos === 0) return rows;
 
   return rows.map((row) => {
     if (row.requisito_codigo !== CODIGO_F931) return row;
-    // "faltante" (nunca se cargó el papel) es un problema distinto y más viejo
-    // que un período por vencer: no se pisa con algo más blando.
-    if (row.estado === "vencido" && r.estado !== "vencido") return row;
     return {
       ...row,
-      estado: r.estado,
+      estado: "vencido",
       fecha_vencimiento: r.fechaLimite ?? row.fecha_vencimiento,
       dias_restantes: r.diasRestantes ?? row.dias_restantes,
+      // "Falta enviarlo" y no "sin presentar" ni "vencido": el papel puede estar
+      // cargado y al día — lo que falta es mandarlo.
+      etiqueta_estado: "Falta enviarlo",
+      nota_estado: notaPeriodos(r),
     };
   });
+}
+
+function fmtFecha(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/**
+ * Qué dice la línea de fecha cuando el envío quedó atrasado.
+ *
+ * "venció hace 50 días" era la frase de un papel que caducó, y acá no caducó
+ * nada: quedó sin mandar. *"decía vencido de un documento que nunca se cargó
+ * aún"* (Julián, 01/09/2026). La urgencia no se pierde —sigue en rojo por el
+ * estado— pero la frase dice lo que hay que hacer, que es enviarlo.
+ */
+function notaPeriodos(r: Resumen931): string | null {
+  if (r.fechaLimite === null || r.diasRestantes === null) return null;
+  const d = Math.abs(r.diasRestantes);
+  const cola = r.vencidos > 1 ? ` · ${r.vencidos} meses sin enviar` : "";
+  return `el plazo era el ${fmtFecha(r.fechaLimite)} · van ${d} día${d !== 1 ? "s" : ""}${cola}`;
 }

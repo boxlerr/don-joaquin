@@ -102,6 +102,43 @@ export function preavisoVencimientoPasado(
   return fechaVencimiento < hoyIso;
 }
 
+/** Lo que hay que saber de un período del F931 para decidir si su aviso sigue vivo. */
+export type Presentacion931 = {
+  fecha_limite: string;
+  enviado_ypf: boolean;
+  enviado_loma: boolean;
+};
+
+/**
+ * ¿Este aviso del Formulario 931 ya no tiene a quién reclamarle?
+ *
+ * Los avisos del 931 no se apagaban NUNCA. No entran por `documentoRenovado`
+ * —su `entidad_id` es una PRESENTACIÓN, no un papel— y el único barrido que los
+ * rozaba era el de preavisos, que sólo mira los "vence en N días". El de
+ * "vencido" quedaba pendiente para siempre.
+ *
+ * Así se llegó al 01/09/2026: Julián borró los dos períodos viejos (13/07 y
+ * 20/08) y la campana siguió mostrando **2 vencidos** contra una pantalla que
+ * decía **0**. No eran dos criterios distintos: eran dos avisos reclamando
+ * períodos que ya no existían.
+ *
+ * Tres formas de quedarse sin objeto, y las tres tienen que apagarlo:
+ *  · el período se borró — no hay nada que presentar;
+ *  · se marcaron los dos envíos — ya se presentó;
+ *  · le corrigieron la fecha límite — el plazo que reclama ese aviso no es el
+ *    que rige. Si la fecha nueva también corre, la generación emite el aviso
+ *    que corresponde, con la fecha buena.
+ */
+export function form931Obsoleto(
+  fechaAlerta: string | null | undefined,
+  presentacion: Presentacion931 | null | undefined,
+): boolean {
+  if (!presentacion) return true;
+  if (presentacion.enviado_ypf && presentacion.enviado_loma) return true;
+  if (fechaAlerta && presentacion.fecha_limite !== fechaAlerta.slice(0, 10)) return true;
+  return false;
+}
+
 export type ClasePrestamo = "vencido" | "gracia" | "inminente" | "semana";
 
 /**

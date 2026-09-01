@@ -10,9 +10,11 @@ import {
   semanalDeSemanaPasada,
   preavisoPrestamoPasado,
   preavisoVencimientoPasado,
+  form931Obsoleto,
   claveComplianceDoc,
   ultimoVencimientoPorClave,
   type DocCompliance,
+  type Presentacion931,
 } from "@/lib/alertas-obsoletas";
 import { hoyArgentina } from "@/lib/fecha-ar";
 import { cargarPrevision } from "@/lib/prevision-datos";
@@ -336,6 +338,47 @@ async function resolverAlertasObsoletas(
     }
   } catch (e) {
     console.error("[alertas] resolverAlertasObsoletas/documentos:", e);
+  }
+
+  // --- 1b. Formulario 931 presentado, borrado o con otra fecha límite ---
+  //
+  // Va aparte del barrido de documentos porque el 931 no es un papel: su
+  // `entidad_id` es un PERÍODO de `form931_presentaciones`. Sin esto el aviso de
+  // "vencido" no se apagaba nunca —ni presentándolo ni borrando el período— y la
+  // campana quedaba reclamando meses que ya no existían (Julián, 01/09/2026).
+  try {
+    const { data: pend931 } = await supabase
+      .from("alertas")
+      .select("id, entidad_id, fecha_vencimiento")
+      .eq("estado", "pendiente")
+      .eq("tipo", "vencimiento_compliance")
+      .like("entidad_tipo", "form931:%");
+
+    const filas931 = (pend931 ?? []).filter((a) => a.entidad_id);
+    if (filas931.length > 0) {
+      const ids = [...new Set(filas931.map((a) => a.entidad_id!))];
+      const presentaciones = new Map<string, Presentacion931>();
+      for (const tanda of enTandas(ids, 200)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("form931_presentaciones")
+          .select("id, fecha_limite, enviado_ypf, enviado_loma")
+          .in("id", tanda);
+        for (const f of (data ?? []) as (Presentacion931 & { id: string })[]) {
+          presentaciones.set(f.id, f);
+        }
+      }
+
+      const obsoletas = filas931
+        .filter((a) => form931Obsoleto(a.fecha_vencimiento, presentaciones.get(a.entidad_id!)))
+        .map((a) => a.id);
+      if (obsoletas.length > 0) {
+        const n = await marcarResueltas(supabase, obsoletas);
+        console.log(`[alertas] ${n} aviso(s) del F931 ya presentados o borrados`);
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] resolverAlertasObsoletas/form931:", e);
   }
 
   // --- 2 y 3. Préstamos: cuota pagada o preaviso que quedó atrás ---
@@ -1233,10 +1276,24 @@ export async function generarAlertas() {
     }
   }
 
-  // Formulario 931 (Compliance) — debe enviarse a YPF (Nico) y a Loma (Noelia).
-  // Bloqueante: sin 931 no puede cargar nadie. Disparos discretos 30/15/5 + vencido;
-  // se apaga cuando AMBOS envíos están marcados. Usa tipo "vencimiento_compliance"
-  // para rutear al toggle "Compliance Loma/YPF" (llega a todos los que lo tengan).
+  // Formulario 931 (Compliance) — hay que presentarlo a YPF y a Loma Negra todos
+  // los meses. Disparos discretos 30/15/5 + fuera de plazo; se apaga cuando AMBOS
+  // envíos están marcados (o cuando el período se borra: ver `form931Obsoleto`).
+  // Usa tipo "vencimiento_compliance" para rutear al toggle "Compliance Loma/YPF"
+  // (llega a todos los que lo tengan).
+  //
+  // Dos correcciones del 01/09/2026, las dos del mismo reporte de Julián:
+  //
+  //  1. **Un aviso, no uno por período.** Con dos meses sin presentar salían dos
+  //     avisos con el MISMO texto ("falta YPF y Loma Negra") y la campana decía
+  //     "2 vencidos" contra una pantalla que cuenta el requisito una sola vez y
+  //     decía 1. Se reclama el período más atrasado y el mensaje dice cuántos
+  //     vienen atrás: una obligación, un aviso, y los dos lados dicen lo mismo.
+  //
+  //  2. **No se llama "vencido".** *"decía vencido de un documento que nunca se
+  //     cargó aún"*. Un papel vence; una presentación que nunca se hizo FALTA.
+  //     El rojo no lo pone la palabra sino la severidad y el "hace N días".
+  //
   // Asegura que el próximo período (día 20) exista antes de alertar, así el aviso
   // sale aunque nadie haya abierto la pantalla del F931 este mes. Sin usuario (cron).
   await ensureProximoForm931(supabase, null, hoy);
@@ -1248,21 +1305,23 @@ export async function generarAlertas() {
     .select("id, periodo, fecha_limite, enviado_ypf, enviado_loma")
     .or("enviado_ypf.eq.false,enviado_loma.eq.false");
 
-  // A dónde se presenta el 931 (SICOP, Secondi, portal YPF…): parámetro editable,
-  // para que la alerta lo diga aunque no esté Noelia (reunión Nico 02/07).
-  const { data: paramEnvio931 } = await supabase
-    .from("parametros_sistema")
-    .select("valor")
-    .eq("clave", "form931_enviar_a")
-    .maybeSingle();
-  const envio931 = paramEnvio931?.valor?.trim()
-    ? ` Se presenta en: ${paramEnvio931.valor.trim()}.`
-    : "";
+  // El aviso ya no arrastra el parámetro `form931_enviar_a` ("Se presenta en:
+  // SICOP, Secondi y portal de YPF"). Se agregó para que cualquiera supiera a
+  // dónde mandarlo sin Noelia (reunión Nico 02/07), pero su valor quedó viejo y
+  // el mensaje terminaba contradiciéndose solo: "falta enviarlo a YPF y Loma
+  // Negra. Se presenta en: SICOP, Secondi y portal de YPF." (Julián, 01/09/2026).
+  // El parámetro sigue en `parametros_sistema`: para revivirlo, leerlo acá y
+  // sumarlo al final del mensaje.
 
-  for (const f of (form931 ?? []) as {
+  // El más atrasado primero: ése es el que se reclama.
+  const pendientes931 = ((form931 ?? []) as {
     id: string; periodo: string | null; fecha_limite: string; enviado_ypf: boolean; enviado_loma: boolean;
-  }[]) {
-    if (f.enviado_ypf && f.enviado_loma) continue; // por las dudas
+  }[])
+    .filter((f) => !(f.enviado_ypf && f.enviado_loma))
+    .sort((a, b) => a.fecha_limite.localeCompare(b.fecha_limite));
+
+  const f = pendientes931[0];
+  if (f) {
     const [iy, im, idd] = f.fecha_limite.split("-").map(Number);
     const venceMid = new Date(iy!, im! - 1, idd!);
     const hoyMid = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
@@ -1274,12 +1333,22 @@ export async function generarAlertas() {
     if (dias === 5) disparos.push({ umbral: "T5", severidad: "critica" });
     if (dias === 15) disparos.push({ umbral: "T15", severidad: "advertencia" });
     if (dias === 30) disparos.push({ umbral: "T30", severidad: "info" });
-    if (disparos.length === 0) continue;
 
     const faltan = [!f.enviado_ypf ? "YPF" : null, !f.enviado_loma ? "Loma Negra" : null]
       .filter(Boolean)
       .join(" y ");
-    const periodoLabel = f.periodo ? ` ${f.periodo}` : "";
+    // "2026-08" se lee "08/2026", como en la pantalla.
+    const mp = f.periodo?.match(/^(\d{4})-(\d{2})$/);
+    const periodoLabel = mp ? `${mp[2]}/${mp[1]}` : f.periodo?.trim() || null;
+    const delPeriodo = periodoLabel ? ` de ${periodoLabel}` : "";
+    const limiteLabel = `${String(idd).padStart(2, "0")}/${String(im).padStart(2, "0")}/${iy}`;
+    const atras = pendientes931.length - 1;
+    const cola =
+      atras === 0
+        ? ""
+        : atras === 1
+        ? " Atrás queda otro período sin presentar."
+        : ` Atrás quedan otros ${atras} períodos sin presentar.`;
 
     for (const d of disparos) {
       const entidad_tipo = `form931:${d.umbral}`;
@@ -1287,14 +1356,15 @@ export async function generarAlertas() {
       if (existentesSet.has(key)) continue;
 
       const mensaje =
-        d.umbral === "vencido"
-          ? `El Formulario 931${periodoLabel} venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y falta enviarlo a ${faltan}. Es bloqueante: sin 931 no puede cargar nadie.${envio931}`
-          : `El Formulario 931${periodoLabel} vence en ${dias} día${dias !== 1 ? "s" : ""} y falta enviarlo a ${faltan}.${envio931}`;
+        (d.umbral === "vencido"
+          ? `El Formulario 931${delPeriodo} se tenía que presentar el ${limiteLabel} y todavía no se envió a ${faltan}: van ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""}.`
+          : `El Formulario 931${delPeriodo} se presenta hasta el ${limiteLabel} y todavía no se envió a ${faltan}.`) +
+        cola;
 
       nuevasAlertas.push({
         tipo: "vencimiento_compliance",
         severidad: d.severidad,
-        titulo: `Formulario 931 ${d.umbral === "vencido" ? "VENCIDO" : "por vencer"} — falta ${faltan}`,
+        titulo: `Formulario 931 — falta presentar${periodoLabel ? ` ${periodoLabel}` : "lo"}`,
         mensaje,
         entidad_id: f.id,
         entidad_tipo,

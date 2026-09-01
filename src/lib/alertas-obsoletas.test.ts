@@ -5,6 +5,7 @@ import {
   semanalDeSemanaPasada,
   preavisoPrestamoPasado,
   preavisoVencimientoPasado,
+  form931Obsoleto,
   claveComplianceDoc,
   ultimoVencimientoPorClave,
 } from "./alertas-obsoletas";
@@ -223,5 +224,37 @@ describe("preavisoVencimientoPasado", () => {
     expect(preavisoVencimientoPasado("chofer_documentos", "2026-08-02", HOY)).toBe(false);
     expect(preavisoVencimientoPasado(null, "2026-08-02", HOY)).toBe(false);
     expect(preavisoVencimientoPasado("compliance:T5", null, HOY)).toBe(false);
+  });
+});
+
+describe("form931Obsoleto — el aviso del 931 que no se apagaba nunca", () => {
+  const pendiente = { fecha_limite: "2026-08-20", enviado_ypf: false, enviado_loma: false };
+
+  it("el período se borró: no hay a quién reclamarle", () => {
+    // El caso del 01/09/2026: Julián borró los dos períodos viejos y la campana
+    // siguió diciendo "2 vencidos" contra una pantalla que decía 0.
+    expect(form931Obsoleto("2026-08-20", undefined)).toBe(true);
+    expect(form931Obsoleto("2026-08-20", null)).toBe(true);
+  });
+
+  it("se marcaron los dos envíos: está presentado", () => {
+    expect(
+      form931Obsoleto("2026-08-20", { ...pendiente, enviado_ypf: true, enviado_loma: true }),
+    ).toBe(true);
+  });
+
+  it("falta uno de los dos: se sigue reclamando", () => {
+    // Mandarlo a YPF y no a Loma Negra no es haberlo presentado.
+    expect(form931Obsoleto("2026-08-20", { ...pendiente, enviado_ypf: true })).toBe(false);
+    expect(form931Obsoleto("2026-08-20", pendiente)).toBe(false);
+  });
+
+  it("le corrigieron la fecha límite: ese plazo ya no es el que rige", () => {
+    // La generación emite el aviso de la fecha nueva; el viejo sobra.
+    expect(form931Obsoleto("2026-08-20", { ...pendiente, fecha_limite: "2026-08-25" })).toBe(true);
+  });
+
+  it("tolera el timestamp completo en la fecha de la alerta", () => {
+    expect(form931Obsoleto("2026-08-20T00:00:00+00:00", pendiente)).toBe(false);
   });
 });

@@ -54,7 +54,12 @@ interface Props {
   documentacion: ClienteData;
   organismos: OrganismoData[];
   periodos931: Form931Row[];
-  /** A dónde se presenta el 931 (SICOP, Secondi, portal YPF…) — parámetro editable. */
+  /**
+   * A dónde se presenta el 931 — parámetro editable `form931_enviar_a`. Hoy no se
+   * dibuja: su valor ("SICOP, Secondi y portal de YPF") contradecía las columnas
+   * YPF / Loma Negra de la tabla y Julián confirmó que quedó viejo (01/09/2026).
+   * Sigue viajando para no perder el cableado el día que se corrija.
+   */
   envio931: string | null;
   /** Plataforma inicial (de ?plat=) para deep-links desde rutas viejas. */
   initialPlat?: string;
@@ -100,7 +105,7 @@ export default function ComplianceUnifiedClient({
   documentacion,
   organismos,
   periodos931,
-  envio931,
+  // `envio931` llega y no se dibuja: ver el comentario de la prop.
   initialPlat,
   generadoEn,
 }: Props) {
@@ -188,7 +193,7 @@ export default function ComplianceUnifiedClient({
           panelInicial={initialPlat?.toLowerCase() === "931" ? "F931" : undefined}
           renderRowPanel={(row) =>
             row.requisito_codigo === "F931" ? (
-              <Form931Panel periodos={periodos931} envio931={envio931} canWrite={canWrite} />
+              <Form931Panel periodos={periodos931} canWrite={canWrite} />
             ) : null
           }
         />
@@ -215,7 +220,7 @@ export default function ComplianceUnifiedClient({
     }
 
     return out;
-  }, [documentacionReal, organismos, periodos931, envio931, canWrite, initialPlat, generadoEn]);
+  }, [documentacionReal, organismos, periodos931, canWrite, initialPlat, generadoEn]);
 
   // Resolver la solapa inicial (?plat=). Las rutas viejas (ypf/loma/generales)
   // caen todas en "Documentación", que ahora las junta.
@@ -335,16 +340,14 @@ export default function ComplianceUnifiedClient({
 
 /**
  * Panel del Formulario 931 — se despliega dentro de la fila "F931" de la papeleta.
- * Lleva el aviso de que es bloqueante, a dónde se presenta, el resumen y la tabla
- * de períodos (fecha límite editable + envío a YPF/Loma).
+ * Lleva a dónde se presenta, el resumen y la tabla de períodos (fecha límite
+ * editable + envío a YPF/Loma).
  */
 function Form931Panel({
   periodos,
-  envio931,
   canWrite,
 }: {
   periodos: Form931Row[];
-  envio931: string | null;
   canWrite: boolean;
 }) {
   const completo = (p: Form931Row) => p.enviado_ypf && p.enviado_loma;
@@ -358,28 +361,21 @@ function Form931Panel({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-2.5 sm:gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 sm:px-4 text-sm text-amber-800">
-        <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" />
-        <div>
-          <p className="font-semibold">El F931 es bloqueante: sin presentarlo, no puede cargar nadie.</p>
-          <p className="text-xs mt-0.5 text-amber-700">
-            Cada mes hay que enviarlo a las dos plataformas: <strong>Nico lo manda a YPF</strong> y{" "}
-            <strong>Noelia a Loma Negra</strong>. Marcá cada envío al hacerlo. Si llega la fecha límite
-            sin enviarse, salta alerta a todos (campana + email de Compliance).
-          </p>
-          {envio931 && (
-            <p className="text-xs mt-1 text-amber-800">
-              <strong>Se presenta en:</strong> {envio931}.
-            </p>
-          )}
-        </div>
-      </div>
+      {/* Acá arriba había dos carteles y los dos se fueron el 01/09/2026.
+          El primero decía "El F931 es bloqueante: sin presentarlo, no puede cargar
+          nadie": el sistema no bloquea nada, así que prometía un freno que no
+          existe. El segundo era el parámetro `form931_enviar_a` — "Se presenta en
+          SICOP, Secondi y portal de YPF"— arriba de dos columnas que dicen YPF y
+          Loma Negra: *"¿por qué acá dice una cosa y abajo dice ypf y loma negra?"*.
+          Julián confirmó que ese texto quedó viejo; los destinos son los dos de
+          las columnas. Se sigue leyendo el parámetro por si mañana vuelve a hacer
+          falta, pero no se dibuja mientras diga algo que la tabla desmiente. */}
 
       <div className="flex flex-wrap items-center gap-2">
         <ResumenChip icon={FileCheck2} label="períodos" n={periodos.length} tone="brand" />
         <ResumenChip icon={CheckCircle2} label="completos" n={completos} tone="success" />
         <ResumenChip icon={Clock} label="por vencer" n={porVencer} tone="warning" />
-        <ResumenChip icon={AlertTriangle} label="vencidos" n={vencidos} tone="error" />
+        <ResumenChip icon={AlertTriangle} label="atrasados" n={vencidos} tone="error" />
       </div>
 
       <Form931Client periodos={periodos} canWrite={canWrite} />

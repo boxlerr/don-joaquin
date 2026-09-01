@@ -53,8 +53,10 @@ function EstadoBadge({ row }: { row: Form931Row }) {
   const d = diasRestantes(row.fecha_limite);
   let cls = "bg-slate-100 text-slate-600 border-slate-200/60";
   let txt = `en ${d} días`;
-  if (d < 0) { cls = "bg-red-100 text-red-700 border-red-200/60"; txt = `vencido hace ${Math.abs(d)} d`; }
-  else if (d === 0) { cls = "bg-red-100 text-red-700 border-red-200/60"; txt = "vence hoy"; }
+  // No dice "vencido": acá no caducó ningún papel, falta hacer la presentación
+  // (Julián, 01/09/2026). Rojo igual — la urgencia no cambia, la palabra sí.
+  if (d < 0) { cls = "bg-red-100 text-red-700 border-red-200/60"; txt = `atrasado ${Math.abs(d)} d`; }
+  else if (d === 0) { cls = "bg-red-100 text-red-700 border-red-200/60"; txt = "se presenta hoy"; }
   else if (d <= 5) { cls = "bg-red-50 text-red-700 border-red-200/50"; txt = `en ${d} días`; }
   else if (d <= 15) { cls = "bg-amber-50 text-amber-700 border-amber-200/60"; txt = `en ${d} días`; }
   return (
@@ -64,17 +66,23 @@ function EstadoBadge({ row }: { row: Form931Row }) {
   );
 }
 
-/** Toggle de envío de un canal (YPF/Loma) con su responsable de referencia. */
+/**
+ * Toggle de envío de un canal (YPF / Loma Negra).
+ *
+ * Sin el nombre de quién lo manda: iba en gris al lado de cada tilde ("Pendiente
+ * · Nico", "Pendiente · Noelia") y Julián lo sacó el 01/09/2026 — el tilde dice
+ * si se mandó, y quién lo mandó ya queda en la auditoría con nombre y hora. Un
+ * nombre fijo en la pantalla además envejece mal: el día que lo mande otro,
+ * miente.
+ */
 function EnvioToggle({
   enviado,
-  responsable,
   canal,
   loading,
   disabled,
   onToggle,
 }: {
   enviado: boolean;
-  responsable: string;
   /** Plataforma — sólo se imprime en la tarjeta de celular, donde no hay columna que la nombre. */
   canal?: string;
   loading: boolean;
@@ -102,7 +110,6 @@ function EnvioToggle({
       )}
       {canal && <span>{canal}:</span>}
       {enviado ? "Enviado" : "Pendiente"}
-      <span className={`font-normal ${enviado ? "text-white/80" : "text-muted-foreground/60"}`}>· {responsable}</span>
     </button>
   );
 }
@@ -195,16 +202,18 @@ export default function Form931Client({
 
   return (
     <div className="bg-card rounded-[8px] border border-border shadow-sm overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
+      {/* El mes lo pone el sistema solo (el día 20), así que "Agregar período" no
+          es la acción principal de esta tabla: es la excepción —un mes viejo, uno
+          que se borró sin querer—. En azul y arriba a la derecha se leía como el
+          camino normal y no se entendía para qué estaba (Julián, 01/09/2026).
+          Ahora la cabecera explica de dónde salen los meses y el botón vive al
+          pie, en gris. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
           <FileCheck2 size={16} className="shrink-0 text-primary" />
           <h2 className="text-foreground text-sm font-semibold">Períodos del Formulario 931</h2>
         </div>
-        {canWrite && (
-          <Button variant="brand" size="sm" onClick={openAdd}>
-            <Plus size={14} /> Agregar período
-          </Button>
-        )}
+        <p className="text-xs text-muted-foreground">Cada mes aparece solo. Marcá los dos envíos al hacerlos.</p>
       </div>
 
       {/* Celular: una tarjeta por período. La tabla de 6 columnas con los dos
@@ -234,7 +243,6 @@ export default function Form931Client({
                 <div className="flex flex-wrap gap-2">
                   <EnvioToggle
                     enviado={p.enviado_ypf}
-                    responsable="Nico"
                     canal="YPF"
                     loading={togglingKey === `${p.id}:ypf`}
                     disabled={!canWrite}
@@ -242,7 +250,6 @@ export default function Form931Client({
                   />
                   <EnvioToggle
                     enviado={p.enviado_loma}
-                    responsable="Noelia"
                     canal="Loma Negra"
                     loading={togglingKey === `${p.id}:loma`}
                     disabled={!canWrite}
@@ -286,7 +293,6 @@ export default function Form931Client({
                     <TableCell>
                       <EnvioToggle
                         enviado={p.enviado_ypf}
-                        responsable="Nico"
                         loading={togglingKey === `${p.id}:ypf`}
                         disabled={!canWrite}
                         onToggle={() => handleToggle(p, "ypf")}
@@ -295,7 +301,6 @@ export default function Form931Client({
                     <TableCell>
                       <EnvioToggle
                         enviado={p.enviado_loma}
-                        responsable="Noelia"
                         loading={togglingKey === `${p.id}:loma`}
                         disabled={!canWrite}
                         onToggle={() => handleToggle(p, "loma")}
@@ -313,6 +318,18 @@ export default function Form931Client({
         </Table>
       </div>
 
+      {canWrite && (
+        <div className="border-t border-border px-4 sm:px-5 py-2.5">
+          <button
+            type="button"
+            onClick={openAdd}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            <Plus size={13} /> Agregar un mes a mano
+          </button>
+        </div>
+      )}
+
       <Dialog open={dialog.mode !== "closed"} onOpenChange={(v) => !v && setDialog({ mode: "closed" })}>
         <DialogContent className="sm:max-w-[460px]">
           <DialogHeader>
@@ -322,7 +339,7 @@ export default function Form931Client({
             <DialogDescription className="text-muted-foreground">
               {dialog.mode === "edit"
                 ? "Actualizá el período, la fecha límite o las observaciones."
-                : "Cargá un nuevo período del F931 y su fecha límite de envío."}
+                : "El mes en curso lo agrega el sistema solo. Esto es para cargar uno viejo o uno que se borró."}
             </DialogDescription>
           </DialogHeader>
 

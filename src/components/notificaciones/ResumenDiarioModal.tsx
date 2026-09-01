@@ -1210,6 +1210,25 @@ function FilaAviso({
 }) {
   const { sujeto, resto } = partirTitulo(item.titulo);
   const c = cuando(item.diasRestantes);
+  const dias = item.diasRestantes ?? 0;
+
+  // Lo que todavía está en fecha se dibuja como la tarjeta de cumpleaños, que es
+  // la que se lee bien: renglón propio, con el día concreto y en color.
+  //
+  // Antes iba a la derecha, en gris de 10.5px y sin fecha —"hoy" incluido—, al
+  // lado de un "hace 82 d" en rojo. Toda la mitad de abajo del pop-up ("Se
+  // viene") se leía como relleno: cinco cuotas que vencen HOY en el mismo gris
+  // que un aviso de la semana que viene. *"¿podemos hacer más llamativos los
+  // renglones de las cosas que están en fecha?"* (Julián, 01/09/2026).
+  //
+  // Los vencidos no se tocan: el "hace N d" en rojo a la derecha ya funciona, y
+  // llevarlos abajo les sacaría el número grande que es lo que se busca al abrir.
+  const enFecha = c !== null && !c.vencido;
+  // Igual que en la fila de personas: el color pleno de la categoría para lo que
+  // pasa hoy o mañana. Más lejos, negro sobre el gris del subtítulo — que ya es
+  // un salto contra el gris de antes.
+  const inminente = enFecha && dias <= 1;
+  const cuandoTexto = enFecha ? [c!.texto, fechaCorta(item.fecha)].filter(Boolean).join(" · ") : null;
 
   const contenido = (
     <>
@@ -1223,25 +1242,27 @@ function FilaAviso({
           <span className="min-w-0 flex-1 truncate text-left text-[12px] font-medium leading-snug text-foreground">
             {sujeto}
           </span>
-          {c && (
+          {c?.vencido && (
             <span className="shrink-0 whitespace-nowrap text-[10.5px] leading-snug tabular-nums text-muted-foreground">
-              {c.vencido ? (
-                <>
-                  hace{" "}
-                  <b className="font-semibold" style={{ color: ROJO }}>
-                    {Math.abs(item.diasRestantes ?? 0)}
-                  </b>{" "}
-                  d
-                </>
-              ) : (
-                c.corto
-              )}
+              hace{" "}
+              <b className="font-semibold" style={{ color: ROJO }}>
+                {Math.abs(item.diasRestantes ?? 0)}
+              </b>{" "}
+              d
             </span>
           )}
         </span>
         {resto && (
           <span className="block truncate text-left text-[10.5px] leading-snug text-muted-foreground">
             {resto}
+          </span>
+        )}
+        {cuandoTexto && (
+          <span
+            className="block truncate text-left text-[10.5px] font-semibold leading-snug tabular-nums text-foreground"
+            style={{ color: inminente ? color : undefined }}
+          >
+            {cuandoTexto}
           </span>
         )}
       </span>

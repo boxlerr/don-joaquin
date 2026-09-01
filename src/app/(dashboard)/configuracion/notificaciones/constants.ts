@@ -111,7 +111,7 @@ export const ALERTAS = [
     cubre: [
       "Requisitos de Loma Negra y YPF (30 / 15 / 5 días y vencido)",
       "Organismos previos: SICOP, Secondi y demás",
-      "Formulario 931 sin enviar (bloqueante)",
+      "Formulario 931 sin presentar",
     ],
   },
   {

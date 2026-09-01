@@ -131,3 +131,30 @@ describe("reconciliarF931", () => {
     expect(out[0]!.estado).toBe("vencido");
   });
 });
+
+describe("cómo se lee la fila del F931", () => {
+  // La otra mitad del reporte del 01/09/2026: *"decía vencido de un documento
+  // que nunca se cargó aún"*. Un papel vence; un envío que no se hizo FALTA.
+  it("no dice 'vencido' sino que falta enviarlo, con el plazo que se pasó", () => {
+    const out = reconciliarF931([fila("F931", "por_vencer")], LOS_DOS_DE_LA_CAPTURA, HOY);
+    const f931 = out[0]!;
+    expect(f931.estado).toBe("vencido");
+    expect(f931.etiqueta_estado).toBe("Falta enviarlo");
+    expect(f931.nota_estado).toBe("el plazo era el 13/07/2026 · van 50 días · 2 meses sin enviar");
+  });
+
+  // El error de la primera versión: con el papel cargado y venciendo el 11/09, la
+  // fila mostraba "hasta el 20/09 · Sin presentar" — la fecha de un envío que
+  // todavía no debe nada, tapando el vencimiento real del papel.
+  it("mientras el plazo del envío corre, la fila sigue siendo la del papel", () => {
+    const rows = [fila("F931", "por_vencer")];
+    const out = reconciliarF931(rows, [per("2026-09-20", false, false, "2026-08")], HOY);
+    expect(out).toEqual(rows);
+    expect(out[0]!.etiqueta_estado).toBeUndefined();
+  });
+
+  it("el día del plazo todavía no está atrasado: tampoco toca la fila", () => {
+    const rows = [fila("F931", "vigente")];
+    expect(reconciliarF931(rows, [per(HOY)], HOY)).toEqual(rows);
+  });
+});

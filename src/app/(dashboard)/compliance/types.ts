@@ -58,6 +58,16 @@ export type ComplianceEstadoRow = {
   numero?: string | null;
   // Cuántos papeles tiene cargados el documento vigente (tabla puente, no la portada).
   archivos?: number;
+  /**
+   * Cómo se llama este estado en ESTA fila, cuando "Vencido"/"Sin cargar" no lo
+   * describe. Hoy lo usa sólo el F931: un papel vence, pero una presentación
+   * mensual que nunca se hizo **falta** — *"decía vencido de un documento que
+   * nunca se cargó aún"* (Julián, 01/09/2026). El color y el conteo siguen
+   * saliendo de `estado`: lo único que cambia es la palabra.
+   */
+  etiqueta_estado?: string | null;
+  /** La línea de fecha, cuando "vence …" no es lo que hay que decir. Ver arriba. */
+  nota_estado?: string | null;
 };
 
 /**

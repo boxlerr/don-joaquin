@@ -168,6 +168,9 @@ function tagCliente(aplica: string): string | null {
 }
 
 function subFecha(row: ComplianceEstadoRow): string {
+  // Una fila puede traer su propia frase cuando "vence …" no es lo que hay que
+  // decir. Hoy sólo el F931: ahí no caduca un papel, falta hacer la presentación.
+  if (row.nota_estado) return row.nota_estado;
   // Sin fecha no hay nada que poner: lo dice la pastilla de estado, al lado.
   if (!row.fecha_vencimiento) return "";
   const base = `vence ${formatFecha(row.fecha_vencimiento)}`;
@@ -1007,7 +1010,7 @@ function ChecklistRow({
             </button>
           ) : (
             <span className="font-semibold" style={{ color: ui.fg }}>
-              {ESTADO_LABEL[row.estado]}
+              {row.etiqueta_estado?.toLowerCase() ?? ESTADO_LABEL[row.estado]}
             </span>
           )}
         </p>
@@ -1038,7 +1041,7 @@ function ChecklistRow({
             className="w-[104px] shrink-0 rounded-md px-1.5 py-1 text-center text-[11px] font-semibold"
             style={{ backgroundColor: ui.chip, color: ui.fg }}
           >
-            {ESTADO_CHIP[row.estado]}
+            {row.etiqueta_estado ?? ESTADO_CHIP[row.estado]}
           </span>
         )}
       </div>
