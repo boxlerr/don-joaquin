@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "autoconsumo-los-litros-de-la-vuelta-en-dos",
+    fecha: "2026-09-01",
+    tipo: "mejora",
+    ver: "combustible",
+    titulo: "Autoconsumo: los litros de la vuelta, en dos toques",
+    detalle: "Tocás de dónde salió y a dónde va —cada destino te muestra cuánto rinde—, ponés las toneladas y el número aparece grande. Enter lo anota. El cuadro de rindes ahora se ve como cuadro y se compara de un vistazo.",
+    href: "/combustible/autoconsumo",
+  },
+  {
     id: "calcula-los-litros-que-le-corresponden-para",
     fecha: "2026-09-01",
     tipo: "nuevo",
