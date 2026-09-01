@@ -83,7 +83,18 @@ export const NAV_GROUPS: NavGroup[] = [
           { label: "DM y liquidaciones", href: "/viajes/liquidaciones", seccion: "viajes_liquidaciones" },
         ],
       },
-      { label: "Combustible", href: "/combustible", icon: Fuel, area: "combustible" },
+      {
+        label: "Combustible",
+        href: "/combustible",
+        icon: Fuel,
+        area: "combustible",
+        children: [
+          { label: "Cargas de gasoil", href: "/combustible" },
+          // Cuánto le corresponde cargar para la vuelta según lo que llevó
+          // (pedido de Nico, 31/08/2026).
+          { label: "Litros para la vuelta", href: "/combustible/litros" },
+        ],
+      },
     ],
   },
   {
