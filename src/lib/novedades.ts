@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-reporte-de-autoconsumo-para-presentarle",
+    fecha: "2026-09-01",
+    tipo: "mejora",
+    ver: "combustible",
+    titulo: "El reporte de autoconsumo para presentarle a YPF",
+    detalle: "Desde Combustible › Autoconsumo, el botón \"Reporte para YPF\" arma la hoja del mes con el membrete de Don Joaquín y el mismo cuadro que usa YPF. Ahora el chofer es obligatorio al anotar, y podés corregir o borrar una vuelta ya anotada.",
+    href: "/combustible/autoconsumo",
+  },
+  {
     id: "autoconsumo-los-litros-de-la-vuelta-en-dos",
     fecha: "2026-09-01",
     tipo: "mejora",
