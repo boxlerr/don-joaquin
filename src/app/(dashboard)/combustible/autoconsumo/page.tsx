@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { Printer } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { requireArea, hasArea } from "@/lib/auth";
 import {
@@ -15,6 +17,8 @@ import AutoconsumoClient from "./AutoconsumoClient";
  */
 export default async function AutoconsumoPage() {
   const user = await requireArea("combustible", "read");
+  const hoy = new Date();
+  const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
   const canWrite = hasArea(user, "combustible", "write");
 
   const [tarifas, choferes, autorizaciones] = await Promise.all([
@@ -28,6 +32,19 @@ export default async function AutoconsumoPage() {
       <PageHeader
         title="Autoconsumo"
         description="Cuánto gasoil le corresponde según las toneladas que cargó. Es la misma cuenta que usa YPF."
+        action={
+          // Un Link con pinta de botón, no un Button adentro de un Link: un
+          // <button> dentro de un <a> no es HTML válido. Abre en pestaña nueva
+          // porque la hoja dispara el diálogo de impresión sola al cargar.
+          <Link
+            href={`/combustible/autoconsumo/print?mes=${mesActual}`}
+            target="_blank"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
+          >
+            <Printer size={14} />
+            Reporte para YPF
+          </Link>
+        }
       />
       {tarifas.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-6 text-center">

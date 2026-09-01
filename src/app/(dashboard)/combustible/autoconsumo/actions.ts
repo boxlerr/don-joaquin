@@ -131,6 +131,12 @@ export async function guardarAutorizacionAction(input: {
   const user = await requireArea("combustible", "write");
   const supabase = createAdminClient();
 
+  // El chofer es obligatorio. La columna es nullable —hay que poder cargar un
+  // histórico sin dueño— pero una autorización nueva sin chofer no sirve para
+  // nada: el reporte que hay que presentarle a YPF se arma POR CHOFER, y una
+  // fila anónima es una fila que después no se puede cruzar con nada.
+  if (!input.choferId) return { error: "Elegí a qué chofer se le autoriza." };
+
   const tarifas = await getTarifasGasoilAction();
   const tarifa = buscarTarifa(tarifas, input.origenId, input.destinoId);
   const calculo = calcularLitros(tarifa, input.toneladas);
@@ -239,4 +245,256 @@ export async function guardarTarifaAction(input: {
 export async function puedeEditarGasoilAction(): Promise<boolean> {
   const user = await requireArea("combustible", "read");
   return hasArea(user, "combustible", "write");
+}
+
+/**
+ * Corregir una autorización ya anotada.
+ *
+ * Se rehace la cuenta con la tarifa vigente: si se corrigen las toneladas, los
+ * litros tienen que salir de nuevo. Lo que NO se rehace es el resto del
+ * histórico — cada fila guarda su propio coeficiente.
+ */
+export async function editarAutorizacionAction(
+  id: string,
+  input: {
+    choferId: string | null;
+    origenId: string;
+    destinoId: string;
+    toneladas: number;
+    observaciones?: string;
+  },
+): Promise<{ ok: true; litros: number } | { error: string }> {
+  const user = await requireArea("combustible", "write");
+  const supabase = createAdminClient();
+
+  if (!input.choferId) return { error: "Elegí a qué chofer se le autoriza." };
+
+  const tarifas = await getTarifasGasoilAction();
+  const tarifa = buscarTarifa(tarifas, input.origenId, input.destinoId);
+  const calculo = calcularLitros(tarifa, input.toneladas);
+  if (!calculo.ok) return { error: calculo.mensaje };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("gasoil_autorizaciones")
+    .select("chofer_id, origen_id, destino_id, toneladas, litros_por_tonelada, litros, observaciones")
+    .eq("id", id)
+    .maybeSingle();
+  if (!previo) return { error: "Esa autorización ya no está." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("gasoil_autorizaciones")
+    .update({
+      chofer_id: input.choferId,
+      origen_id: input.origenId,
+      destino_id: input.destinoId,
+      toneladas: calculo.toneladas,
+      litros_por_tonelada: calculo.litrosPorTonelada,
+      litros: calculo.litros,
+      observaciones: input.observaciones?.trim() || null,
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error al editar la autorización de gasoil:", error);
+    return { error: "No se pudo guardar el cambio." };
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "actualizar",
+    entidadTipo: "gasoil_autorizacion",
+    entidadId: id,
+    valoresAnteriores: previo,
+    valoresNuevos: {
+      chofer_id: input.choferId,
+      origen_id: input.origenId,
+      destino_id: input.destinoId,
+      toneladas: calculo.toneladas,
+      litros_por_tonelada: calculo.litrosPorTonelada,
+      litros: calculo.litros,
+      observaciones: input.observaciones?.trim() || null,
+    },
+  });
+
+  revalidatePath("/combustible/autoconsumo");
+  return { ok: true, litros: calculo.litros };
+}
+
+/**
+ * Borrar una autorización.
+ *
+ * Borrado real y no lápida: no cuelga nada de esta fila, y lo que hay que poder
+ * reconstruir —qué decía antes de desaparecer— queda entero en `audit_log`, que
+ * guarda los valores anteriores.
+ */
+export async function eliminarAutorizacionAction(
+  id: string,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireArea("combustible", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("gasoil_autorizaciones")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (!previo) return { error: "Esa autorización ya no está." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("gasoil_autorizaciones").delete().eq("id", id);
+  if (error) {
+    console.error("Error al eliminar la autorización de gasoil:", error);
+    return { error: "No se pudo eliminar." };
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "eliminar",
+    entidadTipo: "gasoil_autorizacion",
+    entidadId: id,
+    valoresAnteriores: previo,
+  });
+
+  revalidatePath("/combustible/autoconsumo");
+  return { ok: true };
+}
+
+/** Borrar el rinde de un tramo. Queda el hueco visible en el cuadro. */
+export async function eliminarTarifaAction(
+  origenId: string,
+  destinoId: string,
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireArea("combustible", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("gasoil_tarifas")
+    .select("id, litros_por_tonelada")
+    .eq("origen_id", origenId)
+    .eq("destino_id", destinoId)
+    .maybeSingle();
+  if (!previo) return { error: "Ese tramo no tiene rinde cargado." };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from("gasoil_tarifas").delete().eq("id", previo.id);
+  if (error) {
+    console.error("Error al eliminar el rinde:", error);
+    return { error: "No se pudo eliminar el rinde." };
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: "eliminar",
+    entidadTipo: "gasoil_tarifa",
+    entidadId: previo.id,
+    valoresAnteriores: previo,
+  });
+
+  revalidatePath("/combustible/autoconsumo");
+  return { ok: true };
+}
+
+// ── El reporte para YPF ──────────────────────────────────────────────────────
+
+export type LineaReporte = {
+  cantera: string;
+  destino: string;
+  vueltas: number;
+  toneladas: number;
+  litrosPorTonelada: number;
+  litrosTeoricos: number;
+};
+
+export type ReporteAutoconsumo = {
+  mes: string;
+  lineas: LineaReporte[];
+  toneladas: number;
+  litrosTeoricos: number;
+  /** Litros efectivamente cargados en el surtidor. `null` = no hay dato cargado. */
+  litrosCargados: number | null;
+  cargasDelMes: number;
+};
+
+/**
+ * El reporte de autoconsumo del mes, en el formato del que manda YPF.
+ *
+ * Se arma de lo que se autorizó, agrupado por tramo — que es exactamente cómo
+ * YPF presenta su cuadro (cantera → locación → tn → litros teóricos).
+ *
+ * `litrosCargados` es `null` y no `0` cuando no hay ninguna carga registrada en
+ * el mes. La diferencia importa: cero litros cargados sería un desvío del −100%
+ * y saldría impreso en un papel que se le presenta al cliente.
+ */
+export async function getReporteAutoconsumoAction(mes: string): Promise<ReporteAutoconsumo> {
+  await requireArea("combustible", "read");
+  const supabase = createAdminClient();
+  const desde = `${mes}-01`;
+  const [y, m] = mes.split("-").map(Number);
+  const hasta = new Date(Date.UTC(y!, m!, 1)).toISOString().slice(0, 10);
+
+  const [autorizaciones, cargas] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("gasoil_autorizaciones")
+      .select(
+        "toneladas, litros_por_tonelada, litros, origen:puntos_ruta!gasoil_autorizaciones_origen_id_fkey(nombre), destino:puntos_ruta!gasoil_autorizaciones_destino_id_fkey(nombre)",
+      )
+      .gte("created_at", desde)
+      .lt("created_at", hasta),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("cargas_combustible")
+      .select("litros")
+      .gte("fecha", desde)
+      .lt("fecha", hasta),
+  ]);
+
+  const uno = (v: unknown) => (Array.isArray(v) ? v[0] : v) as { nombre?: string } | null;
+  const porTramo = new Map<string, LineaReporte>();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const a of (autorizaciones.data ?? []) as any[]) {
+    const cantera = uno(a.origen)?.nombre ?? "—";
+    const destino = uno(a.destino)?.nombre ?? "—";
+    const k = `${cantera}|${destino}`;
+    const prev = porTramo.get(k) ?? {
+      cantera,
+      destino,
+      vueltas: 0,
+      toneladas: 0,
+      litrosPorTonelada: Number(a.litros_por_tonelada) || 0,
+      litrosTeoricos: 0,
+    };
+    prev.vueltas += 1;
+    prev.toneladas += Number(a.toneladas) || 0;
+    prev.litrosTeoricos += Number(a.litros) || 0;
+    porTramo.set(k, prev);
+  }
+
+  const lineas = [...porTramo.values()].sort(
+    (a, b) => a.cantera.localeCompare(b.cantera, "es") || a.destino.localeCompare(b.destino, "es"),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filasCargas = (cargas.data ?? []) as any[];
+  const litrosCargados =
+    filasCargas.length === 0
+      ? null
+      : filasCargas.reduce((a, c) => a + (Number(c.litros) || 0), 0);
+
+  return {
+    mes,
+    lineas,
+    toneladas: lineas.reduce((a, l) => a + l.toneladas, 0),
+    litrosTeoricos: lineas.reduce((a, l) => a + l.litrosTeoricos, 0),
+    litrosCargados,
+    cargasDelMes: filasCargas.length,
+  };
 }

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, Pencil } from "lucide-react";
+import { AlertTriangle, Check, Pencil, Trash2, X } from "lucide-react";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,8 @@ import {
   type TarifaGasoil,
 } from "@/domain/gasoil/litros-por-tonelada";
 import {
+  editarAutorizacionAction,
+  eliminarAutorizacionAction,
   guardarAutorizacionAction,
   guardarTarifaAction,
   type AutorizacionRow,
@@ -123,6 +126,9 @@ export default function AutoconsumoClient({
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [guardado, setGuardado] = useState<{ litros: number; chofer: string | null } | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [aBorrar, setABorrar] = useState<AutorizacionRow | null>(null);
+  const [borrando, setBorrando] = useState(false);
   const tnRef = useRef<HTMLInputElement>(null);
 
   const origenes = useMemo(() => origenesDe(tarifas), [tarifas]);
@@ -164,20 +170,25 @@ export default function AutoconsumoClient({
     if (!destinoId) return "Falta elegir a dónde va.";
     if (!tarifa) return "Ese tramo no tiene rinde cargado.";
     if (!calculo.ok) return calculo.mensaje;
+    // Sin chofer la fila no sirve: el reporte de YPF se arma por chofer.
+    if (!choferId) return "Falta elegir a qué chofer se le autoriza.";
     return null;
   };
 
   const guardar = useCallback(async () => {
-    if (!calculo.ok || guardando) return;
+    if (!calculo.ok || guardando || !choferId) return;
     setGuardando(true);
     setError(null);
-    const res = await guardarAutorizacionAction({
-      choferId: choferId || null,
+    const payload = {
+      choferId,
       origenId,
       destinoId,
       toneladas: calculo.toneladas,
       observaciones: obs,
-    });
+    };
+    const res = editandoId
+      ? await editarAutorizacionAction(editandoId, payload)
+      : await guardarAutorizacionAction(payload);
     setGuardando(false);
     if ("error" in res) return setError(res.error);
     setGuardado({
@@ -189,9 +200,43 @@ export default function AutoconsumoClient({
     setToneladas("");
     setChoferId("");
     setObs("");
+    setEditandoId(null);
     router.refresh();
     requestAnimationFrame(() => tnRef.current?.focus());
-  }, [calculo, guardando, choferId, origenId, destinoId, obs, choferes, router]);
+  }, [calculo, guardando, choferId, origenId, destinoId, obs, choferes, router, editandoId]);
+
+  /** Trae una fila ya anotada al formulario de arriba, para corregirla ahí mismo. */
+  const editar = (f: AutorizacionRow) => {
+    const t = tarifas.find((x) => x.origen === f.origen && x.destino === f.destino);
+    setEditandoId(f.id);
+    setOrigenId(t?.origenId ?? "");
+    setDestinoId(t?.destinoId ?? "");
+    setToneladas(String(f.toneladas));
+    setChoferId(choferes.find((c) => c.nombre === f.chofer)?.id ?? "");
+    setObs(f.observaciones ?? "");
+    setGuardado(null);
+    setError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelarEdicion = () => {
+    setEditandoId(null);
+    setToneladas("");
+    setChoferId("");
+    setObs("");
+    setError(null);
+  };
+
+  const borrar = async () => {
+    if (!aBorrar) return;
+    setBorrando(true);
+    const res = await eliminarAutorizacionAction(aBorrar.id);
+    setBorrando(false);
+    setABorrar(null);
+    if ("error" in res) return setError(res.error);
+    if (editandoId === aBorrar.id) cancelarEdicion();
+    router.refresh();
+  };
 
   // Enter anota desde donde sea. El chofer no va a buscar el botón.
   const onKeyDownCampo = (e: React.KeyboardEvent) => {
@@ -218,7 +263,16 @@ export default function AutoconsumoClient({
   return (
     <div className="space-y-5">
       {/* ── La cuenta ─────────────────────────────────────────────────────── */}
-      <div className="rounded-xl border border-border bg-card shadow-sm">
+      <div
+        className={`rounded-xl border bg-card shadow-sm ${
+          editandoId ? "border-foreground/30" : "border-border"
+        }`}
+      >
+        {editandoId && (
+          <p className="flex items-center gap-1.5 border-b border-border/60 px-4 py-2 text-[13px] text-muted-foreground sm:px-5">
+            <Pencil size={13} /> Estás corrigiendo una autorización ya anotada.
+          </p>
+        )}
         {/* Tramo */}
         <div className="space-y-3 p-4 sm:p-5">
           <div className="space-y-1.5">
@@ -299,12 +353,18 @@ export default function AutoconsumoClient({
                   if (e.key === "Escape") setToneladas("");
                   else onKeyDownCampo(e);
                 }}
-                placeholder="35"
+                // "35" a secas NO sirve de placeholder acá: con el campo
+                // alineado a la derecha y en semibold se ve igual que un valor
+                // cargado. Julián lo reportó el 01/09 — vio el 35, eligió el
+                // tramo esperando el resultado, y el campo estaba vacío. El
+                // "Ej." es lo que lo vuelve inequívocamente un ejemplo.
+                placeholder="Ej. 35"
                 autoComplete="off"
                 aria-invalid={toneladas !== "" && !calculo.ok && Boolean(tarifa)}
                 // 17px: arriba de los 16 que evitan el zoom de iOS, abajo del
                 // titular. Si el input es más grande, compite con el resultado.
-                className="h-11 pr-9 text-right text-[17px] font-semibold tabular-nums"
+                // El placeholder se desmarca del valor: peso normal y más tenue.
+                className="h-11 pr-9 text-right text-[17px] font-semibold tabular-nums placeholder:font-normal placeholder:text-muted-foreground/50"
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[13px] text-muted-foreground">
                 tn
@@ -393,9 +453,14 @@ export default function AutoconsumoClient({
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-              <Button onClick={() => void guardar()} disabled={!calculo.ok || guardando}>
-                {guardando ? "Guardando…" : "Anotar"}
+              <Button onClick={() => void guardar()} disabled={Boolean(bloqueo) || guardando}>
+                {guardando ? "Guardando…" : editandoId ? "Guardar cambios" : "Anotar"}
               </Button>
+              {editandoId && (
+                <Button variant="outline" onClick={cancelarEdicion} disabled={guardando}>
+                  <X size={14} /> Cancelar
+                </Button>
+              )}
               {/* El botón apagado siempre dice por qué. */}
               {bloqueo && !error && !guardado && (
                 <span className="text-[11px] text-muted-foreground">{bloqueo}</span>
@@ -417,7 +482,26 @@ export default function AutoconsumoClient({
         )}
       </div>
 
-      <Autorizadas filas={autorizaciones} />
+      <Autorizadas
+        filas={autorizaciones}
+        canWrite={canWrite}
+        editandoId={editandoId}
+        onEditar={editar}
+        onBorrar={setABorrar}
+      />
+
+      <ConfirmDialog
+        open={aBorrar !== null}
+        onOpenChange={(o) => !o && setABorrar(null)}
+        title="¿Borrar esta autorización?"
+        description={
+          aBorrar
+            ? `${aBorrar.chofer ?? "Sin chofer"} · ${aBorrar.origen} → ${aBorrar.destino} · ${num(aBorrar.litros)} litros. Queda registrado quién la borró y qué decía.`
+            : undefined
+        }
+        loading={borrando}
+        onConfirm={() => void borrar()}
+      />
       <CuadroRindes tarifas={tarifas} canWrite={canWrite} origenes={origenes} destinos={destinos} />
 
       <p className="text-[13px] text-muted-foreground">
@@ -430,7 +514,19 @@ export default function AutoconsumoClient({
 }
 
 /** Lo que se autorizó. Con cero filas es un renglón, no una tabla vacía. */
-function Autorizadas({ filas }: { filas: AutorizacionRow[] }) {
+function Autorizadas({
+  filas,
+  canWrite,
+  editandoId,
+  onEditar,
+  onBorrar,
+}: {
+  filas: AutorizacionRow[];
+  canWrite: boolean;
+  editandoId: string | null;
+  onEditar: (f: AutorizacionRow) => void;
+  onBorrar: (f: AutorizacionRow) => void;
+}) {
   const total = filas.reduce((a, f) => a + f.litros, 0);
   const cuando = (iso: string) => {
     const d = new Date(iso);
@@ -475,8 +571,30 @@ function Autorizadas({ filas }: { filas: AutorizacionRow[] }) {
                   <span className="truncate text-[12px] text-muted-foreground">
                     {f.origen} → {f.destino} · {num(f.toneladas, 2)} tn
                   </span>
-                  <span className="shrink-0 text-[13px] font-semibold tabular-nums text-foreground">
-                    {num(f.litros)} L
+                  <span className="flex shrink-0 items-center gap-1">
+                    <span className="text-[13px] font-semibold tabular-nums text-foreground">
+                      {num(f.litros)} L
+                    </span>
+                    {canWrite && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => onEditar(f)}
+                          aria-label="Corregir"
+                          className="ml-1 rounded p-1.5 text-muted-foreground"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onBorrar(f)}
+                          aria-label="Borrar"
+                          className="rounded p-1.5 text-muted-foreground"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
                   </span>
                 </div>
               </li>
@@ -495,11 +613,17 @@ function Autorizadas({ filas }: { filas: AutorizacionRow[] }) {
                   <th className="px-3 py-2 text-right font-semibold">Litros</th>
                   <th className="px-3 py-2 text-left font-semibold">Nota</th>
                   <th className="px-3 py-2 text-left font-semibold">Anotó</th>
+                  {canWrite && <th className="w-20 px-3 py-2" />}
                 </tr>
               </thead>
               <tbody>
                 {filas.map((f) => (
-                  <tr key={f.id} className="border-t border-border/60">
+                  <tr
+                    key={f.id}
+                    className={`border-t border-border/60 ${
+                      editandoId === f.id ? "bg-foreground/[0.04]" : ""
+                    }`}
+                  >
                     <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">
                       {cuando(f.created_at)}
                     </td>
@@ -518,6 +642,28 @@ function Autorizadas({ filas }: { filas: AutorizacionRow[] }) {
                     <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">
                       {f.cargadoPor ?? "—"}
                     </td>
+                    {canWrite && (
+                      <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onEditar(f)}
+                          title="Corregir esta autorización"
+                          aria-label={`Corregir la autorización de ${f.chofer ?? "sin chofer"}`}
+                          className="rounded p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onBorrar(f)}
+                          title="Borrar esta autorización"
+                          aria-label={`Borrar la autorización de ${f.chofer ?? "sin chofer"}`}
+                          className="ml-1 rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
