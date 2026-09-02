@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-reporte-para-ypf-ahora-sale-como-un",
+    fecha: "2026-09-02",
+    tipo: "mejora",
+    ver: "combustible",
+    titulo: "El reporte para YPF ahora sale como un tablero de una hoja",
+    detalle: "Antes era una tabla suelta con cuatro números. Ahora trae el acumulado del mes, el desvío contra lo que se cargó en el surtidor, el cuadro por cantera y destino, y una segunda hoja de respaldo con el detalle vuelta por vuelta y el corte por chofer. Se abre desde el botón \"Reporte para YPF\".",
+    href: "/combustible/autoconsumo",
+  },
+  {
     id: "el-indice-de-rotacion-ya-cuenta-a-todos-los",
     fecha: "2026-09-01",
     tipo: "arreglo",

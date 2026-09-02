@@ -3,12 +3,25 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireArea, hasArea } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { traerTodo } from "@/lib/supabase/traer-todo";
 import { revalidatePath } from "next/cache";
 import {
   calcularLitros,
   buscarTarifa,
   type TarifaGasoil,
 } from "@/domain/gasoil/litros-por-tonelada";
+import {
+  armarReporte,
+  bordesDelMesAr,
+  mesAnterior,
+  partesArgentinas,
+  totales,
+  type AutorizacionCruda,
+  type CargaCruda,
+  type ReporteAutoconsumo,
+} from "@/domain/gasoil/reporte";
+import { hoyArgentina } from "@/lib/fecha-ar";
+import type { AutorizacionRow, ChoferOpcion } from "./tipos";
 
 /**
  * El gasoil que le corresponde a la vuelta.
@@ -16,22 +29,10 @@ import {
  * Las dos tablas son nuevas y todavía no están en `database.ts` generado, así
  * que el cliente va tipado como `any` — mismo criterio que `form931_presentaciones`
  * y `rotacion_bajas`.
+ *
+ * Los tipos que exporta este módulo viven en `./tipos` y en `@/domain/gasoil/*`:
+ * acá adentro sólo pueden salir funciones async.
  */
-
-export type ChoferOpcion = { id: string; nombre: string };
-
-export type AutorizacionRow = {
-  id: string;
-  created_at: string;
-  chofer: string | null;
-  origen: string;
-  destino: string;
-  toneladas: number;
-  litros_por_tonelada: number;
-  litros: number;
-  observaciones: string | null;
-  cargadoPor: string | null;
-};
 
 /** El cuadro de tarifas, ya resuelto a nombres. */
 export async function getTarifasGasoilAction(): Promise<TarifaGasoil[]> {
@@ -403,98 +404,120 @@ export async function eliminarTarifaAction(
 
 // ── El reporte para YPF ──────────────────────────────────────────────────────
 
-export type LineaReporte = {
-  cantera: string;
-  destino: string;
-  vueltas: number;
-  toneladas: number;
-  litrosPorTonelada: number;
-  litrosTeoricos: number;
-};
-
-export type ReporteAutoconsumo = {
-  mes: string;
-  lineas: LineaReporte[];
-  toneladas: number;
-  litrosTeoricos: number;
-  /** Litros efectivamente cargados en el surtidor. `null` = no hay dato cargado. */
-  litrosCargados: number | null;
-  cargasDelMes: number;
-};
-
 /**
  * El reporte de autoconsumo del mes, en el formato del que manda YPF.
  *
- * Se arma de lo que se autorizó, agrupado por tramo — que es exactamente cómo
- * YPF presenta su cuadro (cantera → locación → tn → litros teóricos).
+ * Se arma de lo que se autorizó, agrupado por tramo —que es exactamente cómo YPF
+ * presenta su cuadro (cantera → locación → tn → litros teóricos)— y se le suman
+ * los cortes que ellos no pueden hacer: el día a día, el acumulado contra lo
+ * cargado en el surtidor y el detalle por chofer.
  *
- * `litrosCargados` es `null` y no `0` cuando no hay ninguna carga registrada en
- * el mes. La diferencia importa: cero litros cargados sería un desvío del −100%
- * y saldría impreso en un papel que se le presenta al cliente.
+ * Tres cosas que no son detalle:
+ *
+ *  * **El mes se recorta con el huso argentino adentro** (`bordesDelMesAr`). Sin
+ *    eso, `'2026-09-01'` se lee como medianoche UTC y el mes queda corrido tres
+ *    horas: entra la vuelta del 31 de agosto a la noche y se cae la del 30 de
+ *    septiembre después de las 21.
+ *  * **Se pagina con `traerTodo`.** Junio 2026 ya tiene 311 cargas; el corte de
+ *    1000 filas de PostgREST no avisa, y un total que llega de menos en un papel
+ *    que se le entrega al cliente es peor que un error.
+ *  * **`litrosCargados` es `null` y no `0`** cuando no hay ninguna carga en el
+ *    mes. Cero litros cargados sería un desvío del −100 %.
  */
 export async function getReporteAutoconsumoAction(mes: string): Promise<ReporteAutoconsumo> {
   await requireArea("combustible", "read");
   const supabase = createAdminClient();
-  const desde = `${mes}-01`;
-  const [y, m] = mes.split("-").map(Number);
-  const hasta = new Date(Date.UTC(y!, m!, 1)).toISOString().slice(0, 10);
 
-  const [autorizaciones, cargas] = await Promise.all([
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("gasoil_autorizaciones")
-      .select(
-        "toneladas, litros_por_tonelada, litros, origen:puntos_ruta!gasoil_autorizaciones_origen_id_fkey(nombre), destino:puntos_ruta!gasoil_autorizaciones_destino_id_fkey(nombre)",
-      )
-      .gte("created_at", desde)
-      .lt("created_at", hasta),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("cargas_combustible")
-      .select("litros")
-      .gte("fecha", desde)
-      .lt("fecha", hasta),
+  const [autorizaciones, cargas, previo] = await Promise.all([
+    leerAutorizacionesDelMes(supabase, mes),
+    leerCargasDelMes(supabase, mes),
+    leerTotalesDelMes(supabase, mesAnterior(mes)),
   ]);
 
-  const uno = (v: unknown) => (Array.isArray(v) ? v[0] : v) as { nombre?: string } | null;
-  const porTramo = new Map<string, LineaReporte>();
+  return armarReporte({ mes, autorizaciones, cargas, previo, hoy: hoyArgentina() });
+}
 
+/** Las vueltas autorizadas del mes, ya resueltas a nombres y a hora argentina. */
+async function leerAutorizacionesDelMes(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  for (const a of (autorizaciones.data ?? []) as any[]) {
-    const cantera = uno(a.origen)?.nombre ?? "—";
-    const destino = uno(a.destino)?.nombre ?? "—";
-    const k = `${cantera}|${destino}`;
-    const prev = porTramo.get(k) ?? {
-      cantera,
-      destino,
-      vueltas: 0,
-      toneladas: 0,
-      litrosPorTonelada: Number(a.litros_por_tonelada) || 0,
-      litrosTeoricos: 0,
-    };
-    prev.vueltas += 1;
-    prev.toneladas += Number(a.toneladas) || 0;
-    prev.litrosTeoricos += Number(a.litros) || 0;
-    porTramo.set(k, prev);
-  }
-
-  const lineas = [...porTramo.values()].sort(
-    (a, b) => a.cantera.localeCompare(b.cantera, "es") || a.destino.localeCompare(b.destino, "es"),
+  supabase: any,
+  mes: string,
+): Promise<AutorizacionCruda[]> {
+  const { desde, hasta } = bordesDelMesAr(mes);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filas = await traerTodo<any>(
+    (d, h) =>
+      supabase
+        .from("gasoil_autorizaciones")
+        .select(
+          "id, created_at, toneladas, litros_por_tonelada, litros, observaciones, chofer:choferes(nombre, apellido), origen:puntos_ruta!gasoil_autorizaciones_origen_id_fkey(nombre), destino:puntos_ruta!gasoil_autorizaciones_destino_id_fkey(nombre)",
+        )
+        .gte("created_at", desde)
+        .lt("created_at", hasta)
+        .order("id")
+        .range(d, h),
+    { etiqueta: "autorizaciones de gasoil del mes" },
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filasCargas = (cargas.data ?? []) as any[];
-  const litrosCargados =
-    filasCargas.length === 0
-      ? null
-      : filasCargas.reduce((a, c) => a + (Number(c.litros) || 0), 0);
+  const uno = (v: unknown) => (Array.isArray(v) ? v[0] : v) as Record<string, string> | null;
 
-  return {
-    mes,
-    lineas,
-    toneladas: lineas.reduce((a, l) => a + l.toneladas, 0),
-    litrosTeoricos: lineas.reduce((a, l) => a + l.litrosTeoricos, 0),
-    litrosCargados,
-    cargasDelMes: filasCargas.length,
-  };
+  return filas.map((r) => {
+    const ch = uno(r.chofer);
+    const { fecha, hora } = partesArgentinas(String(r.created_at));
+    return {
+      id: String(r.id),
+      fecha,
+      hora,
+      chofer: ch ? [ch.apellido, ch.nombre].filter(Boolean).join(" ").trim() || null : null,
+      cantera: String(uno(r.origen)?.nombre ?? "—"),
+      destino: String(uno(r.destino)?.nombre ?? "—"),
+      toneladas: Number(r.toneladas) || 0,
+      litrosPorTonelada: Number(r.litros_por_tonelada) || 0,
+      litros: Number(r.litros) || 0,
+      observaciones: r.observaciones ?? null,
+    };
+  });
+}
+
+/** Lo que efectivamente se cargó en el surtidor durante el mes. */
+async function leerCargasDelMes(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  mes: string,
+): Promise<CargaCruda[]> {
+  const { desde, hasta } = bordesDelMesAr(mes);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filas = await traerTodo<any>(
+    (d, h) =>
+      supabase
+        .from("cargas_combustible")
+        .select("id, fecha, litros")
+        .gte("fecha", desde)
+        .lt("fecha", hasta)
+        .order("id")
+        .range(d, h),
+    { etiqueta: "cargas de combustible del mes" },
+  );
+
+  return filas.map((r) => ({
+    fecha: partesArgentinas(String(r.fecha)).fecha,
+    litros: Number(r.litros) || 0,
+  }));
+}
+
+/**
+ * Los totales de un mes, sin el detalle. Es lo que se usa para el mes anterior:
+ * no hace falta traerse las filas enteras para poner un "vs. agosto" al lado.
+ */
+async function leerTotalesDelMes(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  mes: string,
+) {
+  const [autorizaciones, cargas] = await Promise.all([
+    leerAutorizacionesDelMes(supabase, mes),
+    leerCargasDelMes(supabase, mes),
+  ]);
+  if (autorizaciones.length === 0 && cargas.length === 0) return null;
+  return totales(autorizaciones, cargas);
 }

@@ -22,9 +22,8 @@ import {
   eliminarAutorizacionAction,
   guardarAutorizacionAction,
   guardarTarifaAction,
-  type AutorizacionRow,
-  type ChoferOpcion,
 } from "./actions";
+import type { AutorizacionRow, ChoferOpcion } from "./tipos";
 
 /**
  * Autoconsumo — cuántos litros le corresponden a la vuelta.
