@@ -18,6 +18,7 @@ import ChecklistYCampana from "@/components/notificaciones/ChecklistYCampana";
 import ListaNovedades from "@/components/novedades/ListaNovedades";
 import MegafonoNovedades from "@/components/novedades/MegafonoNovedades";
 import { guardarCategoriasResumen } from "@/app/(dashboard)/notificaciones/actions";
+import { porUrgencia } from "@/app/(dashboard)/notificaciones/utils";
 import { ALERTA_COLUMNAS } from "@/app/(dashboard)/configuracion/notificaciones/constants";
 import { AUSENCIAS_COL, RRHH_EVENTOS_COL } from "@/lib/alertas-routing";
 import {
@@ -733,26 +734,6 @@ export default function ResumenDiarioModal({
       </div>
     </div>
   );
-}
-
-/**
- * Qué aviso es más urgente entre dos.
- *
- * Lo que vence HOY va primero, aun habiendo cosas vencidas hace meses. Es lo que
- * este cartel vino a hacer: el cheque que hay que depositar hoy se pierde si
- * nadie lo mira hoy, mientras que un documento vencido hace 147 días ya esperó
- * 147 y va a seguir estando mañana. Con el orden anterior —el más atrasado
- * primero— lo de hoy no entraba nunca a la tira: el 27/08/2026 el echeq de Loma
- * Negra que vencía ese día quedó afuera detrás de cuatro vencimientos viejos, y
- * de ahí salió el reclamo de Nico.
- */
-function porUrgencia(a: { diasRestantes: number | null }, b: { diasRestantes: number | null }): number {
-  const hoyA = a.diasRestantes === 0 ? 0 : 1;
-  const hoyB = b.diasRestantes === 0 ? 0 : 1;
-  if (hoyA !== hoyB) return hoyA - hoyB;
-  if (a.diasRestantes === null) return b.diasRestantes === null ? 0 : 1;
-  if (b.diasRestantes === null) return -1;
-  return a.diasRestantes - b.diasRestantes;
 }
 
 function Tablero({

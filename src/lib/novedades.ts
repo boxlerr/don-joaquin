@@ -90,6 +90,14 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "el-resumen-del-dia-ya-no-te-muestra-siempre",
+    fecha: "2026-09-02",
+    tipo: "arreglo",
+    ver: "todos",
+    titulo: "El resumen del día ya no te muestra siempre lo mismo",
+    detalle: "Lo que vence hoy va primero, y lo vencido aparece de lo más reciente a lo más viejo: así lo que se acaba de vencer no queda tapado por lo de hace tres meses. Y los impuestos que ya presentaste dejan de reclamarse solos.",
+  },
+  {
     id: "los-choferes-ven-cuantos-litros-les-quedan",
     fecha: "2026-09-02",
     tipo: "nuevo",

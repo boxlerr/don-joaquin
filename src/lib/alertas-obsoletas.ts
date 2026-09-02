@@ -11,6 +11,32 @@
  *
  * Todo lo que decide algo vive acá y es puro, para poder testearlo sin base.
  */
+import { prefijoAlertaImpuesto } from "@/domain/impuestos/entidades";
+
+
+/**
+ * ¿Este aviso habla de una fila de `impuesto_vencimientos`?
+ *
+ * Los avisos de impuestos se guardan como `tipo: "otro"` y lo único que los
+ * identifica es el prefijo de `entidad_tipo`. Los prefijos se piden a
+ * `prefijoAlertaImpuesto` en vez de escribirlos acá: son los mismos dos que usa
+ * el generador (el calendario de la empresa y el de una persona física, que
+ * salen de la misma tabla y sólo se separan por a qué columna de la matriz van),
+ * y si mañana nace un tercero este barrido lo sigue solo.
+ *
+ * El filtro se hace en JS y no en la consulta a propósito: son unas pocas
+ * decenas de filas, y un `like` mal escrito en un `.or(...)` no falla — devuelve
+ * cero y el barrido no apaga nada, en silencio.
+ */
+export function esAvisoDeImpuesto(entidadTipo: string | null | undefined): boolean {
+  if (!entidadTipo) return false;
+  return PREFIJOS_IMPUESTO.some((p) => entidadTipo.startsWith(p));
+}
+
+const PREFIJOS_IMPUESTO = [
+  prefijoAlertaImpuesto("impuestos"),
+  prefijoAlertaImpuesto(null),
+];
 
 /**
  * ¿El documento se renovó después de que se emitió el aviso?

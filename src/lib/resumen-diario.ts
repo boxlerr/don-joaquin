@@ -15,7 +15,7 @@ import {
 import { visiblePara } from "@/lib/alertas-visibilidad";
 import { hoyArgentina } from "@/lib/fecha-ar";
 import { novedadesRecientes, novedadesVisibles, type Novedad } from "@/lib/novedades";
-import { alertaHref, type Severidad } from "@/app/(dashboard)/notificaciones/utils";
+import { alertaHref, porUrgencia, type Severidad } from "@/app/(dashboard)/notificaciones/utils";
 import { ALERTA_COLUMNAS } from "@/app/(dashboard)/configuracion/notificaciones/constants";
 
 /**
@@ -203,9 +203,57 @@ type Fila = {
  * efeméride (el cumpleaños de hoy no "venció") y la cuota en período de gracia
  * (venció ayer y el débito puede no verse todavía en el banco).
  */
-type ItemOrden = ItemResumen & { severidad: Severidad; noVence: boolean };
+export type ItemOrden = ItemResumen & { severidad: Severidad; noVence: boolean };
 
 const NOMBRE_POR_COLUMNA = new Map(ALERTA_COLUMNAS.map((c) => [c.key, c.nombre]));
+
+/**
+ * Ordena una categoría, la recorta a MAX_ITEMS y cuenta lo que quedó afuera.
+ *
+ * Sale de `getResumenDiario` —y se exporta— porque es EL punto donde un aviso
+ * puede desaparecer del cartel sin que nadie se entere: acá se decide cuáles
+ * cinco de veinte se ven.
+ */
+export function armarGrupo(key: string, items: ItemOrden[]): GrupoResumen {
+  // Una efeméride NUNCA es "vencida". Ojo que sí tienen `fecha_vencimiento`
+  // (lib/alertas.ts la carga con el día del evento), así que mirar sólo la
+  // fecha no alcanza: la de ayer ya se filtró antes, pero el cumpleaños de HOY
+  // llega con 0 y hay que dejarlo explícito — está siendo hoy, no vencido. El
+  // contador es lo que el modal pinta de rojo y lo que empuja al grupo arriba
+  // de todo: contaminarlo abría el pop-up con los cumpleaños primero.
+  const esVencido = (i: ItemOrden) =>
+    !i.noVence && i.diasRestantes !== null && i.diasRestantes < 0;
+  const vencidosGrupo = items.filter(esVencido).length;
+
+  // El MISMO orden con el que la pantalla los dibuja (`porUrgencia`): elegir con
+  // un criterio y mostrar con otro fue exactamente el bug. La severidad quedó de
+  // desempate —y no arriba de todo, como estaba— porque dentro de una categoría
+  // es casi siempre función de la fecha (vencido o a menos de 7 días = crítica),
+  // y cuando mandaba ella lo que vencía hoy entraba último entre los críticos.
+  items.sort((a, b) => porUrgencia(a, b) || SEV_ORDER[a.severidad] - SEV_ORDER[b.severidad]);
+
+  // `restantes` se deriva de lo que REALMENTE se recortó: si el grupo tiene
+  // menos ítems que el corte, restar la constante dibujaría un "y 1 más" que
+  // no corresponde a nadie.
+  const visibles = items.slice(0, MAX_ITEMS);
+
+  return {
+    key,
+    nombre: NOMBRE_POR_COLUMNA.get(key) ?? "Otros avisos",
+    total: items.length,
+    vencidos: vencidosGrupo,
+    items: visibles.map((i) => ({
+      id: i.id,
+      titulo: i.titulo,
+      diasRestantes: i.diasRestantes,
+      fecha: i.fecha,
+      entidadId: i.entidadId,
+      href: i.href,
+    })),
+    restantes: items.length - visibles.length,
+    restantesVencidos: Math.max(0, vencidosGrupo - visibles.filter(esVencido).length),
+  };
+}
 
 /**
  * Días hasta la fecha, medidos contra HOY EN ARGENTINA.
@@ -306,54 +354,10 @@ export async function getResumenDiario(user: CurrentUser): Promise<ResumenDiario
   let vencidos = 0;
 
   for (const [key, items] of porColumna) {
-    // Una efeméride NUNCA es "vencida". Ojo que sí tienen `fecha_vencimiento`
-    // (lib/alertas.ts la carga con el día del evento), así que mirar sólo la
-    // fecha no alcanza: la de ayer ya se filtró arriba, pero el cumpleaños de HOY
-    // llega con 0 y hay que dejarlo explícito — está siendo hoy, no vencido. El
-    // contador es lo que el modal pinta de rojo y lo que empuja al grupo arriba
-    // de todo: contaminarlo abría el pop-up con los cumpleaños primero.
-    const vencidosGrupo = items.filter(
-      (i) => !i.noVence && i.diasRestantes !== null && i.diasRestantes < 0,
-    ).length;
-
-    items.sort((a, b) => {
-      const s = SEV_ORDER[a.severidad] - SEV_ORDER[b.severidad];
-      if (s !== 0) return s;
-      // Sin fecha van al final: no compiten con algo que vence pasado mañana.
-      if (a.diasRestantes === null) return b.diasRestantes === null ? 0 : 1;
-      if (b.diasRestantes === null) return -1;
-      return a.diasRestantes - b.diasRestantes;
-    });
-
-    // `restantes` se deriva de lo que REALMENTE se recortó: si el grupo tiene
-    // menos ítems que el corte, restar la constante dibujaría un "y 1 más" que
-    // no corresponde a nadie.
-    const visibles = items.slice(0, MAX_ITEMS);
-
-    grupos.push({
-      key,
-      nombre: NOMBRE_POR_COLUMNA.get(key) ?? "Otros avisos",
-      total: items.length,
-      vencidos: vencidosGrupo,
-      items: visibles.map((i) => ({
-        id: i.id,
-        titulo: i.titulo,
-        diasRestantes: i.diasRestantes,
-        fecha: i.fecha,
-        entidadId: i.entidadId,
-        href: i.href,
-      })),
-      restantes: items.length - visibles.length,
-      restantesVencidos: Math.max(
-        0,
-        vencidosGrupo -
-          visibles.filter((i) => !i.noVence && i.diasRestantes !== null && i.diasRestantes < 0)
-            .length,
-      ),
-    });
-
-    total += items.length;
-    vencidos += vencidosGrupo;
+    const grupo = armarGrupo(key, items);
+    grupos.push(grupo);
+    total += grupo.total;
+    vencidos += grupo.vencidos;
   }
 
   // Los grupos que se dibujan por PERSONA (cumpleaños y ausencias) llevan la

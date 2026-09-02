@@ -6,6 +6,7 @@ import { chequeReclama } from "@/lib/alertas-live";
 import { ENTIDAD_TIPOS_CADUCAN, HITOS_PERIODO_PRUEBA } from "@/lib/alertas-routing";
 import {
   documentoRenovado,
+  esAvisoDeImpuesto,
   disparoPrestamo,
   semanalDeSemanaPasada,
   preavisoPrestamoPasado,
@@ -420,6 +421,103 @@ async function resolverAlertasObsoletas(
     }
   } catch (e) {
     console.error("[alertas] resolverAlertasObsoletas/prestamos:", e);
+  }
+
+  // --- 4. Impuesto ya presentado ---
+  //
+  // El generador sólo mira los `presentado = false`, así que marcar la
+  // presentación evita que NAZCA un aviso nuevo — pero al viejo no lo apagaba
+  // nadie, y se quedaba reclamando para siempre un impuesto ya presentado.
+  //
+  // El 02/09/2026 los DIECIOCHO "Impuesto vencido" del resumen del día eran
+  // exactamente eso: se habían presentado todos el 01/09 y a la mañana siguiente
+  // el pop-up abría con 18 en rojo, encabezados por uno de hace 86 días. Esa
+  // tarjeta llena de avisos muertos es la que tapaba lo que sí había que hacer
+  // ese día. Mismo criterio que el documento renovado y la cuota pagada: el
+  // reclamo lo apaga el trabajo hecho, no el paso del tiempo.
+  //
+  // Los dos prefijos son los de `prefijoAlertaImpuesto`: el calendario de la
+  // empresa y el de una persona física son la misma fila de `impuesto_vencimientos`
+  // y sólo se separan por la columna de la matriz a la que van.
+  try {
+    const { data: pendOtros } = await supabase
+      .from("alertas")
+      .select("id, entidad_id, entidad_tipo")
+      .eq("estado", "pendiente")
+      .eq("tipo", "otro")
+      .not("entidad_id", "is", null);
+
+    const filas = (pendOtros ?? []).filter((a) => esAvisoDeImpuesto(a.entidad_tipo));
+    if (filas.length > 0) {
+      const presentados = new Set<string>();
+      const ids = [...new Set(filas.map((a) => a.entidad_id).filter(Boolean))] as string[];
+      for (const tanda of enTandas(ids, 200)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("impuesto_vencimientos")
+          .select("id")
+          .eq("presentado", true)
+          .in("id", tanda);
+        for (const i of (data ?? []) as { id: string }[]) presentados.add(i.id);
+      }
+
+      const obsoletas = filas
+        .filter((a) => a.entidad_id && presentados.has(a.entidad_id))
+        .map((a) => a.id);
+      if (obsoletas.length > 0) {
+        const n = await marcarResueltas(supabase, obsoletas);
+        console.log(`[alertas] ${n} aviso(s) de impuestos ya presentados`);
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] resolverAlertasObsoletas/impuestos:", e);
+  }
+
+  // --- 5. Cheque que ya se cobró, se cedió o se debitó ---
+  //
+  // La pantalla, la campana y el pop-up no lo notaban porque los cheques se
+  // recalculan EN VIVO desde la tabla `cheques` (DOC_LIVE), pero la fila de
+  // alerta quedaba pendiente para siempre: el 02/09/2026 catorce de las
+  // veinticuatro eran de cheques ya depositados o debitados. Y esa fila muerta
+  // no es inofensiva — el dashboard cuenta la TABLA, así que sumaba doce avisos
+  // críticos que ya no existían, y el botón "Resolver alerta" podía mandar a un
+  // cheque cerrado hace un mes.
+  //
+  // `chequeReclama` es la misma regla con la que se genera el aviso en vivo, para
+  // que las dos vías digan lo mismo. Un cheque borrado tampoco aparece en la
+  // consulta: su alerta queda huérfana y también se apaga.
+  try {
+    const { data: pendCheques } = await supabase
+      .from("alertas")
+      .select("id, entidad_id")
+      .eq("estado", "pendiente")
+      .eq("tipo", "vencimiento_cheque")
+      .not("entidad_id", "is", null);
+
+    const filas = pendCheques ?? [];
+    if (filas.length > 0) {
+      const siguenReclamando = new Set<string>();
+      const ids = [...new Set(filas.map((a) => a.entidad_id).filter(Boolean))] as string[];
+      for (const tanda of enTandas(ids, 200)) {
+        const { data } = await supabase
+          .from("cheques")
+          .select("id, estado, origen")
+          .in("id", tanda);
+        for (const c of (data ?? []) as { id: string; estado: string; origen: string | null }[]) {
+          if (chequeReclama(c.origen, c.estado)) siguenReclamando.add(c.id);
+        }
+      }
+
+      const obsoletas = filas
+        .filter((a) => a.entidad_id && !siguenReclamando.has(a.entidad_id))
+        .map((a) => a.id);
+      if (obsoletas.length > 0) {
+        const n = await marcarResueltas(supabase, obsoletas);
+        console.log(`[alertas] ${n} aviso(s) de cheques ya cerrados`);
+      }
+    }
+  } catch (e) {
+    console.error("[alertas] resolverAlertasObsoletas/cheques:", e);
   }
 }
 

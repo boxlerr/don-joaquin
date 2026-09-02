@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   documentoRenovado,
+  esAvisoDeImpuesto,
   disparoPrestamo,
   semanalDeSemanaPasada,
   preavisoPrestamoPasado,
@@ -256,5 +257,41 @@ describe("form931Obsoleto — el aviso del 931 que no se apagaba nunca", () => {
 
   it("tolera el timestamp completo en la fecha de la alerta", () => {
     expect(form931Obsoleto("2026-08-20T00:00:00+00:00", pendiente)).toBe(false);
+  });
+});
+
+/**
+ * Qué avisos mira el barrido de impuestos presentados.
+ *
+ * El 02/09/2026 los 18 "Impuesto vencido" del resumen del día correspondían a
+ * impuestos presentados el día anterior: el generador sólo mira los que están
+ * sin presentar, así que no nacía uno nuevo, pero al viejo no lo apagaba nadie.
+ * Este predicado es el que decide qué filas revisa el barrido, y lo que cuida el
+ * test es que no se coma avisos de OTRA cosa: en la tabla todos son `tipo: otro`
+ * y sólo el prefijo de `entidad_tipo` los distingue.
+ */
+describe("esAvisoDeImpuesto", () => {
+  it("reconoce los dos calendarios: el de la empresa y el de una persona", () => {
+    expect(esAvisoDeImpuesto("impuesto:vencido")).toBe(true);
+    expect(esAvisoDeImpuesto("impuesto:T5")).toBe(true);
+    expect(esAvisoDeImpuesto("impuesto_personal:vencido")).toBe(true);
+  });
+
+  it("no toca los avisos de las otras categorías", () => {
+    // Todos estos conviven en la misma tabla con tipo "otro".
+    expect(esAvisoDeImpuesto("prestamo_cuota:T1")).toBe(false);
+    expect(esAvisoDeImpuesto("choferes_cumple")).toBe(false);
+    expect(esAvisoDeImpuesto("choferes_vacaciones_saldo")).toBe(false);
+    expect(esAvisoDeImpuesto("form931:T30")).toBe(false);
+    expect(esAvisoDeImpuesto("compliance:T15")).toBe(false);
+    expect(esAvisoDeImpuesto(null)).toBe(false);
+    expect(esAvisoDeImpuesto(undefined)).toBe(false);
+    expect(esAvisoDeImpuesto("")).toBe(false);
+  });
+
+  it("no confunde una categoría que EMPIECE parecido", () => {
+    // El prefijo lleva los dos puntos justamente para esto.
+    expect(esAvisoDeImpuesto("impuestos_pagados")).toBe(false);
+    expect(esAvisoDeImpuesto("impuesto_personalizado")).toBe(false);
   });
 });

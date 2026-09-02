@@ -139,6 +139,52 @@ export function diasRestantes(fechaVencimiento: string | null): number | null {
   return Math.round(ms / 86400000);
 }
 
+/**
+ * Qué aviso es más urgente entre dos. Tres bloques, en este orden:
+ *
+ *  1. Lo que vence HOY, aunque haya cosas vencidas hace meses. Es lo que el
+ *     resumen del día vino a hacer: el cheque que hay que depositar hoy se
+ *     pierde si nadie lo mira hoy.
+ *  2. Lo vencido, de lo MÁS RECIENTE a lo más viejo. Es el vuelco respecto del
+ *     orden original (el más atrasado primero) y es el pedido textual de Nico y
+ *     Julián el 02/09/2026: *"lo tapan las alertas viejas, tendrían que aparecer
+ *     al revés, las nuevas arriba"*. Lo que se venció ayer todavía se ataja; lo
+ *     de hace 86 días ya esperó 86 y va a seguir estando mañana — y mientras
+ *     encabezaba la lista, ocupaba los cinco lugares todos los días con lo
+ *     mismo, y lo que se acababa de vencer no aparecía nunca.
+ *  3. Lo que todavía no venció, lo más próximo primero. Y al final lo que no
+ *     tiene fecha, que no compite con algo que vence pasado mañana.
+ *
+ * Vive acá —y no en el pop-up, que es donde nació— porque el criterio lo tienen
+ * que compartir los dos lados: el server ELIGE con él los cinco avisos que
+ * viajan por categoría y la pantalla los DIBUJA. Cuando el orden estaba sólo en
+ * la pantalla, el server seguía mandando los cinco más atrasados y reordenarlos
+ * no traía al que faltaba: el 27/08/2026 el echeq de Loma Negra que vencía ese
+ * día quedó afuera detrás de cuatro vencimientos viejos, y el 02/09/2026 volvió
+ * a pasar con el mismo cheque —seis cheques nuestros sin debitar, de hasta 49
+ * días, ocupaban los cinco lugares—.
+ */
+export function porUrgencia(
+  a: { diasRestantes: number | null },
+  b: { diasRestantes: number | null },
+): number {
+  const da = a.diasRestantes;
+  const db = b.diasRestantes;
+  const ba = bloqueDeUrgencia(da);
+  const bb = bloqueDeUrgencia(db);
+  if (ba !== bb) return ba - bb;
+  if (da === null || db === null) return 0;
+  // Vencidos: el más reciente arriba. Lo que viene: lo más próximo arriba.
+  return ba === 1 ? db - da : da - db;
+}
+
+/** 0 = vence hoy · 1 = vencido · 2 = por vencer · 3 = sin fecha. */
+function bloqueDeUrgencia(dias: number | null): number {
+  if (dias === null) return 3;
+  if (dias === 0) return 0;
+  return dias < 0 ? 1 : 2;
+}
+
 export type DiasChipTone = {
   bg: string;
   text: string;
