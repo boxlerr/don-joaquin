@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Printer } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
+import BotonEnviarEnlace from "./BotonEnviarEnlace";
 import { requireArea, hasArea } from "@/lib/auth";
 import {
   getAutorizacionesAction,
@@ -33,17 +34,20 @@ export default async function AutoconsumoPage() {
         title="Autoconsumo"
         description="Cuánto gasoil le corresponde según las toneladas que cargó. Es la misma cuenta que usa YPF."
         action={
-          // Un Link con pinta de botón, no un Button adentro de un Link: un
-          // <button> dentro de un <a> no es HTML válido. Abre en pestaña nueva
-          // porque la hoja dispara el diálogo de impresión sola al cargar.
-          <Link
-            href={`/combustible/autoconsumo/print?mes=${mesActual}`}
-            target="_blank"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
-          >
-            <Printer size={14} />
-            Reporte para YPF
-          </Link>
+          <div className="flex items-center gap-2">
+            <BotonEnviarEnlace puedeRotar={canWrite} />
+            {/* Un Link con pinta de botón, no un Button adentro de un Link: un
+                <button> dentro de un <a> no es HTML válido. Abre en pestaña nueva
+                porque la hoja dispara el diálogo de impresión sola al cargar. */}
+            <Link
+              href={`/combustible/autoconsumo/print?mes=${mesActual}`}
+              target="_blank"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
+            >
+              <Printer size={14} />
+              Reporte para YPF
+            </Link>
+          </div>
         }
       />
       {tarifas.length === 0 ? (

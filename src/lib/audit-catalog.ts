@@ -16,6 +16,7 @@ export const ACCION_LABELS: Record<string, string> = {
   exportar: "Exportación",
   importar: "Importación",
   importar_hoja_ruta: "Importación de hoja de ruta",
+  rotar_enlace_gasoil: "Enlace de gasoil rotado",
   // Compliance: cerrar una liquidación / DM y editar sus fechas.
   completar_liq_loma: "Liquidación de Loma completada",
   completar_dm_ypf: "DM de YPF completado",
@@ -122,6 +123,11 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   prestamo_cuota: "Cuota de préstamo",
   hoja_ruta: "Hoja de ruta",
   pesos_score_chofer: "Pesos de score",
+  // Gasoil de la vuelta: el cuadro de rindes, lo que se le autoriza a cada
+  // chofer y el enlace público con el que lo anota él mismo.
+  gasoil_tarifa: "Rinde de un tramo",
+  gasoil_autorizacion: "Gasoil autorizado",
+  gasoil_enlace: "Enlace de gasoil para choferes",
 };
 
 /** Tono visual de un badge de acción, agrupado por familia. */

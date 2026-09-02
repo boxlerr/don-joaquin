@@ -21,7 +21,8 @@ import {
   type ReporteAutoconsumo,
 } from "@/domain/gasoil/reporte";
 import { hoyArgentina } from "@/lib/fecha-ar";
-import type { AutorizacionRow, ChoferOpcion } from "./tipos";
+import type { AutorizacionRow, ChoferOpcion, DatosDelEnlace } from "./tipos";
+import { appUrl } from "@/lib/email";
 
 /**
  * El gasoil que le corresponde a la vuelta.
@@ -88,7 +89,7 @@ export async function getAutorizacionesAction(limite = 25): Promise<Autorizacion
   const { data } = await (supabase as any)
     .from("gasoil_autorizaciones")
     .select(
-      "id, created_at, toneladas, litros_por_tonelada, litros, observaciones, chofer:choferes(nombre, apellido), origen:puntos_ruta!gasoil_autorizaciones_origen_id_fkey(nombre), destino:puntos_ruta!gasoil_autorizaciones_destino_id_fkey(nombre), usuario:usuarios(nombre, apellido)",
+      "id, created_at, toneladas, litros_por_tonelada, litros, observaciones, cargada_por_chofer, chofer:choferes(nombre, apellido), origen:puntos_ruta!gasoil_autorizaciones_origen_id_fkey(nombre), destino:puntos_ruta!gasoil_autorizaciones_destino_id_fkey(nombre), usuario:usuarios(nombre, apellido)",
     )
     .order("created_at", { ascending: false })
     .limit(limite);
@@ -110,6 +111,7 @@ export async function getAutorizacionesAction(limite = 25): Promise<Autorizacion
       litros: Number(r.litros) || 0,
       observaciones: r.observaciones ?? null,
       cargadoPor: us ? [us.nombre, us.apellido].filter(Boolean).join(" ").trim() : null,
+      cargadaPorChofer: Boolean(r.cargada_por_chofer),
     };
   });
 }
@@ -520,4 +522,119 @@ async function leerTotalesDelMes(
   ]);
   if (autorizaciones.length === 0 && cargas.length === 0) return null;
   return totales(autorizaciones, cargas);
+}
+
+// ── El enlace que se le manda al chofer ──────────────────────────────────────
+
+/**
+ * El enlace vigente y la lista para mandarlo.
+ *
+ * Hay un solo enlace vivo a la vez (lo garantiza el índice único de la tabla).
+ * Si no hay ninguno —porque todavía no se corrió la migración, o porque alguien
+ * lo revocó y no generó otro— devuelve `null` y la pantalla lo dice: es
+ * preferible a fabricar uno de apuro desde una lectura.
+ */
+export async function getDatosDelEnlaceAction(): Promise<DatosDelEnlace> {
+  await requireArea("combustible", "read");
+  const supabase = createAdminClient();
+
+  const [enlaceRes, choferesRes] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("gasoil_enlace")
+      .select("token, created_at")
+      .eq("activo", true)
+      .maybeSingle(),
+    supabase
+      .from("choferes")
+      .select("id, nombre, apellido, telefono, estado, rol, es_demo")
+      .eq("estado", "activo")
+      .order("apellido"),
+  ]);
+
+  const enlace = enlaceRes.data
+    ? {
+        url: `${appUrl()}/gasoil/${enlaceRes.data.token}`,
+        token: String(enlaceRes.data.token),
+        creadoEl: String(enlaceRes.data.created_at),
+      }
+    : null;
+
+  const choferes = (choferesRes.data ?? [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((c: any) => !c.es_demo)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((c: any) => (c.rol ?? "chofer") === "chofer" || c.rol === "fletero")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((c: any) => ({
+      id: String(c.id),
+      nombre: [c.apellido, c.nombre].filter(Boolean).join(" ").trim() || "(sin nombre)",
+      telefono: c.telefono ?? null,
+    }));
+
+  return { enlace, choferes };
+}
+
+/**
+ * Da de baja el enlace y genera otro.
+ *
+ * Es la salida para cuando el link se filtró o llegó a donde no tenía que
+ * llegar. **Rompe el que tienen guardado los 61 choferes**, así que la pantalla
+ * lo pregunta antes: al que abra el viejo le va a aparecer "este enlace ya no
+ * sirve" hasta que se le mande el nuevo.
+ *
+ * El anterior no se borra: se apaga. Si mañana aparece una vuelta que nadie
+ * reconoce, tiene que poder saberse qué enlace estaba vivo ese día.
+ */
+export async function rotarEnlaceChoferAction(): Promise<{ ok: true } | { error: string }> {
+  const user = await requireArea("combustible", "write");
+  const supabase = createAdminClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: previo } = await (supabase as any)
+    .from("gasoil_enlace")
+    .select("id, token")
+    .eq("activo", true)
+    .maybeSingle();
+
+  if (previo) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("gasoil_enlace")
+      .update({ activo: false, revocado_at: new Date().toISOString(), revocado_by: user.id })
+      .eq("id", previo.id);
+    if (error) {
+      console.error("Error al dar de baja el enlace de gasoil:", error);
+      return { error: "No se pudo dar de baja el enlace anterior." };
+    }
+  }
+
+  // El token se arma acá y no en la base: `crypto.randomUUID()` sin los guiones
+  // son 32 hex (128 bits), de sobra para una llave que no se adivina.
+  const token = crypto.randomUUID().replaceAll("-", "");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from("gasoil_enlace")
+    .insert({ token, created_by: user.id, nota: previo ? "Rotado desde la pantalla" : null })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error al generar el enlace de gasoil:", error);
+    return { error: "No se pudo generar el enlace nuevo." };
+  }
+
+  await logAudit({
+    client: supabase,
+    usuarioId: user.id,
+    accion: previo ? "rotar_enlace_gasoil" : "crear",
+    entidadTipo: "gasoil_enlace",
+    entidadId: data?.id ?? null,
+    valoresAnteriores: previo ? { token: previo.token } : undefined,
+    valoresNuevos: { token },
+  });
+
+  revalidatePath("/combustible/autoconsumo");
+  return { ok: true };
 }

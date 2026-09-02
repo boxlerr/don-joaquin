@@ -24,4 +24,27 @@ export type AutorizacionRow = {
   litros: number;
   observaciones: string | null;
   cargadoPor: string | null;
+  /** La anotó el propio chofer desde el enlace, no alguien de la oficina. */
+  cargadaPorChofer: boolean;
+};
+
+/** El enlace público vigente, listo para mandar. */
+export type EnlaceChofer = {
+  url: string;
+  /** Sólo para mostrarlo cortito en la pantalla; la llave real va en la URL. */
+  token: string;
+  creadoEl: string;
+};
+
+/** Un chofer con su teléfono, para armarle el botón de WhatsApp. */
+export type ChoferConTelefono = {
+  id: string;
+  nombre: string;
+  telefono: string | null;
+};
+
+/** Lo que necesita el diálogo de "Enviar el enlace". */
+export type DatosDelEnlace = {
+  enlace: EnlaceChofer | null;
+  choferes: ChoferConTelefono[];
 };

@@ -4,8 +4,14 @@ import { NextResponse, type NextRequest } from "next/server";
 /**
  * Rutas públicas que NO requieren autenticación.
  * Cualquier otra ruta queda protegida y redirige a /login si no hay sesión.
+ *
+ * `/gasoil` es la que anota el chofer su propia vuelta. No tiene usuario en el
+ * sistema —hacerle uno a cada uno de los 61 era justamente lo que había que
+ * evitar—, así que la llave es el token de la URL: la valida la propia página
+ * contra `gasoil_enlace` y la oficina lo puede apagar cuando quiera. Mismo
+ * criterio que /api/cron/*: no pide sesión, pero no queda abierta.
  */
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/auth/callback", "/auth/reset-password", "/auth/error"];
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/auth/callback", "/auth/reset-password", "/auth/error", "/gasoil"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

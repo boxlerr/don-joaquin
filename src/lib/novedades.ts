@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "los-choferes-pueden-anotar-su-vuelta-de",
+    fecha: "2026-09-02",
+    tipo: "nuevo",
+    ver: "combustible",
+    titulo: "Los choferes pueden anotar su vuelta de gasoil desde el celular",
+    detalle: "Con el botón \"Enviar el enlace\" les mandás un link por WhatsApp. El chofer pone de dónde salió, a dónde va y cuántas toneladas cargó, y la pantalla le dice cuántos litros puede cargar. No necesita usuario ni contraseña, y lo que anota aparece al toque en la lista marcado como \"desde el enlace\".",
+    href: "/combustible/autoconsumo",
+  },
+  {
     id: "subis-el-calendario-del-estudio-y-los",
     fecha: "2026-09-02",
     tipo: "nuevo",

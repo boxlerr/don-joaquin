@@ -637,9 +637,28 @@ function Autorizadas({
                     <td className="px-3 py-1.5 text-right font-semibold tabular-nums">
                       {num(f.litros)}
                     </td>
-                    <td className="px-3 py-1.5 text-muted-foreground">{f.observaciones ?? ""}</td>
+                    {/* La nota se acota a dos renglones: una nota larga sin espacios estiraba
+                        la fila a ocho y descuadraba la tabla entera. El texto completo
+                        queda a mano en el título. */}
+                    <td
+                      className="max-w-[24ch] px-3 py-1.5 text-muted-foreground"
+                      title={f.observaciones ?? undefined}
+                    >
+                      <span className="line-clamp-2 break-words">{f.observaciones ?? ""}</span>
+                    </td>
                     <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">
-                      {f.cargadoPor ?? "—"}
+                      {/* Una fila del enlace no tiene usuario del sistema, y dejarla
+                          en "—" la volvía igual a una vieja importada. Va el nombre
+                          del chofer —que es quien la anotó— y de dónde salió, que
+                          es lo que la distingue de una que cargó la oficina. */}
+                      {f.cargadaPorChofer ? (
+                        <>
+                          <span className="text-foreground">{f.chofer ?? "El chofer"}</span>
+                          <span className="text-muted-foreground"> · desde el enlace</span>
+                        </>
+                      ) : (
+                        (f.cargadoPor ?? "—")
+                      )}
                     </td>
                     {canWrite && (
                       <td className="whitespace-nowrap px-3 py-1.5 text-right">
