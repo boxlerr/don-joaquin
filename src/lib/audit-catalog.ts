@@ -128,6 +128,7 @@ export const ENTIDAD_LABELS: Record<string, string> = {
   gasoil_tarifa: "Rinde de un tramo",
   gasoil_autorizacion: "Gasoil autorizado",
   gasoil_enlace: "Enlace de gasoil para choferes",
+  gasoil_carga_declarada: "Gasoil que declaró el chofer",
 };
 
 /** Tono visual de un badge de acción, agrupado por familia. */

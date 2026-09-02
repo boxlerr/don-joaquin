@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "los-choferes-ven-cuantos-litros-les-quedan",
+    fecha: "2026-09-02",
+    tipo: "nuevo",
+    ver: "combustible",
+    titulo: "Los choferes ven cuántos litros les quedan de la vuelta",
+    detalle: "Al abrir el enlace ya ven su vuelta del día y cuánto gasoil les queda por cargar. Van anotando cada carga y el número baja solo; también pueden poner los litros que ya traían antes de cargar la arena. En la lista de la oficina aparece la columna \"Cargó\" con lo que declaró cada uno, en rojo si se pasó.",
+    href: "/combustible/autoconsumo",
+  },
+  {
     id: "podes-dejar-el-dia-registrado-aunque-no",
     fecha: "2026-09-02",
     tipo: "nuevo",

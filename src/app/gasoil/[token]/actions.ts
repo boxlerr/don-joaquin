@@ -6,8 +6,13 @@ import { logAudit } from "@/lib/audit";
 import { buscarTarifa, calcularLitros } from "@/domain/gasoil/litros-por-tonelada";
 import { buscarRepetida, TOPE_DIARIO_POR_CHOFER } from "@/domain/gasoil/enlace";
 import { partesArgentinas } from "@/domain/gasoil/reporte";
-import { leerTarifas, leerChoferesDelEnlace } from "@/app/gasoil/[token]/datos";
-import type { ResultadoAnotar } from "./tipos";
+import {
+  enlaceActivo,
+  leerTarifas,
+  leerChoferesDelEnlace,
+  leerVueltasDelChofer,
+} from "@/app/gasoil/[token]/datos";
+import type { ResultadoAnotar, ResultadoCarga } from "./tipos";
 
 /**
  * Lo que anota el chofer desde el enlace público.
@@ -35,6 +40,8 @@ export async function anotarVueltaChoferAction(input: {
   origenId: string;
   destinoId: string;
   toneladas: number;
+  /** Los que ya traía cargados antes de cargar la arena. Opcional. */
+  litrosPrevios?: number | null;
 }): Promise<ResultadoAnotar> {
   const supabase = createAdminClient();
 
@@ -140,6 +147,19 @@ export async function anotarVueltaChoferAction(input: {
     };
   }
 
+  // Los litros que ya traía. Van como una carga más, marcada `previa`: para el
+  // saldo cuentan igual, y hay que poder distinguirlas de las que hizo durante
+  // el viaje. Si esto falla, la vuelta ya quedó guardada y es lo que importa —
+  // el chofer puede volver a anotar la carga desde la misma pantalla.
+  const previos = Number(input.litrosPrevios) || 0;
+  if (previos > 0 && data?.id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: errPrevia } = await (supabase as any)
+      .from("gasoil_cargas_declaradas")
+      .insert({ autorizacion_id: data.id, litros: previos, previa: true });
+    if (errPrevia) console.error("No se pudo guardar la carga previa:", errPrevia);
+  }
+
   // La auditoría guarda de dónde vino: es lo único que queda para reconstruir
   // una vuelta que después nadie reconozca.
   const cabeceras = await headers();
@@ -172,4 +192,101 @@ export async function anotarVueltaChoferAction(input: {
       yaEstaba: false,
     },
   };
+}
+
+
+/**
+ * Las vueltas del chofer, con lo que lleva cargado en cada una.
+ *
+ * Es lo primero que ve apenas se identifica. Pide el token igual que todo lo
+ * demás: sin él, esta acción sería una forma de leerle el historial a cualquier
+ * chofer sabiendo su id.
+ */
+export async function misVueltasAction(input: {
+  token: string;
+  choferId: string;
+}): Promise<ResultadoCarga> {
+  const supabase = createAdminClient();
+
+  if (!(await enlaceActivo(supabase, input.token))) {
+    return { ok: false, mensaje: "Este enlace ya no sirve. Pedile el nuevo a la oficina." };
+  }
+  const choferes = await leerChoferesDelEnlace(supabase);
+  if (!choferes.some((c) => c.id === input.choferId)) {
+    return { ok: false, mensaje: "No te encontramos en la lista. Volvé a elegir tu nombre." };
+  }
+
+  return { ok: true, vueltas: await leerVueltasDelChofer(supabase, input.choferId) };
+}
+
+/**
+ * El chofer anota que cargó gasoil.
+ *
+ * **Lo que se guarda acá no es el registro oficial**: ese sale del reporte de
+ * YPF, que llega a día vencido. Esto es lo que él dice que cargó, y sirve para
+ * dos cosas: mostrarle el saldo en el momento —que es lo único que le importa
+ * parado en el surtidor— y poder cruzar después las dos versiones.
+ *
+ * Se verifica que la vuelta sea suya: sin eso, con el token y un id ajeno se le
+ * podrían anotar litros a cualquiera.
+ */
+export async function anotarCargaChoferAction(input: {
+  token: string;
+  choferId: string;
+  autorizacionId: string;
+  litros: number;
+}): Promise<ResultadoCarga> {
+  const supabase = createAdminClient();
+
+  if (!(await enlaceActivo(supabase, input.token))) {
+    return { ok: false, mensaje: "Este enlace ya no sirve. Pedile el nuevo a la oficina." };
+  }
+
+  const litros = Number(input.litros);
+  if (!Number.isFinite(litros) || litros <= 0) {
+    return { ok: false, mensaje: "Poné cuántos litros cargaste." };
+  }
+  // Tope de cordura, no una regla del negocio: el tanque más grande de la flota
+  // no llega a 1.000 y el 4350 sale de tipear 435 con el dedo resbalado.
+  if (litros > 1500) {
+    return { ok: false, mensaje: `${litros} litros no entran en un tanque. ¿No te sobró un número?` };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: vuelta } = await (supabase as any)
+    .from("gasoil_autorizaciones")
+    .select("id, chofer_id")
+    .eq("id", input.autorizacionId)
+    .maybeSingle();
+
+  if (!vuelta || vuelta.chofer_id !== input.choferId) {
+    return { ok: false, mensaje: "Esa vuelta no es tuya. Volvé a abrir el enlace." };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: nueva, error } = await (supabase as any)
+    .from("gasoil_cargas_declaradas")
+    .insert({ autorizacion_id: input.autorizacionId, litros, previa: false })
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error al anotar la carga del chofer:", error);
+    return { ok: false, mensaje: "No se pudo guardar. Fijate que tengas señal y probá de nuevo." };
+  }
+
+  const cabeceras = await headers();
+  await logAudit({
+    client: supabase,
+    usuarioId: null,
+    accion: "crear",
+    entidadTipo: "gasoil_carga_declarada",
+    entidadId: nueva?.id ?? null,
+    valoresNuevos: { autorizacion_id: input.autorizacionId, litros },
+    metadata: { via: "enlace_chofer" },
+    ip: cabeceras.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    userAgent: cabeceras.get("user-agent"),
+  });
+
+  return { ok: true, vueltas: await leerVueltasDelChofer(supabase, input.choferId) };
 }

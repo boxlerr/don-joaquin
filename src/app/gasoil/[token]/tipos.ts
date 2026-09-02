@@ -23,3 +23,25 @@ export type ResultadoAnotar =
   | { ok: true; vuelta: VueltaAnotada }
   /** El motivo se le muestra tal cual al chofer: tiene que poder actuar con eso. */
   | { ok: false; mensaje: string };
+
+/** Una vuelta del chofer, con su saldo, tal como la ve en el enlace. */
+export type VueltaDelChofer = {
+  id: string;
+  /** "YYYY-MM-DD" en hora de Argentina. */
+  fecha: string;
+  /** "HH:MM". */
+  hora: string;
+  cantera: string;
+  destino: string;
+  toneladas: number;
+  litrosPorTonelada: number;
+  /** Los litros que le corresponden a la vuelta. */
+  litros: number;
+  /** Es de hoy: es la que todavía está cargando. */
+  enCurso: boolean;
+  cargas: { id: string; litros: number; previa: boolean; hora: string }[];
+};
+
+export type ResultadoCarga =
+  | { ok: true; vueltas: VueltaDelChofer[] }
+  | { ok: false; mensaje: string };

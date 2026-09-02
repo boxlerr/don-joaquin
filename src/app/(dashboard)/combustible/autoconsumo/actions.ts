@@ -89,7 +89,7 @@ export async function getAutorizacionesAction(limite = 25): Promise<Autorizacion
   const { data } = await (supabase as any)
     .from("gasoil_autorizaciones")
     .select(
-      "id, created_at, toneladas, litros_por_tonelada, litros, observaciones, cargada_por_chofer, chofer:choferes(nombre, apellido), origen:puntos_ruta!gasoil_autorizaciones_origen_id_fkey(nombre), destino:puntos_ruta!gasoil_autorizaciones_destino_id_fkey(nombre), usuario:usuarios(nombre, apellido)",
+      "id, created_at, toneladas, litros_por_tonelada, litros, observaciones, cargada_por_chofer, cargas:gasoil_cargas_declaradas(litros), chofer:choferes(nombre, apellido), origen:puntos_ruta!gasoil_autorizaciones_origen_id_fkey(nombre), destino:puntos_ruta!gasoil_autorizaciones_destino_id_fkey(nombre), usuario:usuarios(nombre, apellido)",
     )
     .order("created_at", { ascending: false })
     .limit(limite);
@@ -112,6 +112,10 @@ export async function getAutorizacionesAction(limite = 25): Promise<Autorizacion
       observaciones: r.observaciones ?? null,
       cargadoPor: us ? [us.nombre, us.apellido].filter(Boolean).join(" ").trim() : null,
       cargadaPorChofer: Boolean(r.cargada_por_chofer),
+      cargadoDeclarado: ((r.cargas ?? []) as { litros: number }[]).reduce(
+        (a, c) => a + (Number(c.litros) || 0),
+        0,
+      ),
     };
   });
 }

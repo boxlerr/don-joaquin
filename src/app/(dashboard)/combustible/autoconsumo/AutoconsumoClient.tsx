@@ -610,6 +610,7 @@ function Autorizadas({
                   <th className="px-3 py-2 text-right font-semibold">Tn</th>
                   <th className="px-3 py-2 text-right font-semibold">L/tn</th>
                   <th className="px-3 py-2 text-right font-semibold">Litros</th>
+                  <th className="px-3 py-2 text-right font-semibold">Cargó</th>
                   <th className="px-3 py-2 text-left font-semibold">Nota</th>
                   <th className="px-3 py-2 text-left font-semibold">Anotó</th>
                   {canWrite && <th className="w-20 px-3 py-2" />}
@@ -636,6 +637,30 @@ function Autorizadas({
                     </td>
                     <td className="px-3 py-1.5 text-right font-semibold tabular-nums">
                       {num(f.litros)}
+                    </td>
+                    {/* Lo que el chofer dijo que cargó contra esa vuelta. Es lo
+                        que pidió Nico: "para que se vaya comparando con lo que
+                        ponen los choferes". Guion y no cero cuando no anotó
+                        nada: no cargó todavía y cargó cero no son lo mismo. */}
+                    <td className="px-3 py-1.5 text-right tabular-nums">
+                      {f.cargadoDeclarado === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <span
+                          className={
+                            f.cargadoDeclarado > f.litros
+                              ? "font-semibold text-red-600"
+                              : "text-foreground"
+                          }
+                          title={
+                            f.cargadoDeclarado > f.litros
+                              ? `Se pasó por ${num(f.cargadoDeclarado - f.litros)} litros`
+                              : `Le quedan ${num(f.litros - f.cargadoDeclarado)} litros`
+                          }
+                        >
+                          {num(f.cargadoDeclarado)}
+                        </span>
+                      )}
                     </td>
                     {/* La nota se acota a dos renglones: una nota larga sin espacios estiraba
                         la fila a ocho y descuadraba la tabla entera. El texto completo

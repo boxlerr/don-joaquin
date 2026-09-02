@@ -26,6 +26,14 @@ export type AutorizacionRow = {
   cargadoPor: string | null;
   /** La anotó el propio chofer desde el enlace, no alguien de la oficina. */
   cargadaPorChofer: boolean;
+  /**
+   * Litros que el chofer declaró haber cargado contra esta vuelta.
+   *
+   * NO es lo que dice YPF —eso llega a día vencido en `cargas_combustible`—:
+   * es lo que él anotó desde el enlace. Que las dos cifras puedan no coincidir
+   * es justamente el dato que sirve para conciliar.
+   */
+  cargadoDeclarado: number;
 };
 
 /** El enlace público vigente, listo para mandar. */
