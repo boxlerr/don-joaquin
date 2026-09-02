@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireArea } from "@/lib/auth";
+import { hasSeccion, requireArea, type CurrentUser } from "@/lib/auth";
+import { COLUMNA_IMPUESTOS_PERSONALES } from "@/domain/impuestos/entidades";
 import { logAudit } from "@/lib/audit";
 import {
   crearUrlSubidaAdjunto,
@@ -38,10 +39,21 @@ export type ImpuestoRow = {
   observaciones: string | null;
   /** Cuántos comprobantes tiene adjuntos (el archivo es opcional). */
   archivos: number;
+  /** De qué contribuyente es. Decide a quién le llega la alerta. */
+  entidad_codigo: string;
+  /** Nombre para mostrar del contribuyente ("Joaquín Hnos", "Joaquín Nicolás"). */
+  entidad_nombre: string;
+};
+
+/** Un contribuyente del calendario, para el filtro y el importador. */
+export type EntidadImpuesto = {
+  codigo: string;
+  nombre: string;
+  cuit: string;
 };
 
 const SELECT_IMPUESTO =
-  "id, nombre, organismo, periodo, fecha_vencimiento, fecha_presentacion, importe, fecha_pago, presentado, presentado_at, observaciones, impuesto_archivos(count)";
+  "id, nombre, organismo, periodo, fecha_vencimiento, fecha_presentacion, importe, fecha_pago, presentado, presentado_at, observaciones, entidad_codigo, entidad:impuesto_entidades(nombre), impuesto_archivos(count)";
 
 function mapImpuesto(r: any): ImpuestoRow {
   // Supabase devuelve el count agregado como [{ count: n }].
@@ -60,6 +72,10 @@ function mapImpuesto(r: any): ImpuestoRow {
     presentado_at: r.presentado_at ?? null,
     observaciones: r.observaciones ?? null,
     archivos: Number(c),
+    // Las filas de antes del 02/09/2026 son todas de la empresa; la migración ya
+    // las completó, pero el fallback evita que una fila suelta quede sin dueño.
+    entidad_codigo: r.entidad_codigo ?? "joaquin_hnos",
+    entidad_nombre: r.entidad?.nombre ?? "Joaquín Hnos",
   };
 }
 
@@ -70,6 +86,39 @@ export async function getImpuestosAction(): Promise<ImpuestoRow[]> {
     .select(SELECT_IMPUESTO)
     .order("fecha_vencimiento", { ascending: true });
   return ((data ?? []) as any[]).map(mapImpuesto);
+}
+
+/**
+ * Cargar un vencimiento de una persona física necesita su sección: el permiso
+ * viaja con el dato, igual que en el importador. Devuelve el motivo, o `null`.
+ */
+async function motivoSinPermisoEntidad(
+  user: CurrentUser,
+  entidadCodigo: string,
+): Promise<string | null> {
+  const supabase = createAdminClient();
+  const { data } = await (supabase as any)
+    .from("impuesto_entidades")
+    .select("nombre, columna_alerta")
+    .eq("codigo", entidadCodigo)
+    .maybeSingle();
+  if (!data) return "No se encontró el contribuyente.";
+  if (data.columna_alerta !== COLUMNA_IMPUESTOS_PERSONALES) return null;
+  if (hasSeccion(user, "impuestos_personales", "write")) return null;
+  return `El calendario de ${data.nombre} es de acceso reservado.`;
+}
+
+/**
+ * Los contribuyentes cargados. La pantalla los usa para el filtro; si hay uno
+ * solo el filtro ni se dibuja, igual que el de organismo.
+ */
+export async function getEntidadesAction(): Promise<EntidadImpuesto[]> {
+  const supabase = createAdminClient();
+  const { data } = await (supabase as any)
+    .from("impuesto_entidades")
+    .select("codigo, nombre, cuit")
+    .order("orden", { ascending: true });
+  return (data ?? []) as EntidadImpuesto[];
 }
 
 /**
@@ -345,11 +394,22 @@ export async function updateImpuestoAction(
 }
 
 export async function createImpuestoAction(
-  data: { nombre: string; organismo: string | null; periodo: string | null; fecha_vencimiento: string },
+  data: {
+    nombre: string;
+    organismo: string | null;
+    periodo: string | null;
+    fecha_vencimiento: string;
+    /** De quién es. Sin dato, la empresa: es lo que era todo antes del 02/09/2026. */
+    entidad_codigo?: string | null;
+  },
 ): Promise<{ ok: true } | { error: string }> {
   const user = await requireArea("finanzas", "write");
   if (!data.nombre.trim()) return { error: "El nombre es obligatorio." };
   if (!data.fecha_vencimiento) return { error: "La fecha de vencimiento es obligatoria." };
+
+  const entidad_codigo = data.entidad_codigo?.trim() || "joaquin_hnos";
+  const sinPermiso = await motivoSinPermisoEntidad(user, entidad_codigo);
+  if (sinPermiso) return { error: sinPermiso };
 
   const supabase = createAdminClient();
   const { data: inserted, error } = await (supabase as any)
@@ -359,6 +419,7 @@ export async function createImpuestoAction(
       organismo: data.organismo?.trim() || null,
       periodo: data.periodo?.trim() || null,
       fecha_vencimiento: data.fecha_vencimiento,
+      entidad_codigo,
       created_by: user.id,
     })
     .select("id")
@@ -376,6 +437,7 @@ export async function createImpuestoAction(
       organismo: data.organismo?.trim() || null,
       periodo: data.periodo?.trim() || null,
       fecha_vencimiento: data.fecha_vencimiento,
+      entidad_codigo,
     },
   });
 

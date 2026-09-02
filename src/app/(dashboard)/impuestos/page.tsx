@@ -1,6 +1,6 @@
 import PageHeader from "@/components/layout/PageHeader";
 import { requireSeccion, hasSeccion } from "@/lib/auth";
-import { getImpuestosAction } from "./actions";
+import { getEntidadesAction, getImpuestosAction } from "./actions";
 import ImpuestosClient from "./ImpuestosClient";
 import { estadoDeParam } from "./filtros";
 import HelpTutorialButton from "./help-tutorial-button";
@@ -18,7 +18,7 @@ export default async function ImpuestosPage({
   const user = await requireSeccion("impuestos", "read");
   const canWrite = hasSeccion(user, "impuestos", "write");
 
-  const impuestos = await getImpuestosAction();
+  const [impuestos, entidades] = await Promise.all([getImpuestosAction(), getEntidadesAction()]);
   // Se puede entrar con una solapa ya elegida (?estado=vencido, desde el resumen
   // del día). Se valida acá: un valor cualquiera de la URL no llega al listado.
   const estadoInicial = estadoDeParam((await searchParams).estado);
@@ -36,7 +36,12 @@ export default async function ImpuestosPage({
         }
       />
 
-      <ImpuestosClient impuestos={impuestos} canWrite={canWrite} estadoInicial={estadoInicial} />
+      <ImpuestosClient
+        impuestos={impuestos}
+        entidades={entidades}
+        canWrite={canWrite}
+        estadoInicial={estadoInicial}
+      />
     </div>
   );
 }

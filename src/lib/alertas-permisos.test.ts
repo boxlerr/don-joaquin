@@ -38,10 +38,13 @@ describe("puedeRecibir", () => {
 
 describe("columnasBloqueadas", () => {
   it("lista las confidenciales que la persona no tiene", () => {
-    // Como Paula: cheques y préstamos sí, el resto no.
+    // Como Paula: cheques, préstamos y el calendario personal de Nicolás sí
+    // (02/09/2026); el resto no. Los impuestos DE LA EMPRESA quedan bloqueados
+    // aunque tenga los personales: son dos secciones distintas a propósito.
     const p = permitidos({
       prestamos_vencimiento: ["paula"],
       cheques_vencidos: ["paula"],
+      impuestos_personales: ["paula"],
       impuestos: [],
       gastos_pendientes: [],
       cambios_caja: [],

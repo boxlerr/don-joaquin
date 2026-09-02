@@ -111,7 +111,15 @@ export const SIDEBAR_ARBOL: ArbolGrupo[] = [
       },
       { label: "Gastos", seccion: "gastos" },
       { label: "Cheques", seccion: "cheques" },
-      { label: "Impuestos", seccion: "impuestos" },
+      {
+        label: "Impuestos",
+        subs: [
+          { seccion: "impuestos", label: "De la empresa" },
+          // El calendario de un contribuyente persona física. Se otorga aparte
+          // porque son los datos fiscales de alguien, no de Joaquín Hnos.
+          { seccion: "impuestos_personales", label: "Personales" },
+        ],
+      },
       { label: "Préstamos", seccion: "prestamos" },
       { label: "Previsión", seccion: "prevision" },
     ],

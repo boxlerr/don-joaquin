@@ -583,9 +583,16 @@ const TABS: TutorialTab[] = [
     icon: <Plus size={14} />,
     steps: [
       {
-        title: "Agregá un impuesto",
+        title: "Subí el calendario del estudio",
         description:
-          'Arriba a la derecha del calendario, el botón "Agregar impuesto" abre el formulario. Solo aparece si tenés permiso de edición.',
+          'El camino corto: el botón "Subir calendario" toma el PDF que manda el estudio contable y agenda todos los vencimientos de una. Antes de guardar nada muestra lo que entendió —el contribuyente, el CUIT y cada impuesto con su fecha— y ahí se puede corregir. Subir dos veces el mismo archivo no duplica nada; si el estudio corrigió una fecha, la cambia.',
+        mockup: <MockHeaderBtn />,
+        hint: "El CUIT del PDF dice de quién es el calendario, y de eso depende a quién le llegan los avisos.",
+      },
+      {
+        title: "Agregá un impuesto a mano",
+        description:
+          'Para uno suelto que no vino en el PDF, el botón "Agregar impuesto" abre el formulario. Los dos botones solo aparecen si tenés permiso de edición.',
         mockup: <MockHeaderBtn />,
       },
       {

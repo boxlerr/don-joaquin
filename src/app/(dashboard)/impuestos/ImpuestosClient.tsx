@@ -5,7 +5,7 @@ import type { EstadoImpuesto, FiltroEstado } from "./filtros";
 import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, Check, ChevronRight, ChevronLeft, Paperclip,
-  Search, X, FileText, ArrowUpDown, ArrowUp, ArrowDown, CalendarX2, Wallet,
+  Search, X, FileText, ArrowUpDown, ArrowUp, ArrowDown, CalendarX2, Wallet, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import {
   updateImpuestoAction,
   createImpuestoAction,
   deleteImpuestoAction,
+  type EntidadImpuesto,
   type ImpuestoRow,
 } from "./actions";
 import CeldaFecha from "./components/CeldaFecha";
@@ -38,6 +39,7 @@ import CeldaImporte from "./components/CeldaImporte";
 import { totalesPorPeriodo, totalGeneral } from "./totales";
 import ImpuestoDetalle from "./components/ImpuestoDetalle";
 import IlustracionImpuesto from "./components/IlustracionImpuesto";
+import ImportCalendarioModal from "./components/ImportCalendarioModal";
 
 /**
  * Calendario de vencimientos impositivos.
@@ -207,10 +209,17 @@ const SOLAPAS: { id: FiltroEstado; label: string }[] = [
 
 export default function ImpuestosClient({
   impuestos,
+  entidades,
   canWrite,
   estadoInicial,
 }: {
   impuestos: ImpuestoRow[];
+  /**
+   * Los contribuyentes cargados. Con uno solo la pantalla se ve igual que
+   * siempre: el filtro no se dibuja y las filas no repiten "Joaquín Hnos" 200
+   * veces. El segundo es el que hace aparecer todo.
+   */
+  entidades: EntidadImpuesto[];
   canWrite: boolean;
   /**
    * Solapa abierta al entrar, desde `?estado=` — así el resumen del día puede
@@ -232,6 +241,8 @@ export default function ImpuestosClient({
   const [busqueda, setBusqueda] = useState("");
   const [estado, setEstado] = useState<FiltroEstado>(estadoInicial ?? "todos");
   const [organismo, setOrganismo] = useState("todos");
+  const [entidad, setEntidad] = useState("todos");
+  const [importAbierto, setImportAbierto] = useState(false);
   const [orden, setOrden] = useState<CampoOrden>("vencimiento");
   const [dir, setDir] = useState<Direccion>("asc");
   const [pagina, setPagina] = useState(1);
@@ -250,6 +261,7 @@ export default function ImpuestosClient({
   const [organismoForm, setOrganismoForm] = useState("");
   const [fecha, setFecha] = useState("");
   const [periodo, setPeriodo] = useState("");
+  const [entidadForm, setEntidadForm] = useState(entidades[0]?.codigo ?? "joaquin_hnos");
   const [observaciones, setObservaciones] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +285,7 @@ export default function ImpuestosClient({
   const cambiarBusqueda = (v: string) => { setBusqueda(v); setPagina(1); };
   const cambiarEstado = (v: FiltroEstado) => { setEstado(v); setPagina(1); };
   const cambiarOrganismo = (v: string) => { setOrganismo(v); setPagina(1); };
+  const cambiarEntidad = (v: string) => { setEntidad(v); setPagina(1); };
 
   const organismos = useMemo(() => {
     const set = new Set<string>();
@@ -285,12 +298,15 @@ export default function ImpuestosClient({
   const universo = useMemo(() => {
     const q = busqueda.trim();
     return impuestos.filter((i) => {
+      if (entidad !== "todos" && i.entidad_codigo !== entidad) return false;
       if (organismo !== "todos" && (i.organismo ?? "") !== organismo) return false;
       if (!q) return true;
-      const texto = `${i.nombre} ${i.organismo ?? ""} ${i.periodo ?? ""} ${i.observaciones ?? ""}`;
+      // El contribuyente entra en la búsqueda: escribir "nicolas" tiene que
+      // dejar su calendario, sin ir al desplegable.
+      const texto = `${i.nombre} ${i.organismo ?? ""} ${i.periodo ?? ""} ${i.entidad_nombre} ${i.observaciones ?? ""}`;
       return coincideBusqueda(texto, q);
     });
-  }, [impuestos, busqueda, organismo]);
+  }, [impuestos, busqueda, organismo, entidad]);
 
   const conteos = useMemo(() => {
     const c = { todos: universo.length, presentado: 0, vencido: 0, por_vencer: 0, pendiente: 0 };
@@ -341,6 +357,9 @@ export default function ImpuestosClient({
 
   const openAdd = () => {
     setNombre(""); setOrganismoForm(""); setFecha(""); setPeriodo(""); setObservaciones("");
+    // Si la lista está recortada a un contribuyente, ése es el que se va a
+    // cargar: obligar a elegirlo de nuevo es preguntar algo ya contestado.
+    setEntidadForm(entidad !== "todos" ? entidad : (entidades[0]?.codigo ?? "joaquin_hnos"));
     setError(null); setDialog({ mode: "add" });
   };
   const openEdit = (row: ImpuestoRow) => {
@@ -407,6 +426,7 @@ export default function ImpuestosClient({
           })
         : await createImpuestoAction({
             nombre, organismo: organismoForm || null, periodo: periodo || null, fecha_vencimiento: fecha,
+            entidad_codigo: entidadForm,
           });
     setSaving(false);
     if ("error" in res) { setError(res.error); return; }
@@ -542,10 +562,36 @@ export default function ImpuestosClient({
             />
           )}
 
+          {/* Sólo cuando hay más de un contribuyente: con uno solo el
+              desplegable no elige nada y ocupa la mitad de la barra. */}
+          {entidades.length > 1 && (
+            <Combobox
+              value={entidad}
+              onValueChange={(v) => cambiarEntidad(v || "todos")}
+              options={[
+                { id: "todos", label: "Todos los contribuyentes" },
+                ...entidades.map((e) => ({ id: e.codigo, label: e.nombre, note: e.cuit })),
+              ]}
+              searchable={entidades.length > 7}
+              triggerClassName="h-10 w-full sm:h-9 sm:w-56"
+              aria-label="Filtrar por contribuyente"
+            />
+          )}
+
           {canWrite && (
-            <Button variant="brand" size="sm" className="w-full sm:ml-auto sm:w-auto" onClick={openAdd}>
-              <Plus size={14} /> Agregar impuesto
-            </Button>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+                onClick={() => setImportAbierto(true)}
+              >
+                <Upload size={14} /> Subir calendario
+              </Button>
+              <Button variant="brand" size="sm" className="w-full sm:w-auto" onClick={openAdd}>
+                <Plus size={14} /> Agregar impuesto
+              </Button>
+            </div>
           )}
         </div>
 
@@ -644,6 +690,9 @@ export default function ImpuestosClient({
                               {i.nombre}
                             </div>
                             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                              {entidades.length > 1 && (
+                                <span className="font-semibold text-foreground/70">{i.entidad_nombre}</span>
+                              )}
                               {i.organismo && <span className="font-semibold">{i.organismo}</span>}
                               {i.periodo && <span>Período {i.periodo}</span>}
                             </div>
@@ -821,9 +870,14 @@ export default function ImpuestosClient({
                               <div className={`font-semibold text-foreground ${i.presentado ? "line-through" : ""}`}>
                                 {i.nombre}
                               </div>
-                              {i.periodo && (
-                                <div className="text-[11px] text-muted-foreground">Período {i.periodo}</div>
-                              )}
+                              <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                                {/* De quién es. Sólo con más de un contribuyente:
+                                    si es uno solo, es ruido en las 200 filas. */}
+                                {entidades.length > 1 && (
+                                  <span className="font-semibold text-foreground/70">{i.entidad_nombre}</span>
+                                )}
+                                {i.periodo && <span>Período {i.periodo}</span>}
+                              </div>
                             </div>
                           </div>
                         </TableCell>
@@ -1007,6 +1061,20 @@ export default function ImpuestosClient({
             }}
           >
             {error && <InlineFeedback variant="error" message={error} onDismiss={() => setError(null)} autoHideMs={0} />}
+            {/* De quién es. En la edición no se ofrece: mover un vencimiento de
+                contribuyente le cambia a quién le avisa, y eso no es una
+                corrección de tipeo — se borra y se carga donde va. */}
+            {dialog.mode === "add" && entidades.length > 1 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-foreground">Contribuyente</Label>
+                <Combobox
+                  value={entidadForm}
+                  onValueChange={(v) => setEntidadForm(v || entidades[0]!.codigo)}
+                  options={entidades.map((e) => ({ id: e.codigo, label: e.nombre, note: e.cuit }))}
+                  aria-label="Contribuyente"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="imp-nombre" className="text-sm font-medium text-foreground">Impuesto</Label>
               <Input id="imp-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: IVA, SICORE 1er. Q…" />
@@ -1058,6 +1126,10 @@ export default function ImpuestosClient({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {canWrite && (
+        <ImportCalendarioModal open={importAbierto} onOpenChange={setImportAbierto} />
+      )}
 
       <ConfirmDialog
         open={aBorrar !== null}

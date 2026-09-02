@@ -16,6 +16,7 @@ import {
   type DocCompliance,
   type Presentacion931,
 } from "@/lib/alertas-obsoletas";
+import { prefijoAlertaImpuesto, sufijoEntidadEnAviso } from "@/domain/impuestos/entidades";
 import { hoyArgentina } from "@/lib/fecha-ar";
 import { cargarPrevision } from "@/lib/prevision-datos";
 import { FUENTE_LABEL, hayAlgunTopeFinanzas } from "@/domain/finanzas/proyeccion";
@@ -1138,16 +1139,23 @@ export async function generarAlertas() {
 
   // Impuestos (Finanzas) — vencimientos pendientes de presentar. Disparos discretos
   // 30 / 15 / 5 días + vencido, igual que compliance. Se apagan al marcar "presentado".
+  //
+  // Desde el 02/09/2026 la fila dice de QUÉ contribuyente es. El calendario de la
+  // empresa lo espera todo el equipo administrativo; el de una persona física (el
+  // de Nicolás, CUIT 20-26402739-0) lo piden tres personas. Los dos avisos salen
+  // de este mismo bucle y se separan por el prefijo de `entidad_tipo`, que es lo
+  // que `alertaColumnaDe` rutea a una columna o a la otra.
   // `as any`: impuesto_vencimientos es tabla nueva, aún no está en database.ts.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: impuestos } = await (supabase as any)
     .from("impuesto_vencimientos")
-    .select("id, nombre, organismo, fecha_vencimiento")
+    .select("id, nombre, organismo, fecha_vencimiento, entidad:impuesto_entidades(codigo, nombre, columna_alerta)")
     .eq("presentado", false)
     .not("fecha_vencimiento", "is", null);
 
   for (const imp of (impuestos ?? []) as {
     id: string; nombre: string; organismo: string | null; fecha_vencimiento: string;
+    entidad: { codigo: string; nombre: string; columna_alerta: string } | null;
   }[]) {
     const [iy, im, idd] = imp.fecha_vencimiento.split("-").map(Number);
     const venceMid = new Date(iy!, im! - 1, idd!);
@@ -1163,20 +1171,22 @@ export async function generarAlertas() {
     if (disparos.length === 0) continue;
 
     const org = imp.organismo ? ` (${imp.organismo})` : "";
+    const dequien = sufijoEntidadEnAviso(imp.entidad);
+    const prefijo = prefijoAlertaImpuesto(imp.entidad?.columna_alerta);
     for (const d of disparos) {
-      const entidad_tipo = `impuesto:${d.umbral}`;
+      const entidad_tipo = `${prefijo}${d.umbral}`;
       const key = `otro:${imp.id}:${entidad_tipo}:${imp.fecha_vencimiento}`;
       if (existentesSet.has(key)) continue;
 
       const mensaje =
         d.umbral === "vencido"
-          ? `El impuesto "${imp.nombre}"${org} venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura presentado.`
-          : `El impuesto "${imp.nombre}"${org} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
+          ? `El impuesto "${imp.nombre}"${org}${dequien} venció hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? "s" : ""} y no figura presentado.`
+          : `El impuesto "${imp.nombre}"${org}${dequien} vence en ${dias} día${dias !== 1 ? "s" : ""}.`;
 
       nuevasAlertas.push({
         tipo: "otro",
         severidad: d.severidad,
-        titulo: `Impuesto ${d.umbral === "vencido" ? "vencido" : "por vencer"} — ${imp.nombre}`,
+        titulo: `Impuesto ${d.umbral === "vencido" ? "vencido" : "por vencer"} — ${imp.nombre}${dequien}`,
         mensaje,
         entidad_id: imp.id,
         entidad_tipo,

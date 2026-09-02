@@ -137,8 +137,21 @@ export const ALERTAS = [
   {
     key: "impuestos",
     nombre: "Impuestos",
-    descripcion: "Vencimientos impositivos sin marcar como presentados",
-    cubre: ["Impuesto por vencer (30 / 15 / 5 días)", "Impuesto vencido y no presentado"],
+    descripcion: "Vencimientos impositivos de la empresa sin marcar como presentados",
+    cubre: [
+      "Impuesto de Joaquín Hnos por vencer (30 / 15 / 5 días)",
+      "Impuesto de Joaquín Hnos vencido y no presentado",
+    ],
+  },
+  {
+    key: "impuestos_personales",
+    nombre: "Impuestos personales",
+    descripcion:
+      "Vencimientos de un contribuyente persona física (hoy Joaquín Nicolás). Datos fiscales de una persona: sección confidencial",
+    cubre: [
+      "Impuesto personal por vencer (30 / 15 / 5 días)",
+      "Impuesto personal vencido y no presentado",
+    ],
   },
   {
     key: "mantenimiento",

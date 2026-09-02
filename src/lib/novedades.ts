@@ -90,6 +90,24 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "subis-el-calendario-del-estudio-y-los",
+    fecha: "2026-09-02",
+    tipo: "nuevo",
+    ver: "impuestos",
+    titulo: "Subís el calendario del estudio y los vencimientos quedan agendados solos",
+    detalle: "Antes había que copiar a mano, uno por uno, los impuestos y las fechas que manda el estudio contable. Ahora con el botón \"Subir calendario\" se elige el PDF, se ve una vista previa con todo lo que se entendió —y se puede corregir— y al confirmar quedan agendados con sus avisos a los 30, 15 y 5 días. Volver a subir el mismo archivo no duplica nada: si el estudio corrigió una fecha, la cambia.",
+    href: "/impuestos",
+  },
+  {
+    id: "el-calendario-ahora-separa-los-impuestos-de",
+    fecha: "2026-09-02",
+    tipo: "nuevo",
+    ver: "impuestos",
+    titulo: "El calendario ahora separa los impuestos de la empresa de los personales",
+    detalle: "Cada vencimiento dice de qué contribuyente es y hay un filtro arriba para ver uno solo. Sirve porque los dos calendarios traen los mismos impuestos con fechas distintas, y sobre todo porque el aviso no va al mismo lado: el de la empresa le llega a todo el equipo y el personal, sólo a quien tenga permiso.",
+    href: "/impuestos",
+  },
+  {
     id: "el-reporte-para-ypf-ahora-sale-como-un",
     fecha: "2026-09-02",
     tipo: "mejora",

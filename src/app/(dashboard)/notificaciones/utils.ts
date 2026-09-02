@@ -73,6 +73,15 @@ export function alertaHref(alerta: Pick<AlertaItem, "tipo" | "entidad_tipo" | "e
   ) {
     return "/prestamos";
   }
+  // Vencimiento impositivo, de la empresa o personal → el calendario, con la
+  // solapa ya puesta en lo que el aviso está reclamando. Hasta el 02/09/2026
+  // estos avisos no llevaban a ningún lado: eran los únicos de Finanzas que no
+  // se podían abrir desde la campana.
+  if (alerta.tipo === "otro" && alerta.entidad_tipo?.startsWith("impuesto")) {
+    return alerta.entidad_tipo.endsWith(":vencido")
+      ? "/impuestos?estado=vencido"
+      : "/impuestos?estado=por_vencer";
+  }
   // Ausencia programada → legajo del chofer, tab Ausencias.
   // El tope de gastos lleva a su caja, que es donde se ve la barra y se cambia
   // el número. La chica es la vista por defecto; la general va por la URL.

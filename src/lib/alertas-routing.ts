@@ -34,6 +34,18 @@ export const AUSENCIAS_COL = "ausencias_vacaciones";
  * ninguno no recibe nada, por diseño.
  */
 export const PREVISION_COL = "prevision_financiera";
+/**
+ * Los vencimientos de un contribuyente PERSONA FÍSICA — hoy el calendario de
+ * Joaquín Nicolás que manda el mismo estudio contable que el de la empresa.
+ *
+ * Columna propia y no "Impuestos" porque la pregunta "¿a quién le llega?" se
+ * contesta distinto: el de la empresa lo espera todo el equipo administrativo,
+ * el personal lo pidió Nicolás para tres personas (02/09/2026). Sin columna
+ * aparte no hay forma de mandar dos avisos del mismo generador a dos listas
+ * distintas — es el mismo motivo por el que las cuotas de préstamo se fueron de
+ * "Otros avisos".
+ */
+export const IMPUESTOS_PERSONALES_COL = "impuestos_personales";
 
 /**
  * Efemérides: los eventos de calendario del personal. Se guardan con
@@ -190,6 +202,10 @@ const ENTIDAD_A_COLUMNA: Record<string, string> = {
 
   // Finanzas
   "impuesto:": "impuestos",
+  // El calendario de un contribuyente persona física. Mismo generador y mismos
+  // umbrales que el de la empresa; lo único distinto es a quién le llega, y eso
+  // se decide acá (ver impuesto_entidades.columna_alerta en la base).
+  "impuesto_personal:": IMPUESTOS_PERSONALES_COL,
 
   // Mantenimiento
   mantenimiento_proximo_service: "mantenimiento",
@@ -206,7 +222,8 @@ const ENTIDAD_A_COLUMNA: Record<string, string> = {
 export const COLUMNAS_TODAS = [
   "vencimiento_docs", "cheques_vencidos", "viaticos_sin_rendir", "gastos_pendientes",
   "cambios_caja", "nuevo_viaje", "vencimiento_compliance", PRESTAMOS_COL,
-  "impuestos", "mantenimiento", "rrhh_eventos", "ausencias_vacaciones", PREVISION_COL,
+  "impuestos", IMPUESTOS_PERSONALES_COL, "mantenimiento", "rrhh_eventos",
+  "ausencias_vacaciones", PREVISION_COL,
   OTROS_AVISOS,
 ];
 
@@ -234,6 +251,9 @@ export const COLUMNA_CONFIDENCIAL: Record<string, SeccionCodigo> = {
   [PRESTAMOS_COL]: "prestamos",
   // Datos fiscales de la empresa (audios Bárbara 30/06, tema 8).
   impuestos: "impuestos",
+  // Datos fiscales de una PERSONA. Sección propia y cerrada: acá el permiso no
+  // se hereda del área Finanzas, se otorga de a uno desde /usuarios.
+  [IMPUESTOS_PERSONALES_COL]: "impuestos_personales",
   // Cheques en cartera: número, monto y librador.
   cheques_vencidos: "cheques",
   // Gastos sin comprobante: monto y proveedor.

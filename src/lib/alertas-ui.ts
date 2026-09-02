@@ -43,6 +43,7 @@ export const ICONO_CATEGORIA: Record<string, LucideIcon> = {
   vencimiento_docs: FileText,
   vencimiento_compliance: ShieldCheck,
   impuestos: ReceiptText,
+  impuestos_personales: ReceiptText,
   prestamos_vencimiento: Landmark,
   cheques_vencidos: Banknote,
   rrhh_eventos: Cake,
@@ -69,6 +70,8 @@ export const NOMBRE_CORTO: Record<string, string> = {
   vencimiento_docs: "Documentos",
   vencimiento_compliance: "Compliance",
   impuestos: "Impuestos",
+  // Cabe en la tarjeta del resumen; el nombre entero está en el aria-label.
+  impuestos_personales: "Imp. personales",
   prestamos_vencimiento: "Préstamos",
   cheques_vencidos: "Cheques",
   rrhh_eventos: "Cumpleaños",
@@ -174,6 +177,8 @@ const DESTINO_FILTRADO: Record<string, (g: GrupoDestino) => string> = {
     (g.vencidos ?? 0) > 0 ? "/cheques?vista=vencidos" : "/cheques?vista=avisos",
   impuestos: (g) =>
     (g.vencidos ?? 0) > 0 ? "/impuestos?estado=vencido" : "/impuestos?estado=por_vencer",
+  impuestos_personales: (g) =>
+    (g.vencidos ?? 0) > 0 ? "/impuestos?estado=vencido" : "/impuestos?estado=por_vencer",
   prestamos_vencimiento: (g) => ((g.vencidos ?? 0) > 0 ? "/prestamos?foco=vencidas" : "/prestamos"),
   vencimiento_docs: destinoDocumentos,
   rrhh_eventos: () => "/notificaciones?categoria=personal",
@@ -219,6 +224,7 @@ export const SUBTITULO_CATEGORIA: Record<string, string> = {
   vencimiento_docs: "De choferes y camiones",
   vencimiento_compliance: "Papeles de los clientes",
   impuestos: "Vencimientos impositivos",
+  impuestos_personales: "De Joaquín Nicolás",
   prestamos_vencimiento: "Cuotas de los préstamos",
   // De los dos lados: los que nos deben y los nuestros que todavía no se debitan.
   cheques_vencidos: "Por cobrar y por debitarse",

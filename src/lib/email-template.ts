@@ -103,6 +103,11 @@ export const CATEGORIA_ESTILO: Record<
     color: "#B45309", bg: "#F6EAE1", borde: "#E8CBB5",
     icono: "🧾", cta: "Ver impuestos",
   },
+  impuestos_personales: {
+    label: "Impuestos personales",
+    color: "#B45309", bg: "#F6EAE1", borde: "#E8CBB5",
+    icono: "🧾", cta: "Ver impuestos",
+  },
   mantenimiento: {
     label: "Mantenimiento",
     color: "#4338CA", bg: "#E8E7F9", borde: "#C7C3EF",

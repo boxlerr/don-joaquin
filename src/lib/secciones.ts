@@ -40,6 +40,7 @@ export type SeccionCodigo =
   | "gastos"
   | "cheques"
   | "impuestos"
+  | "impuestos_personales"
   | "prestamos"
   | "prevision"
   | "dashboard_completo"
@@ -112,6 +113,11 @@ export const SECCIONES: Seccion[] = [
   // 30/06, tema 8): datos fiscales de la empresa. Se destapa por rol desde
   // /usuarios → "Secciones confidenciales" si Bárbara decide abrirla.
   { codigo: "impuestos", area: "finanzas", nombre: "Impuestos", orden: 12, confidencial: true },
+  // El calendario de un contribuyente PERSONA FÍSICA (hoy el de Nicolás, CUIT
+  // 20-26402739-0). Va aparte de "Impuestos" y no hereda Finanzas: los
+  // vencimientos de la empresa los mira todo el equipo administrativo, los de
+  // una persona los mira quien ella diga (pedido de Nicolás, 02/09/2026).
+  { codigo: "impuestos_personales", area: "finanzas", nombre: "Impuestos personales", orden: 13, confidencial: true },
   // Préstamos bancarios (planilla de la mamá): cuotas, avisos y carga semanal.
   // Confidencial como el resto de finanzas sensibles (audios Bárbara 02/07).
   { codigo: "prestamos", area: "finanzas", nombre: "Préstamos", orden: 14, confidencial: true },
