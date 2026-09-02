@@ -90,6 +90,15 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "ya-podes-anotar-vueltas-que-salen-de",
+    fecha: "2026-09-02",
+    tipo: "mejora",
+    ver: "combustible",
+    titulo: "Ya podés anotar vueltas que salen de MANGRULLO y de SANTA ROSA",
+    detalle: "Eran las dos canteras que usaba Nico en su planilla y no estaban en el cuadro, así que esas vueltas no se podían cargar. MANGRULLO va con los cuatro destinos; SANTA ROSA por ahora sólo con Añelo, porque de los otros no tenemos el rinde y no se inventa.",
+    href: "/combustible/autoconsumo",
+  },
+  {
     id: "los-choferes-pueden-anotar-su-vuelta-de",
     fecha: "2026-09-02",
     tipo: "nuevo",
