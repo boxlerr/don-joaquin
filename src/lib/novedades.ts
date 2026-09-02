@@ -90,6 +90,33 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "podes-dejar-el-dia-registrado-aunque-no",
+    fecha: "2026-09-02",
+    tipo: "nuevo",
+    ver: "choferes",
+    titulo: "Podés dejar el día registrado aunque no haya motivo",
+    detalle: "Cuando alguien pide el día y no dice para qué, elegí \"Sin motivo\": queda anotado igual, no descuenta vacaciones y no cuenta como falta.",
+    href: "/dashboard",
+  },
+  {
+    id: "ahora-podes-aclarar-por-escrito-por-que-le",
+    fecha: "2026-09-02",
+    tipo: "mejora",
+    ver: "choferes",
+    titulo: "Ahora podés aclarar por escrito por qué le diste el día",
+    detalle: "Además del motivo hay un campo Detalle —\"se casa\", \"se muda\"— que queda en el legajo, para acordarte dentro de un año.",
+    href: "/dashboard",
+  },
+  {
+    id: "cargar-una-ausencia-es-igual-desde-el",
+    fecha: "2026-09-02",
+    tipo: "mejora",
+    ver: "choferes",
+    titulo: "Cargar una ausencia es igual desde el tablero y desde el legajo",
+    detalle: "Mismo formulario en los dos lados: los motivos de un toque, cuántos días lleva pedidos en el año, el aviso si ya tiene viajes esos días, y desde cuándo lo ve Logística.",
+    href: "/choferes",
+  },
+  {
     id: "ya-podes-anotar-vueltas-que-salen-de",
     fecha: "2026-09-02",
     tipo: "mejora",

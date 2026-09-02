@@ -1965,14 +1965,19 @@ export async function reimputarPeriodoAction(
   return { success: true };
 }
 
-// Viajes del chofer dentro de un rango de fechas. Read protegida por la página
-// padre (legajo, requireArea logística read). Sirve para avisar de conflictos al
-// cargar una ausencia: si el chofer ya tiene viajes esos días, se listan.
+// Viajes del chofer dentro de un rango de fechas. Sirve para avisar de conflictos
+// al cargar una ausencia: si el chofer ya tiene viajes esos días, se listan.
+//
+// Se apoyaba en el permiso de la página que la llamaba (el legajo). Desde que el
+// aviso también sale en el alta rápida del tablero eso dejó de alcanzar, así que
+// pide sesión acá — misma vara que `getAusenciasProximasAction`, que devuelve la
+// otra mitad de lo mismo.
 export async function getViajesChoferEnRangoAction(
   chofer_id: string,
   desde: string,
   hasta: string,
 ): Promise<ViajeEnRango[]> {
+  await requireUser();
   if (!chofer_id || !desde || !hasta || hasta < desde) return [];
   const supabase = createAdminClient();
 
@@ -2915,4 +2920,45 @@ export async function getChoferSueldosHistorialAction(
   }
 
   return { meses, ultimo, promedio6, interanualPct };
+}
+
+/**
+ * Cuántos días pidió un chofer en el año, sin contar vacaciones.
+ *
+ * Es la mitad "para que quede registrado" del pedido de Bárbara: al autorizar el
+ * día siguiente, quien lo carga ve de una cuántos lleva — "che flaco, vos me
+ * pediste el mes pasado cuatro días". El conteo es inclusivo, igual que en
+ * vacaciones: del 30/07 al 02/08 son 4 días.
+ *
+ * Vivía en el tablero (`dias-pedidos-actions`), cuando el contador se veía sólo
+ * en el alta rápida. Se mudó acá al unificarse el alta: ahora el mismo dato hace
+ * falta también desde el legajo, y las dos pantallas comparten el diálogo.
+ */
+export async function getDiasPedidosAnioAction(
+  chofer_id: string,
+  anio: number,
+): Promise<{ dias: number; veces: number }> {
+  await requireSeccion("choferes", "read");
+  const supabase = createAdminClient();
+  if (!chofer_id) return { dias: 0, veces: 0 };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("chofer_ausencias")
+    .select("fecha_inicio, fecha_fin")
+    .eq("chofer_id", chofer_id)
+    .eq("es_vacaciones", false)
+    .is("deleted_at", null)
+    .neq("estado", "cancelada")
+    .gte("fecha_inicio", `${anio}-01-01`)
+    .lte("fecha_inicio", `${anio}-12-31`);
+
+  const filas = (data ?? []) as { fecha_inicio: string; fecha_fin: string }[];
+  const dias = filas.reduce((acc, f) => {
+    const a = new Date(`${f.fecha_inicio}T00:00:00`).getTime();
+    const b = new Date(`${f.fecha_fin || f.fecha_inicio}T00:00:00`).getTime();
+    return acc + Math.max(1, Math.round((b - a) / 86_400_000) + 1);
+  }, 0);
+
+  return { dias, veces: filas.length };
 }

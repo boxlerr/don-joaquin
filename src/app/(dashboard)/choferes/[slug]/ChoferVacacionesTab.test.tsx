@@ -11,6 +11,7 @@ vi.mock("./actions", () => ({
   reimputarPeriodoAction: vi.fn(async () => ({ success: true })),
   crearAusenciaAction: vi.fn(async () => ({ success: true })),
   getViajesChoferEnRangoAction: vi.fn(async () => []),
+  getDiasPedidosAnioAction: vi.fn(async () => ({ dias: 0, veces: 0 })),
   editarAusenciaAction: (...args: unknown[]) => editarAusenciaAction(...(args as [])),
   cancelarAusenciaAction: (...args: unknown[]) => cancelarAusenciaAction(...(args as [])),
 }));

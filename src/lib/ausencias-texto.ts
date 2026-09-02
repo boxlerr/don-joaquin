@@ -67,3 +67,45 @@ export function motivoAusencia(tipo: string, esVacaciones = false): string {
   if (esVacaciones || t.toLowerCase().startsWith("vacacion")) return "Vacaciones";
   return t || "Sin motivo";
 }
+
+/**
+ * Cuántos días para adelante miran las tarjetas de disponibilidad (el tablero y
+ * /viajes). Vivía repetido como `DIAS_DISPONIBILIDAD` en las dos pantallas; se
+ * centralizó cuando el alta de ausencias empezó a prometerle a quien carga
+ * *desde cuándo* lo va a ver Logística — si la ventana cambia en un lado y la
+ * promesa queda en el otro, el diálogo miente.
+ */
+export const VENTANA_DISPONIBILIDAD_DIAS = 14;
+
+const MESES_LARGOS = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre",
+];
+
+/** "11 de septiembre" — para una fecha suelta dentro de una frase. */
+export function fechaProsa(iso: string): string {
+  const d = aFechaLocal(iso);
+  return `${d.getDate()} de ${MESES_LARGOS[d.getMonth()]}`;
+}
+
+/**
+ * El motivo de un día pedido cuando no hubo ninguno: "se lo doy porque se lo
+ * doy" (Bárbara, 02/09/2026). Se guarda como texto, igual que cualquier otro
+ * motivo, para que en el legajo y en la tarjeta de Logística se lea solo.
+ */
+export const SIN_MOTIVO = "Sin motivo";
+
+/** true si el motivo cargado es el "sin motivo" explícito, y no un texto vacío. */
+export function esSinMotivo(tipo: string): boolean {
+  return tipo.trim().toLowerCase() === SIN_MOTIVO.toLowerCase();
+}

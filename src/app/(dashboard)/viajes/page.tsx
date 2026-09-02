@@ -9,6 +9,7 @@ import NewViajeSheet from "./components/new-viaje-sheet";
 import ImportsMenu from "./components/ImportsMenu";
 import HelpTutorialButton from "./help-tutorial-button";
 import DisponibilidadChoferes from "./components/DisponibilidadChoferes";
+import { VENTANA_DISPONIBILIDAD_DIAS } from "@/lib/ausencias-texto";
 import { getViajeFormData, getAusenciasProximasAction } from "./actions";
 import { esFaltaDato } from "./types";
 import { resolverRango } from "../choferes/ranking/lib";
@@ -83,7 +84,7 @@ export default async function ViajesPage({
         .single()
     : null;
 
-  const DIAS_DISPONIBILIDAD = 14;
+  const DIAS_DISPONIBILIDAD = VENTANA_DISPONIBILIDAD_DIAS;
 
   const [
     [total, sinFacturar, vacios, incompletos],

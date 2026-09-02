@@ -29,6 +29,7 @@ import KpiPeriodo from "./components/KpiPeriodo";
 import DashboardHero from "./components/DashboardHero";
 import EstadoFlota from "./components/EstadoFlota";
 import QuienNoEsta from "./components/QuienNoEsta";
+import { VENTANA_DISPONIBILIDAD_DIAS } from "@/lib/ausencias-texto";
 import RendimientoFlota from "./components/RendimientoFlota";
 import ConsumoCombustible from "./components/ConsumoCombustible";
 import DiaPedidoQuickAction from "./DiaPedidoQuickAction";
@@ -78,7 +79,7 @@ export default async function DashboardView({ sp, titulo, subtitulo, accionExtra
   // dashboard, que muestra la plata a quien tenga el permiso.
   const conFacturacion = currentUser != null && hasSeccion(currentUser, "dashboard_completo", "read");
   // Misma ventana que la tarjeta de disponibilidad de /viajes.
-  const DIAS_DISPONIBILIDAD = 14;
+  const DIAS_DISPONIBILIDAD = VENTANA_DISPONIBILIDAD_DIAS;
 
   const [
     viajesSinFacturar,
