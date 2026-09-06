@@ -131,6 +131,27 @@ export async function addChoferAction(data: {
   }
 
   if (inserted?.id) {
+    // El banco del alta también entra en `chofer_bancos`, que es donde vive de
+    // verdad el dato: el campo suelto de `choferes` es un espejo que mantiene un
+    // trigger. Sin esta fila, el legajo mostraría el banco pero la lista de
+    // cuentas estaría vacía hasta que alguien la editara.
+    if (insertData.banco) {
+      const { error: errBanco } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `chofer_bancos` todavía no está en database.ts
+        .from("chofer_bancos" as any)
+        .insert({
+          chofer_id: inserted.id,
+          banco: insertData.banco,
+          cbu: insertData.cbu,
+          alias_cbu: insertData.alias_cbu,
+          principal: true,
+          orden: 0,
+          created_by: user.id,
+        });
+      // No se aborta el alta por esto: el legajo ya existe y el banco quedó en su
+      // campo, que es lo que la pantalla muestra igual.
+      if (errBanco) console.error("Error al guardar el banco del alta:", errBanco);
+    }
     await logChoferAudit(inserted.id, "crear", null, insertData, user.id);
   }
 

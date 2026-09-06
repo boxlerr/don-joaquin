@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
-import { updateChoferInfoAction } from "./actions";
+import { updateChoferInfoAction, setChoferBancosAction } from "./actions";
 import type { ChoferDetail } from "./types";
 import { Check, Pencil, X, AlertTriangle, Eye, EyeOff } from "lucide-react";
 
@@ -48,6 +48,7 @@ import {
 } from "@/lib/chofer-validation";
 import CamionAsignacion from "./CamionAsignacion";
 import EmergencyContactsEditor, { EmergencyContactsView, parseContactos } from "./EmergencyContactsEditor";
+import CuentasBancariasEditor, { CuentasBancariasView, type CuentaEditable } from "./CuentasBancarias";
 
 interface Props {
   chofer: ChoferDetail;
@@ -56,6 +57,26 @@ interface Props {
   // tab maneja su propio estado y muestra el botón "Editar datos" (uso en la lista).
   editing?: boolean;
   onEditingChange?: (v: boolean) => void;
+}
+
+/**
+ * Las cuentas del legajo. Si todavía no hay ninguna fila cargada pero el legajo
+ * tiene el banco viejo en su campo suelto, se muestra ése: así un legajo que
+ * nadie tocó desde la migración no aparece vacío.
+ */
+function cuentasDe(chofer: ChoferDetail): CuentaEditable[] {
+  const filas = chofer.bancos ?? [];
+  if (filas.length) {
+    return filas.map((b) => ({
+      id: b.id,
+      banco: b.banco,
+      cbu: b.cbu,
+      alias_cbu: b.alias_cbu,
+      principal: b.principal,
+    }));
+  }
+  if (!chofer.banco) return [];
+  return [{ banco: chofer.banco, cbu: chofer.cbu, alias_cbu: chofer.alias_cbu, principal: true }];
 }
 
 export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, onEditingChange }: Props) {
@@ -83,10 +104,11 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
   const [ciudadNacimiento, setCiudadNacimiento] = useState(chofer.ciudad_nacimiento ?? "");
   const [localidad, setLocalidad] = useState(chofer.localidad ?? "");
   const [provincia, setProvincia] = useState(chofer.provincia ?? "");
-  const [banco, setBanco] = useState(chofer.banco ?? "");
+  // Los datos bancarios son una LISTA: hay gente que cobra partido en dos o tres
+  // bancos. `chofer.banco/cbu/alias_cbu` siguen existiendo como espejo de la
+  // cuenta principal, pero lo que se edita acá es la lista.
+  const [bancos, setBancos] = useState<CuentaEditable[]>(() => cuentasDe(chofer));
   // CVU y CBU unificados en un solo campo `cbu` (son equivalentes).
-  const [cbu, setCbu] = useState(chofer.cbu ?? "");
-  const [aliasCbu, setAliasCbu] = useState(chofer.alias_cbu ?? "");
   const [altaAfip, setAltaAfip] = useState(chofer.alta_afip ?? "");
   const [rol, setRol] = useState<string>((chofer as { rol?: string | null }).rol ?? "chofer");
   const [estado, setEstado] = useState<ChoferEstado>((chofer.estado as ChoferEstado) ?? "activo");
@@ -145,9 +167,7 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
     setCiudadNacimiento(chofer.ciudad_nacimiento ?? "");
     setLocalidad(chofer.localidad ?? "");
     setProvincia(chofer.provincia ?? "");
-    setBanco(chofer.banco ?? "");
-    setCbu(chofer.cbu ?? "");
-    setAliasCbu(chofer.alias_cbu ?? "");
+    setBancos(cuentasDe(chofer));
     setAltaAfip(chofer.alta_afip ?? "");
     setRol((chofer as { rol?: string | null }).rol ?? "chofer");
     setEstado((chofer.estado as ChoferEstado) ?? "activo");
@@ -217,9 +237,6 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
         ciudad_nacimiento: ciudadNacimiento.trim() || null,
         localidad: localidad.trim() || null,
         provincia: provincia.trim() || null,
-        banco: banco.trim() || null,
-        cbu: cbu.trim() || null,
-        alias_cbu: aliasCbu.trim() || null,
         alta_afip: altaAfip || null,
         periodo_prueba_fin: periodoPruebaFin || null,
         nro_tramite_dni: nroTramiteDni.trim() || null,
@@ -233,10 +250,18 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
       });
       if (res.error) {
         setError(res.error);
-      } else {
-        setEditing(false);
-        onSaved?.();
+        return;
       }
+      // Los bancos van en su propia tabla, así que es una segunda escritura. Va
+      // después: si falla, el resto del legajo ya quedó guardado y el mensaje
+      // dice exactamente qué no se guardó.
+      const resBancos = await setChoferBancosAction(chofer.id, bancos);
+      if ("error" in resBancos) {
+        setError(resBancos.error);
+        return;
+      }
+      setEditing(false);
+      onSaved?.();
     });
   };
 
@@ -513,25 +538,16 @@ export default function ChoferInfoTab({ chofer, onSaved, editing: editingProp, o
             Bancarios
           </h4>
           <div className="space-y-2">
-            <Field label="Banco">
+            <Field label={bancos.length > 1 ? "Dónde cobra" : "Banco"}>
               {editing
-                ? <Input value={banco} onChange={(e) => setBanco(e.target.value)} className="h-8 text-sm" placeholder="—" />
-                : <Value v={chofer.banco} />}
-            </Field>
-            <Field label="CVU/CBU">
-              {editing
-                ? <Input value={cbu} onChange={(e) => setCbu(e.target.value)} className="font-mono h-8 text-sm" placeholder="—" maxLength={22} />
-                : <Value v={chofer.cbu} mono />}
-            </Field>
-            <Field label="Alias CBU">
-              {editing
-                ? <Input value={aliasCbu} onChange={(e) => setAliasCbu(e.target.value)} className="h-8 text-sm" placeholder="—" />
-                : <Value v={chofer.alias_cbu} />}
+                ? <CuentasBancariasEditor cuentas={bancos} onChange={setBancos} />
+                : <CuentasBancariasView cuentas={bancos} />}
             </Field>
           </div>
           {!editing && (
             <p className="text-[11px] text-muted-foreground bg-muted/40 rounded-md px-2.5 py-1.5 border border-border">
-              Se usan para liquidaciones y transferencias.
+              Se usan para liquidaciones y transferencias. Se completan solos al importar
+              la nómina del mes.
             </p>
           )}
         </section>

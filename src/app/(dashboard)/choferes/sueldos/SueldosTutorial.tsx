@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   Truck, Wallet, TrendingUp, FileSpreadsheet, MousePointer2, Plus,
-  Download, ArrowRight, ArrowLeft, Check, Sparkles,
+  Download, ArrowRight, ArrowLeft, Check, Sparkles, Banknote,
 } from "lucide-react";
 
 // Tutorial de la sección Sueldos en formato carrusel con ilustraciones animadas
@@ -24,6 +24,7 @@ export default function SueldosTutorial({
   onClose: () => void;
 }) {
   const hojasExport = [
+    ...(canAdmin ? ["Nómina"] : []),
     ...(canChoferes ? ["Choferes"] : []),
     ...(canAdmin ? ["Admin y taller", "Aumentos"] : []),
   ];
@@ -32,7 +33,7 @@ export default function SueldosTutorial({
       id: "intro",
       titulo: "Todo lo de sueldos, en un solo lugar",
       desc: (
-        <>Tres pestañas según lo que liquides. El <strong>mes</strong> se cambia con el selector de arriba a la derecha, y con <strong>Exportar</strong> bajás todo a Excel.</>
+        <>Una pestaña por cada cosa que mires. El <strong>mes</strong> se cambia con el selector de arriba a la derecha, y con <strong>Exportar</strong> bajás todo a Excel.</>
       ),
       ilustracion: <IlustracionPestanas canChoferes={canChoferes} canAdmin={canAdmin} />,
     },
@@ -45,6 +46,13 @@ export default function SueldosTutorial({
       ilustracion: <IlustracionChoferes />,
     }] : []),
     ...(canAdmin ? [{
+      id: "nomina",
+      titulo: "Nómina — lo que se transfirió y por qué banco",
+      desc: (
+        <>Arriba, cuánto sale de <strong>cada banco</strong>: es el número con el que entrás a pagar. Abajo, la lista completa persona por persona, con los embargos aparte. Se carga con <strong>Importar Excel</strong>, con la planilla de importes del mes.</>
+      ),
+      ilustracion: <IlustracionNomina />,
+    }, {
       id: "admin",
       titulo: "Admin y taller — planilla del mes",
       desc: (
@@ -154,6 +162,7 @@ function IlustracionPestanas({ canChoferes, canAdmin }: { canChoferes: boolean; 
   // pantalla que ya no existe.
   const tabs = [
     ...(canAdmin ? [
+      { icon: Banknote, label: "Nómina", color: "text-amber-600 bg-amber-50 border-amber-200/70" },
       { icon: Wallet, label: "Admin y taller", color: "text-violet-600 bg-violet-50 border-violet-200/70" },
       { icon: TrendingUp, label: "Aumentos", color: "text-emerald-600 bg-emerald-50 border-emerald-200/70" },
     ] : []),
@@ -202,6 +211,37 @@ function IlustracionChoferes() {
         </motion.div>
       ))}
     </motion.div>
+  );
+}
+
+function IlustracionNomina() {
+  // Los cuatro bancos más grandes de la nómina real, redondeados: el dibujo
+  // enseña la forma de la pantalla, no cifras para leer.
+  const bancos = [
+    { l: "Provincia", v: "108M" },
+    { l: "Santander", v: "45M" },
+    { l: "Credicoop", v: "41M" },
+    { l: "Nación", v: "38M" },
+  ];
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+      {bancos.map((b, idx) => (
+        <motion.div key={b.l}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 + idx * 0.09 }}
+          className="flex h-14 w-[4.5rem] flex-col items-center justify-center rounded-lg border border-border bg-card shadow-sm sm:h-16 sm:w-20">
+          <span className="text-[9px] uppercase text-muted-foreground">{b.l}</span>
+          <span className="font-mono text-xs font-semibold text-foreground">{b.v}</span>
+        </motion.div>
+      ))}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.55, type: "spring", stiffness: 240 }}
+        className="flex h-16 w-16 flex-col items-center justify-center rounded-xl border-2 border-primary/40 bg-primary/5 shadow-sm sm:h-20 sm:w-20">
+        <span className="text-[9px] font-semibold uppercase text-primary">Total</span>
+        <span className="font-mono text-sm font-bold text-primary">278M</span>
+      </motion.div>
+    </div>
   );
 }
 

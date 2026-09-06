@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, hasSeccion } from "@/lib/auth";
 import { getSueldosResumenAction } from "./actions";
 import { getSueldosAdminResumenAction } from "../../sueldos-admin/actions";
+import { getNominaMesAction } from "../../sueldos-admin/nomina-actions";
 import { getInflacion } from "@/lib/inflacion";
 import SueldosUnificadoClient from "./SueldosUnificadoClient";
 
@@ -23,9 +24,10 @@ export default async function SueldosPage({
   const canAdminWrite = hasSeccion(user, "sueldos_admin", "write");
 
   const { month = "" } = await searchParams;
-  const [choferes, admin, inflacion] = await Promise.all([
+  const [choferes, admin, nomina, inflacion] = await Promise.all([
     canChoferes ? getSueldosResumenAction(month) : Promise.resolve(null),
     canAdmin ? getSueldosAdminResumenAction(month) : Promise.resolve(null),
+    canAdmin ? getNominaMesAction(month) : Promise.resolve(null),
     canAdmin ? getInflacion() : Promise.resolve(null),
   ]);
 
@@ -37,6 +39,7 @@ export default async function SueldosPage({
       <SueldosUnificadoClient
         choferes={choferes}
         admin={admin}
+        nomina={nomina}
         inflacion={inflacion}
         month={month}
         canChoferes={canChoferes}

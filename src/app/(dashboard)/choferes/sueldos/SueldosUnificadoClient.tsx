@@ -3,36 +3,42 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Truck, Wallet, TrendingUp, HelpCircle, Upload } from "lucide-react";
+import { Truck, Wallet, TrendingUp, HelpCircle, Upload, Banknote } from "lucide-react";
 import ExportButton from "@/components/ExportButton";
 import MesSelector from "../../combustible/components/MesSelector";
 import { descargarExport } from "@/lib/download-export";
 import SueldosClient from "./SueldosClient";
 import SueldosAdminClient from "../../sueldos-admin/SueldosAdminClient";
+import NominaClient from "../../sueldos-admin/NominaClient";
 import ImportSueldosDialog from "../../sueldos-admin/ImportSueldosDialog";
 import HelpTutorialButton from "../../sueldos-admin/help-tutorial-button";
 import SueldosTutorial from "./SueldosTutorial";
 import type { SueldoChoferRow } from "./actions";
 import type { SueldosAdminResumen } from "../../sueldos-admin/actions";
+import type { NominaMesResumen } from "../../sueldos-admin/nomina-tipos";
 import type { InflacionData } from "@/lib/inflacion";
 
-type TabId = "choferes" | "admin" | "aumentos";
+type TabId = "nomina" | "choferes" | "admin" | "aumentos";
 
 export default function SueldosUnificadoClient({
-  choferes, admin, inflacion, month, canChoferes, canAdmin, canAdminWrite,
+  choferes, admin, nomina, inflacion, month, canChoferes, canAdmin, canAdminWrite,
 }: {
   choferes: SueldoChoferRow[] | null;
   admin: SueldosAdminResumen | null;
+  nomina: NominaMesResumen | null;
   inflacion: InflacionData | null;
   month: string;
   canChoferes: boolean;
   canAdmin: boolean;
   canAdminWrite: boolean;
 }) {
-  // Admin y taller va primero: es la planilla que se carga todos los meses.
-  // Choferes queda al final, que hoy se liquida por fuera del sistema.
+  // Nómina va primero: es la única que muestra a TODA la gente (los 74 choferes
+  // incluidos) y es la que se mira para pagar. Admin y taller queda al lado, que
+  // es el cálculo del costo de esas 13 personas; choferes al final, que hoy se
+  // liquida por fuera del sistema.
   const tabs: { id: TabId; label: string; icon: React.ElementType }[] = [
     ...(canAdmin ? [
+      { id: "nomina" as const, label: "Nómina", icon: Banknote },
       { id: "admin" as const, label: "Admin y taller", icon: Wallet },
       { id: "aumentos" as const, label: "Aumentos", icon: TrendingUp },
     ] : []),
@@ -90,6 +96,7 @@ export default function SueldosUnificadoClient({
       </div>
 
       <div className="flex-1 min-h-0">
+        {tab === "nomina" && nomina && <NominaClient resumen={nomina} />}
         {tab === "choferes" && choferes && <SueldosClient resumen={choferes} month={month} />}
         {tab === "admin" && admin && <SueldosAdminClient resumen={admin} month={month} canWrite={canAdminWrite} mostrar="planilla" />}
         {tab === "aumentos" && admin && (

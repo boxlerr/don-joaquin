@@ -1,7 +1,17 @@
 "use client";
 
-// Diálogo "Importar Excel" de sueldos admin/taller (formato de bloques por mes).
-// Pasos: elegir archivo → preview con matching de nombres editable → resultado.
+// Diálogo "Importar Excel" de Sueldos. Reconoce SOLO los dos archivos que existen:
+//
+//   * La nómina del mes ("IMPORTES SUELDOS JULIO 2026"): cuánto se le transfirió
+//     a cada persona y por qué banco. Es el que manda Bárbara todos los meses.
+//   * La planilla de admin y taller (bloques por mes con sueldo, comisión,
+//     combustible, plus YPF y sábados).
+//
+// El formato se reconoce solo. Antes había que saber cuál es cuál y elegirlo de
+// una lista: son dos archivos parecidos con nombres parecidos, y equivocarse
+// cargaba los importes de la nómina como si fueran sueldos base.
+//
+// Pasos: elegir archivo → revisar → resultado.
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,16 +30,23 @@ import {
   type SueldosImportPreview,
   type SueldosImportResult,
 } from "./import-actions";
+import {
+  previewImportNominaAction,
+  confirmImportNominaAction,
+} from "./import-nomina-actions";
+import type { NominaImportPreview, NominaImportResult } from "./nomina-tipos";
+import ImportNominaPreview from "./ImportNominaPreview";
 
 type Step = "select" | "preview" | "done";
+type Formato = "nomina" | "planilla";
 
 const money = (n: number | null | undefined) =>
   n == null ? "—" : "$" + Math.round(n).toLocaleString("es-AR");
 
+const MESES_ABR = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const mesLabel = (iso: string) => {
   const [y, m] = iso.split("-");
-  const nombres = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-  return `${nombres[parseInt(m, 10) - 1]} ${y}`;
+  return `${MESES_ABR[parseInt(m, 10) - 1]} ${y}`;
 };
 
 const ROL_LABEL: Record<string, string> = {
@@ -48,22 +65,36 @@ export default function ImportSueldosDialog({
   onDone: () => void;
 }) {
   const [step, setStep] = useState<Step>("select");
+  const [formato, setFormato] = useState<Formato | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Planilla de admin y taller.
   const [preview, setPreview] = useState<Extract<SueldosImportPreview, { ok: true }> | null>(null);
-  // Asignación final por nombre del Excel: chofer_id o "" = no cargar.
   const [asignaciones, setAsignaciones] = useState<Record<string, string>>({});
   const [result, setResult] = useState<Extract<SueldosImportResult, { ok: true }> | null>(null);
+
+  // Nómina del mes.
+  const [nomina, setNomina] = useState<Extract<NominaImportPreview, { ok: true }> | null>(null);
+  const [mesNomina, setMesNomina] = useState("");
+  const [completarBancos, setCompletarBancos] = useState(true);
+  const [resultNomina, setResultNomina] = useState<Extract<NominaImportResult, { ok: true }> | null>(null);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const fileObjRef = useRef<File | null>(null);
 
   const reset = () => {
     setStep("select");
+    setFormato(null);
     setLoading(false);
     setError(null);
     setPreview(null);
     setAsignaciones({});
     setResult(null);
+    setNomina(null);
+    setMesNomina("");
+    setCompletarBancos(true);
+    setResultNomina(null);
     fileObjRef.current = null;
   };
 
@@ -80,18 +111,40 @@ export default function ImportSueldosDialog({
     setLoading(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.set("file", f);
-      const res = await previewImportSueldosAction(fd);
-      if (!res.ok) {
-        setError(res.error ?? "Error al analizar el Excel.");
+      // Primero la nómina porque es el formato más específico (pide una hoja con
+      // las columnas Empleado e Importe); la planilla no puede confundirse con él.
+      const fdNomina = new FormData();
+      fdNomina.set("file", f);
+      const resNomina = await previewImportNominaAction(fdNomina);
+      if (resNomina.ok) {
+        setFormato("nomina");
+        setNomina(resNomina);
+        setMesNomina(resNomina.mesSugerido ? resNomina.mesSugerido.slice(0, 7) : "");
+        setAsignaciones(
+          Object.fromEntries(resNomina.personas.map((p) => [p.etiqueta, p.choferId ?? ""])),
+        );
+        setStep("preview");
         return;
       }
-      setPreview(res);
-      setAsignaciones(
-        Object.fromEntries(res.matches.map((m) => [m.nombreExcel, m.choferId ?? ""])),
+
+      const fdPlanilla = new FormData();
+      fdPlanilla.set("file", f);
+      const resPlanilla = await previewImportSueldosAction(fdPlanilla);
+      if (resPlanilla.ok) {
+        setFormato("planilla");
+        setPreview(resPlanilla);
+        setAsignaciones(
+          Object.fromEntries(resPlanilla.matches.map((m) => [m.nombreExcel, m.choferId ?? ""])),
+        );
+        setStep("preview");
+        return;
+      }
+
+      setError(
+        "No se reconoció el Excel. Tiene que ser la nómina del mes (una hoja con las columnas " +
+          "Empleado e Importe) o la planilla de administración y taller (bloques por mes con " +
+          "sueldo, comisión, combustible, plus YPF y sábados).",
       );
-      setStep("preview");
     } catch (err) {
       console.error(err);
       setError("No se pudo analizar el Excel.");
@@ -108,12 +161,24 @@ export default function ImportSueldosDialog({
       const fd = new FormData();
       fd.set("file", fileObjRef.current);
       fd.set("asignaciones", JSON.stringify(asignaciones));
-      const res = await confirmImportSueldosAction(fd);
-      if (!res.ok) {
-        setError(res.error ?? "Error al importar.");
-        return;
+
+      if (formato === "nomina") {
+        fd.set("mes", mesNomina ? `${mesNomina}-01` : "");
+        fd.set("completarBancos", completarBancos ? "1" : "0");
+        const res = await confirmImportNominaAction(fd);
+        if (!res.ok) {
+          setError(res.error ?? "Error al importar.");
+          return;
+        }
+        setResultNomina(res);
+      } else {
+        const res = await confirmImportSueldosAction(fd);
+        if (!res.ok) {
+          setError(res.error ?? "Error al importar.");
+          return;
+        }
+        setResult(res);
       }
-      setResult(res);
       setStep("done");
       onDone();
     } catch (err) {
@@ -137,9 +202,11 @@ export default function ImportSueldosDialog({
             Importar Excel de sueldos
           </DialogTitle>
           <DialogDescription>
-            Planilla de sueldos de administración y taller (bloques por mes con sueldo,
-            comisión, combustible, plus YPF, sábados y facturación). Re-importar el mismo
-            mes pisa los valores con los del archivo.
+            {formato === "nomina"
+              ? "Nómina del mes: lo que se le transfirió a cada persona y por qué banco. Volver a importar el mismo mes lo reemplaza."
+              : formato === "planilla"
+                ? "Planilla de administración y taller. Re-importar el mismo mes pisa los valores con los del archivo."
+                : "Sirven los dos Excel: la nómina del mes (Empleado / Importe, con las hojas por banco) y la planilla de administración y taller. Se reconoce solo cuál es."}
           </DialogDescription>
         </DialogHeader>
 
@@ -171,7 +238,30 @@ export default function ImportSueldosDialog({
           </form>
         )}
 
-        {step === "preview" && preview && (
+        {step === "preview" && formato === "nomina" && nomina && (
+          <div className="space-y-4">
+            <ImportNominaPreview
+              preview={nomina}
+              mes={mesNomina}
+              onMesChange={setMesNomina}
+              asignaciones={asignaciones}
+              onAsignacionesChange={setAsignaciones}
+              completarBancos={completarBancos}
+              onCompletarBancosChange={setCompletarBancos}
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={reset}>
+                Volver
+              </Button>
+              <Button onClick={handleConfirm} disabled={loading || !mesNomina}>
+                {loading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <CheckCircle2 size={14} className="mr-1.5" />}
+                {mesNomina ? "Cargar la nómina" : "Elegí el mes"}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === "preview" && formato === "planilla" && preview && (
           <div className="space-y-4">
             {preview.warnings.length > 0 && (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 space-y-1">
@@ -266,6 +356,54 @@ export default function ImportSueldosDialog({
                 {loading ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <CheckCircle2 size={14} className="mr-1.5" />}
                 Importar
               </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === "done" && resultNomina && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Nómina de {mesLabel(resultNomina.mes)} cargada</p>
+                <p className="mt-0.5 text-xs">
+                  {resultNomina.personas} personas · {money(resultNomina.total)}
+                  {resultNomina.embargos > 0 && <> · {resultNomina.embargos} embargos</>}
+                  {resultNomina.bancosAgregados > 0 && (
+                    <> · se completó el banco en {resultNomina.bancosAgregados} legajos</>
+                  )}
+                  .
+                </p>
+              </div>
+            </div>
+            {resultNomina.omitidos.length > 0 && (
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Sin cargar, por no tener legajo:</p>
+                <ul className="mt-1 space-y-0.5">
+                  {resultNomina.omitidos.map((o) => (
+                    <li key={o.etiqueta}>
+                      {o.etiqueta} — {money(o.importe)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {resultNomina.bancosSinConfirmar.length > 0 && (
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">
+                  Estos legajos tienen un banco que este Excel no menciona. Se dejaron como estaban:
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {resultNomina.bancosSinConfirmar.map((b, i) => (
+                    <li key={`${b.nombre}-${i}`}>
+                      {b.nombre} — {b.banco}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => close(false)}>Cerrar</Button>
             </DialogFooter>
           </div>
         )}

@@ -38,6 +38,7 @@ import {
   type CrearUrlResult,
 } from "@/lib/adjuntos-server";
 import type {
+  ChoferBanco,
   ChoferDetail,
   PrestamoEstado,
   ProductividadKPIs,
@@ -50,6 +51,7 @@ import type {
   ViajeEnRango,
 } from "./types";
 import { urlFirmada } from "@/lib/storage-urls";
+import { canonizarBanco, normalizarBanco, BANCOS_CONOCIDOS } from "@/lib/bancos";
 
 export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDetail | null> {
   const user = await requireSeccion("choferes", "read");
@@ -97,6 +99,16 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
     return d.toISOString().split("T")[0]!;
   })();
   const scorePromise = computeScoreChofer(chofer_id, scoreDesde, scoreHasta);
+
+  // Dónde cobra la persona. Va acá arriba por lo mismo que el score: se resuelve
+  // mientras corre el resto de la carga del legajo.
+  const bancosPromise = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `chofer_bancos` todavía no está en database.ts
+    .from("chofer_bancos" as any)
+    .select("id, banco, cbu, alias_cbu, principal, observaciones")
+    .eq("chofer_id", chofer_id)
+    .order("principal", { ascending: false })
+    .order("orden", { ascending: true });
 
   const [
     { data: docs },
@@ -795,9 +807,11 @@ export async function getChoferDetailAction(slugOrId: string): Promise<ChoferDet
 
   // Score de conducta del último trimestre (mismo cálculo que el Ranking).
   const scoreRes = await scorePromise;
+  const bancosRes = await bancosPromise;
 
   return ({
     ...chofer,
+    bancos: (bancosRes.data ?? []) as unknown as ChoferBanco[],
     score_trimestre: scoreRes?.score ?? null,
     score_trimestre_desglose: scoreRes?.desglose ?? [],
     foto: fotoObj as { bucket: string; path: string } | null,
@@ -2825,12 +2839,31 @@ export type SueldoHistorialMes = {
   total: number;
 };
 
+/** Un mes de la nómina: lo que se le transfirió y por qué banco salió. */
+export type NominaMesLegajo = {
+  mes: string;
+  total: number;
+  embargo: number;
+  bancos: { banco: string | null; importe: number }[];
+};
+
 export type SueldosHistorial = {
   meses: SueldoHistorialMes[]; // más reciente primero
   ultimo: SueldoHistorialMes | null;
   promedio6: number | null; // promedio de los últimos 6 meses con datos
   /** Variación % del último mes vs el mismo mes del año anterior (si existe). */
   interanualPct: number | null;
+  /** Lo transferido cada mes, más reciente primero. */
+  nomina: NominaMesLegajo[];
+  /**
+   * De dónde salen los tres números de arriba.
+   *
+   * Para los choferes la única fuente es la nómina; para las 13 personas de
+   * administración y taller manda la planilla, que tiene un año de historia
+   * contra el mes o dos de la nómina — calcular el promedio de seis meses sobre
+   * un solo mes sería peor que no mostrarlo.
+   */
+  fuenteKpis: "planilla" | "nomina" | null;
 };
 
 export async function getChoferSueldosHistorialAction(
@@ -2856,6 +2889,36 @@ export async function getChoferSueldosHistorialAction(
   ]);
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- `sueldos_nomina_pagos` todavía no está en database.ts
+  const { data: pagosRaw } = await (supabase as any)
+    .from("sueldos_nomina_pagos")
+    .select("mes, concepto, banco, importe")
+    .eq("chofer_id", choferId)
+    .order("mes", { ascending: false });
+
+  const porMes = new Map<string, NominaMesLegajo>();
+  for (const p of (pagosRaw ?? []) as {
+    mes: string;
+    concepto: "sueldo" | "embargo";
+    banco: string | null;
+    importe: number;
+  }[]) {
+    let fila = porMes.get(p.mes);
+    if (!fila) {
+      fila = { mes: p.mes, total: 0, embargo: 0, bancos: [] };
+      porMes.set(p.mes, fila);
+    }
+    const importe = Number(p.importe ?? 0);
+    if (p.concepto === "embargo") {
+      fila.embargo += importe;
+      continue;
+    }
+    fila.total += importe;
+    fila.bancos.push({ banco: p.banco, importe });
+  }
+  const nomina = [...porMes.values()].sort((a, b) => b.mes.localeCompare(a.mes));
+  for (const m of nomina) m.bancos.sort((a, b) => b.importe - a.importe);
+
   const aumentos = (aumentosRes.data ?? []) as { vigente_desde: string; sueldo_base: number }[];
   const variables = new Map(
     ((variablesRes.data ?? []) as {
@@ -2869,7 +2932,17 @@ export async function getChoferSueldosHistorialAction(
   );
 
   if (!aumentos.length && !variables.size) {
-    return { meses: [], ultimo: null, promedio6: null, interanualPct: null };
+    // Sin planilla: para los choferes ésta es la situación normal y los números
+    // de arriba salen de la nómina.
+    const ult6 = nomina.slice(0, 6);
+    return {
+      meses: [],
+      ultimo: null,
+      promedio6: ult6.length ? ult6.reduce((s, m) => s + m.total, 0) / ult6.length : null,
+      interanualPct: interanualDeNomina(nomina),
+      nomina,
+      fuenteKpis: nomina.length ? "nomina" : null,
+    };
   }
 
   // Solo meses con datos REALES (aumento cargado ese mes o variables de ese
@@ -2919,7 +2992,17 @@ export async function getChoferSueldosHistorialAction(
     }
   }
 
-  return { meses, ultimo, promedio6, interanualPct };
+  return { meses, ultimo, promedio6, interanualPct, nomina, fuenteKpis: "planilla" };
+}
+
+/** Variación contra el mismo mes del año pasado, si ese mes está cargado. */
+function interanualDeNomina(nomina: NominaMesLegajo[]): number | null {
+  const ultimo = nomina[0];
+  if (!ultimo) return null;
+  const [y, m] = ultimo.mes.split("-");
+  const previo = nomina.find((x) => x.mes === `${parseInt(y, 10) - 1}-${m}-01`);
+  if (!previo || previo.total <= 0) return null;
+  return (ultimo.total / previo.total - 1) * 100;
 }
 
 /**
@@ -2961,4 +3044,121 @@ export async function getDiasPedidosAnioAction(
   }, 0);
 
   return { dias, veces: filas.length };
+}
+
+// ---------------------------------------------------------------------------
+// Dónde cobra la persona
+// ---------------------------------------------------------------------------
+
+/**
+ * Reemplaza las cuentas bancarias del legajo por la lista que llega.
+ *
+ * Es una lista y no un campo porque hay gente que cobra partido: HAIT cobra en
+ * Credicoop, Galicia y Francés (audio de Bárbara, 03/09/2026). `choferes.banco`,
+ * `cbu` y `alias_cbu` los sigue manteniendo un trigger, apuntando a la cuenta
+ * principal, así que las pantallas y los exports que los leen no cambian.
+ *
+ * El orden de las escrituras no es casual: primero se apaga `principal` en todas
+ * y recién después se prende en una. Hay un índice único de "una principal por
+ * persona", y hacerlo al revés lo viola a mitad de camino.
+ */
+export async function setChoferBancosAction(
+  chofer_id: string,
+  cuentas: {
+    id?: string;
+    banco: string;
+    cbu?: string | null;
+    alias_cbu?: string | null;
+    principal?: boolean;
+  }[],
+): Promise<{ ok: true } | { error: string }> {
+  const user = await requireArea("logistica", "write");
+  const supabase = createAdminClient();
+  /* eslint-disable @typescript-eslint/no-explicit-any -- `chofer_bancos` todavía no está en database.ts */
+
+  const { data: previasRaw } = await (supabase as any)
+    .from("chofer_bancos")
+    .select("id, banco, cbu, alias_cbu, principal, orden")
+    .eq("chofer_id", chofer_id);
+  const previas = (previasRaw ?? []) as {
+    id: string;
+    banco: string;
+    cbu: string | null;
+    alias_cbu: string | null;
+    principal: boolean;
+  }[];
+
+  // El nombre del banco se lleva a la grafía que ya usa el sistema: si no,
+  // "galicia" y "Banco Galicia" terminan siendo dos bancos distintos.
+  const { data: enUsoRaw } = await (supabase as any).from("chofer_bancos").select("banco");
+  const enUso = [
+    ...new Set([...((enUsoRaw ?? []) as { banco: string }[]).map((b) => b.banco), ...BANCOS_CONOCIDOS]),
+  ];
+
+  const limpias = cuentas
+    .map((c) => ({
+      id: c.id,
+      banco: canonizarBanco(c.banco ?? "", enUso),
+      cbu: c.cbu?.trim() || null,
+      alias_cbu: c.alias_cbu?.trim() || null,
+      principal: !!c.principal,
+    }))
+    .filter((c) => c.banco);
+
+  const repetido = limpias.find(
+    (c, i) => limpias.findIndex((o) => normalizarBanco(o.banco) === normalizarBanco(c.banco)) !== i,
+  );
+  if (repetido) return { error: `${repetido.banco} está cargado dos veces.` };
+
+  // Siempre hay exactamente una principal mientras haya cuentas: es la que se
+  // espeja en el legajo, y sin ninguna marcada el espejo tomaría cualquiera.
+  if (limpias.length && !limpias.some((c) => c.principal)) limpias[0].principal = true;
+
+  // 1) Apagar todas las principales: el índice único no admite dos a la vez.
+  if (previas.some((p) => p.principal)) {
+    await (supabase as any)
+      .from("chofer_bancos")
+      .update({ principal: false })
+      .eq("chofer_id", chofer_id);
+  }
+
+  // 2) Borrar las que ya no están.
+  const conservados = new Set(limpias.map((c) => c.id).filter(Boolean) as string[]);
+  const aBorrar = previas.filter((p) => !conservados.has(p.id)).map((p) => p.id);
+  if (aBorrar.length) {
+    const { error } = await (supabase as any).from("chofer_bancos").delete().in("id", aBorrar);
+    if (error) return { error: "No se pudo borrar una cuenta bancaria." };
+  }
+
+  // 3) Actualizar las que siguen y crear las nuevas.
+  for (const [i, c] of limpias.entries()) {
+    const fila = {
+      banco: c.banco,
+      cbu: c.cbu,
+      alias_cbu: c.alias_cbu,
+      principal: c.principal,
+      orden: i,
+    };
+    const { error } = c.id
+      ? await (supabase as any).from("chofer_bancos").update(fila).eq("id", c.id)
+      : await (supabase as any)
+          .from("chofer_bancos")
+          .insert({ ...fila, chofer_id, created_by: user.id });
+    if (error) {
+      if (error.code === "23505") return { error: `${c.banco} ya está cargado en este legajo.` };
+      return { error: "No se pudieron guardar los datos bancarios." };
+    }
+  }
+
+  await logChoferAudit(
+    chofer_id,
+    "actualizar",
+    { bancos: previas.map((p) => p.banco) },
+    { bancos: limpias.map((c) => c.banco) },
+    user.id,
+  );
+
+  revalidatePath(`/choferes`);
+  return { ok: true };
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 }

@@ -5,6 +5,7 @@ import {
   getSueldosAdminResumenAction,
   type SueldoAdminEmpleado,
 } from "../../../sueldos-admin/actions";
+import { getNominaMesAction } from "../../../sueldos-admin/nomina-actions";
 import {
   buildMultiSheetWorkbook,
   type ProColumn,
@@ -15,8 +16,9 @@ export const dynamic = "force-dynamic";
 
 // Export de TODA la sección Sueldos en un solo Excel con el look profesional del
 // sistema (hoja de ruta / planilla diaria): una hoja por vista que el usuario
-// tenga permiso de ver — Choferes (liquidación por viajes) · Admin y taller
-// (planilla del mes) · Aumentos (matriz base vigente mes a mes, como el Excel).
+// tenga permiso de ver — Nómina (lo transferido, por banco) · Choferes
+// (liquidación por viajes) · Admin y taller (planilla del mes) · Aumentos
+// (matriz base vigente mes a mes, como el Excel).
 
 type SheetSpec = Parameters<typeof buildMultiSheetWorkbook>[0][number];
 
@@ -47,6 +49,44 @@ export async function GET(req: NextRequest) {
   const month = req.nextUrl.searchParams.get("month") || undefined;
   const periodo = periodoLabel(month);
   const sheets: SheetSpec[] = [];
+
+  // ── Hoja: Nómina (lo transferido, abierto por banco) ─────────────────────
+  // Es la hoja que se cruza contra el Excel que llegó: mismas personas, mismos
+  // importes y el banco al lado, para poder compararla renglón por renglón.
+  if (canAdmin) {
+    const nomina = await getNominaMesAction(month);
+    if (nomina.personas.length > 0) {
+      const columns: ProColumn[] = [
+        { header: "Persona", width: 30, align: "l" },
+        { header: "Banco", width: 22, align: "l" },
+        { header: "Transferido", width: 16, align: "r", numFmt: MONEY },
+        { header: "Embargo", width: 14, align: "r", numFmt: MONEY },
+      ];
+      // Una fila por banco: quien cobra partido ocupa dos o tres renglones, que
+      // es exactamente como viene el Excel de origen.
+      const rows: CellValue[][] = nomina.personas.flatMap((p) =>
+        (p.bancos.length ? p.bancos : [{ banco: null, importe: p.total }]).map((b, i) => [
+          i === 0 ? p.nombre : "",
+          b.banco ?? "Sin banco",
+          b.importe,
+          i === 0 && p.embargo > 0 ? p.embargo : null,
+        ]),
+      );
+      const porBanco = nomina.bancos
+        .map((b) => `${b.banco ?? "Sin banco"} ${money(b.total)}`)
+        .join(" · ");
+      sheets.push({
+        name: "Nómina",
+        opts: {
+          title: "Nómina del mes — lo transferido a cada persona",
+          subtitle: `${periodo} · ${nomina.personas.length} personas · Total ${money(nomina.total)}${porBanco ? ` — ${porBanco}` : ""}`,
+          columns,
+          rows,
+          totals: ["TOTALES", "", nomina.total, nomina.totalEmbargos],
+        },
+      });
+    }
+  }
 
   // ── Hoja: Choferes (liquidación por viajes) ──────────────────────────────
   if (canChoferes) {

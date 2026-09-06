@@ -270,7 +270,25 @@ export type EvolucionMes = {
   toneladas: number;
 };
 
+/**
+ * Una cuenta donde cobra la persona. Son varias porque hay gente que cobra
+ * partido: una parte en un banco y otra en otro (audio de Bárbara, 03/09/2026).
+ *
+ * `banco`, `cbu` y `alias_cbu` siguen existiendo sueltos en `choferes` como
+ * espejo de la cuenta principal, para las pantallas y exports que ya los leen.
+ */
+export type ChoferBanco = {
+  id: string;
+  banco: string;
+  cbu: string | null;
+  alias_cbu: string | null;
+  principal: boolean;
+  observaciones: string | null;
+};
+
 export type ChoferDetail = ChoferBasico & {
+  /** Dónde cobra: una fila por banco, la principal primero. */
+  bancos: ChoferBanco[];
   foto?: { bucket: string; path: string } | null;
   /** Link firmado a la foto. Lo arma el servidor: el bucket es privado y la
    *  firma vence, así que no se puede construir en el cliente. */
