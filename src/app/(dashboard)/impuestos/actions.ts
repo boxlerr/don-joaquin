@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hasSeccion, requireArea, type CurrentUser } from "@/lib/auth";
-import { COLUMNA_IMPUESTOS_PERSONALES } from "@/domain/impuestos/entidades";
+import { hasSeccion, requireArea, requireSeccion, type CurrentUser } from "@/lib/auth";
+import { COLUMNA_IMPUESTOS_PERSONALES, esReservado } from "@/domain/impuestos/entidades";
 import { logAudit } from "@/lib/audit";
 import {
   crearUrlSubidaAdjunto,
@@ -79,12 +79,41 @@ function mapImpuesto(r: any): ImpuestoRow {
   };
 }
 
+/**
+ * Los códigos de contribuyente que este usuario NO puede ver, o `null` si puede
+ * verlos todos.
+ *
+ * La sección «Impuestos personales» está marcada confidencial desde el 02/09,
+ * pero eso sólo estaba cortando a quién le llegaba el AVISO: las filas del
+ * calendario de Nicolás se veían igual en la tabla —con su CUIT en el
+ * desplegable— para los nueve que tienen Finanzas. Un tilde que dice "reservado"
+ * y no reserva nada es peor que no tenerlo, así que el mismo permiso que decide
+ * el correo decide también la lista.
+ */
+async function codigosVedados(user: CurrentUser, supabase: any): Promise<string[] | null> {
+  if (hasSeccion(user, "impuestos_personales", "read")) return null;
+  const { data } = await supabase
+    .from("impuesto_entidades")
+    .select("codigo, columna_alerta")
+    .eq("columna_alerta", COLUMNA_IMPUESTOS_PERSONALES);
+  const codigos = ((data ?? []) as { codigo: string }[]).map((e) => e.codigo);
+  return codigos.length > 0 ? codigos : null;
+}
+
 export async function getImpuestosAction(): Promise<ImpuestoRow[]> {
+  // El chequeo va acá y no sólo en la página: una server action exportada la
+  // puede llamar cualquiera que esté logueado, tenga o no la pantalla.
+  const user = await requireSeccion("impuestos", "read");
   const supabase = createAdminClient();
-  const { data } = await (supabase as any)
+  const vedados = await codigosVedados(user, supabase);
+
+  let q = (supabase as any)
     .from("impuesto_vencimientos")
     .select(SELECT_IMPUESTO)
     .order("fecha_vencimiento", { ascending: true });
+  if (vedados) q = q.not("entidad_codigo", "in", `(${vedados.join(",")})`);
+
+  const { data } = await q;
   return ((data ?? []) as any[]).map(mapImpuesto);
 }
 
@@ -113,12 +142,17 @@ async function motivoSinPermisoEntidad(
  * solo el filtro ni se dibuja, igual que el de organismo.
  */
 export async function getEntidadesAction(): Promise<EntidadImpuesto[]> {
+  const user = await requireSeccion("impuestos", "read");
   const supabase = createAdminClient();
   const { data } = await (supabase as any)
     .from("impuesto_entidades")
-    .select("codigo, nombre, cuit")
+    .select("codigo, nombre, cuit, columna_alerta")
     .order("orden", { ascending: true });
-  return (data ?? []) as EntidadImpuesto[];
+
+  const puedePersonales = hasSeccion(user, "impuestos_personales", "read");
+  return ((data ?? []) as (EntidadImpuesto & { columna_alerta: string })[])
+    .filter((e) => puedePersonales || !esReservado(e.columna_alerta))
+    .map(({ codigo, nombre, cuit }) => ({ codigo, nombre, cuit }));
 }
 
 /**
@@ -129,15 +163,23 @@ export async function getHistorialImpuestoAction(
   nombre: string,
   excluirId: string,
 ): Promise<ImpuestoRow[]> {
-  await requireArea("finanzas", "read");
+  // El historial cruza contribuyentes: "IVA" lo tienen los dos. Sin el mismo
+  // recorte que el listado, abrir el IVA de la empresa mostraba abajo el de la
+  // persona física.
+  const user = await requireSeccion("impuestos", "read");
   const supabase = createAdminClient();
-  const { data } = await (supabase as any)
+  const vedados = await codigosVedados(user, supabase);
+
+  let q = (supabase as any)
     .from("impuesto_vencimientos")
     .select(SELECT_IMPUESTO)
     .eq("nombre", nombre)
     .neq("id", excluirId)
     .order("fecha_vencimiento", { ascending: false })
     .limit(24);
+  if (vedados) q = q.not("entidad_codigo", "in", `(${vedados.join(",")})`);
+
+  const { data } = await q;
   return ((data ?? []) as any[]).map(mapImpuesto);
 }
 

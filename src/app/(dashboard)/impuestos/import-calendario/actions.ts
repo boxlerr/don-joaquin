@@ -6,7 +6,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser, hasSeccion, requireArea, type CurrentUser } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { parseCalendarioSecondi } from "@/domain/impuestos/calendario-secondi";
-import { COLUMNA_IMPUESTOS_PERSONALES } from "@/domain/impuestos/entidades";
+import {
+  COLUMNA_IMPUESTOS_PERSONALES,
+  avisaA,
+  codigoContribuyente,
+  esReservado,
+} from "@/domain/impuestos/entidades";
 import { clasificarFilas } from "@/domain/impuestos/import-calendario";
 import type {
   FilaConfirmar,
@@ -41,19 +46,12 @@ const MAX_BYTES = 5 * 1024 * 1024;
 
 type EntidadRow = { codigo: string; nombre: string; cuit: string; columna_alerta: string };
 
-/** "A quién le llega", dicho en castellano y no en nombre de columna. */
-function avisaA(columnaAlerta: string): string {
-  return columnaAlerta === COLUMNA_IMPUESTOS_PERSONALES
-    ? "Sólo a quien tenga «Impuestos personales»"
-    : "A todo el equipo con avisos de Impuestos";
-}
-
 /**
  * El calendario de una persona física no lo puede cargar cualquiera con acceso a
  * Finanzas: el permiso viaja con el dato. Devuelve el motivo o `null` si puede.
  */
 function motivoSinPermiso(user: CurrentUser, entidad: EntidadRow | null): string | null {
-  if (!entidad || entidad.columna_alerta !== COLUMNA_IMPUESTOS_PERSONALES) return null;
+  if (!entidad || !esReservado(entidad.columna_alerta)) return null;
   if (hasSeccion(user, "impuestos_personales", "write")) return null;
   return `El calendario de ${entidad.nombre} es de acceso reservado. Pedile a un administrador la sección «Impuestos personales» desde /usuarios.`;
 }
@@ -214,13 +212,15 @@ async function asegurarEntidad(
     .maybeSingle();
   if (existente) return { entidad: existente as EntidadRow };
 
-  const codigo = input.nombre
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "")
-    .slice(0, 40) || `cuit_${input.cuit.replace(/\D/g, "")}`;
+  // Los códigos ya tomados: sin esto, un contribuyente nuevo cuyo nombre da el
+  // mismo slug que uno cargado moría con un error de clave repetida que en la
+  // vista previa se veía como "No se pudo dar de alta el contribuyente".
+  const { data: todos } = await supabase.from("impuesto_entidades").select("codigo");
+  const codigo = codigoContribuyente(
+    input.nombre,
+    input.cuit,
+    ((todos ?? []) as { codigo: string }[]).map((e) => e.codigo),
+  );
 
   const { data, error } = await supabase
     .from("impuesto_entidades")

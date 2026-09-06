@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, Pencil, Trash2, Loader2, Check, ChevronRight, ChevronLeft, Paperclip,
   Search, X, FileText, ArrowUpDown, ArrowUp, ArrowDown, CalendarX2, Wallet, Upload,
+  Building2, Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,7 @@ import { totalesPorPeriodo, totalGeneral } from "./totales";
 import ImpuestoDetalle from "./components/ImpuestoDetalle";
 import IlustracionImpuesto from "./components/IlustracionImpuesto";
 import ImportCalendarioModal from "./components/ImportCalendarioModal";
+import ContribuyentesDialog from "./components/ContribuyentesDialog";
 
 /**
  * Calendario de vencimientos impositivos.
@@ -243,6 +245,7 @@ export default function ImpuestosClient({
   const [organismo, setOrganismo] = useState("todos");
   const [entidad, setEntidad] = useState("todos");
   const [importAbierto, setImportAbierto] = useState(false);
+  const [contribAbierto, setContribAbierto] = useState(false);
   const [orden, setOrden] = useState<CampoOrden>("vencimiento");
   const [dir, setDir] = useState<Direccion>("asc");
   const [pagina, setPagina] = useState(1);
@@ -436,6 +439,27 @@ export default function ImpuestosClient({
 
   const puedeGuardar = nombre.trim() !== "" && fecha !== "";
 
+  /**
+   * El renglón del pie del desplegable de contribuyentes. La lista se veía pero
+   * no se tocaba: dar de alta uno era subir un PDF con un CUIT desconocido, y
+   * corregirle el nombre a uno cargado no se podía de ninguna forma.
+   *
+   * Cierra el popup ANTES de abrir el diálogo: si no, quedan dos capas
+   * superpuestas peleándose el foco.
+   */
+  const pieContribuyentes = canWrite
+    ? (cerrar: () => void) => (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => { cerrar(); setContribAbierto(true); }}
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium text-primary outline-none hover:bg-primary/10 focus-visible:bg-primary/10"
+        >
+          <Settings2 size={14} /> Administrar contribuyentes
+        </button>
+      )
+    : undefined;
+
   /** Tocar la tarjeta que ya está activa vuelve a "Todos". */
   const irA = (e: FiltroEstado) => cambiarEstado(estado === e ? "todos" : e);
   const marca = (e: FiltroEstado) => (estado === e ? "rounded-[8px] ring-2 ring-primary/40" : "");
@@ -563,8 +587,10 @@ export default function ImpuestosClient({
           )}
 
           {/* Sólo cuando hay más de un contribuyente: con uno solo el
-              desplegable no elige nada y ocupa la mitad de la barra. */}
-          {entidades.length > 1 && (
+              desplegable no elige nada y ocupa la mitad de la barra. Con uno
+              solo, el mismo lugar lo ocupa la puerta al catálogo — que si no
+              se iría con el filtro y no quedaría forma de agregar el segundo. */}
+          {entidades.length > 1 ? (
             <Combobox
               value={entidad}
               onValueChange={(v) => cambiarEntidad(v || "todos")}
@@ -573,10 +599,20 @@ export default function ImpuestosClient({
                 ...entidades.map((e) => ({ id: e.codigo, label: e.nombre, note: e.cuit })),
               ]}
               searchable={entidades.length > 7}
+              footer={pieContribuyentes}
               triggerClassName="h-10 w-full sm:h-9 sm:w-56"
               aria-label="Filtrar por contribuyente"
             />
-          )}
+          ) : canWrite ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 w-full sm:h-9 sm:w-auto"
+              onClick={() => setContribAbierto(true)}
+            >
+              <Building2 size={14} /> Contribuyentes
+            </Button>
+          ) : null}
 
           {canWrite && (
             <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
@@ -1064,13 +1100,14 @@ export default function ImpuestosClient({
             {/* De quién es. En la edición no se ofrece: mover un vencimiento de
                 contribuyente le cambia a quién le avisa, y eso no es una
                 corrección de tipeo — se borra y se carga donde va. */}
-            {dialog.mode === "add" && entidades.length > 1 && (
+            {dialog.mode === "add" && entidades.length > 0 && (
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-foreground">Contribuyente</Label>
                 <Combobox
                   value={entidadForm}
                   onValueChange={(v) => setEntidadForm(v || entidades[0]!.codigo)}
                   options={entidades.map((e) => ({ id: e.codigo, label: e.nombre, note: e.cuit }))}
+                  footer={pieContribuyentes}
                   aria-label="Contribuyente"
                 />
               </div>
@@ -1128,7 +1165,10 @@ export default function ImpuestosClient({
       </Dialog>
 
       {canWrite && (
-        <ImportCalendarioModal open={importAbierto} onOpenChange={setImportAbierto} />
+        <>
+          <ImportCalendarioModal open={importAbierto} onOpenChange={setImportAbierto} />
+          <ContribuyentesDialog open={contribAbierto} onOpenChange={setContribAbierto} />
+        </>
       )}
 
       <ConfirmDialog

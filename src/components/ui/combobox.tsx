@@ -64,6 +64,12 @@ export interface ComboboxProps {
   id?: string;
   /** Marca visual de error (borde rojo). */
   invalid?: boolean;
+  /**
+   * Renglón fijo al pie del popup, debajo de la lista: para las acciones que
+   * son sobre el catálogo y no sobre la selección ("Administrar contribuyentes").
+   * Recibe `cerrar` para que el popup se vaya antes de abrir un diálogo encima.
+   */
+  footer?: (cerrar: () => void) => React.ReactNode;
   className?: string;
   triggerClassName?: string;
   "aria-label"?: string;
@@ -85,6 +91,7 @@ export function Combobox({
   searchThreshold = 7,
   id,
   invalid,
+  footer,
   className,
   triggerClassName,
   "aria-label": ariaLabel,
@@ -117,10 +124,16 @@ export function Combobox({
   const defaultItem =
     defaultValue !== undefined ? byId.get(defaultValue) ?? null : undefined;
 
+  // Sólo cuando hay footer: la apertura se controla acá para que la acción del
+  // pie pueda cerrar el popup antes de abrir un diálogo encima (si no, quedan
+  // dos capas peleándose el foco y el diálogo abre sin teclado).
+  const [abierto, setAbierto] = React.useState(false);
+
   return (
     <ComboboxPrimitive.Root
       items={items}
       name={name}
+      {...(footer ? { open: abierto, onOpenChange: setAbierto } : {})}
       required={required}
       disabled={disabled}
       // Sin buscador visible no debe filtrarse nunca: si no, la query interna
@@ -242,6 +255,12 @@ export function Combobox({
                 </ComboboxPrimitive.Item>
               )}
             </ComboboxPrimitive.List>
+
+            {footer && (
+              <div className="shrink-0 border-t border-border p-1">
+                {footer(() => setAbierto(false))}
+              </div>
+            )}
 
             {clearable && (
               <ComboboxPrimitive.Clear

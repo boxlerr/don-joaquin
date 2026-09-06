@@ -369,6 +369,49 @@ function MockHeaderBtn() {
   );
 }
 
+function MockContribuyentes() {
+  return (
+    <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+        <span className="size-6 rounded-full bg-[#E1F5FE] text-primary inline-flex items-center justify-center">
+          <Building2 size={12} />
+        </span>
+        <span className="text-[11px] font-semibold text-foreground">Contribuyentes</span>
+      </div>
+      <div className="divide-y divide-border">
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium text-foreground">Joaquín Hnos</div>
+            <div className="text-[9px] text-muted-foreground tabular-nums">30-70908728-9 · 26 vencimientos</div>
+          </div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Pencil size={11} />
+            <Trash2 size={11} className="opacity-30" />
+          </div>
+        </div>
+        <div className="flex items-center justify-between px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium text-foreground flex items-center gap-1">
+              Joaquín Nicolás
+              <span className="text-[9px] font-medium text-muted-foreground">· Reservado</span>
+            </div>
+            <div className="text-[9px] text-muted-foreground tabular-nums">20-26402739-0 · 3 vencimientos</div>
+          </div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Pencil size={11} />
+            <Trash2 size={11} className="opacity-30" />
+          </div>
+        </div>
+      </div>
+      <div className="px-3 py-2 border-t border-border">
+        <span className="h-6 px-2 rounded-md text-[10px] font-semibold inline-flex items-center gap-1 border border-border text-foreground">
+          <Plus size={10} /> Agregar contribuyente
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function MockForm() {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
@@ -588,6 +631,13 @@ const TABS: TutorialTab[] = [
           'El camino corto: el botón "Subir calendario" toma el PDF que manda el estudio contable y agenda todos los vencimientos de una. Antes de guardar nada muestra lo que entendió —el contribuyente, el CUIT y cada impuesto con su fecha— y ahí se puede corregir. Subir dos veces el mismo archivo no duplica nada; si el estudio corrigió una fecha, la cambia.',
         mockup: <MockHeaderBtn />,
         hint: "El CUIT del PDF dice de quién es el calendario, y de eso depende a quién le llegan los avisos.",
+      },
+      {
+        title: "Elegí de quién es, o dalo de alta",
+        description:
+          'En el desplegable "Contribuyente" está de quién va a ser el vencimiento. Abajo de la lista, "Administrar contribuyentes" abre el catálogo: ahí se agrega uno nuevo, se le corrige el nombre o el CUIT, y se elige si sus avisos los ve todo el equipo o quedan reservados. Un contribuyente con vencimientos cargados no se puede borrar —se irían con él los importes, las fechas de pago y los comprobantes—; primero se borran los vencimientos.',
+        mockup: <MockContribuyentes />,
+        hint: "El CUIT es con el que se reconoce el PDF del estudio: si está mal tipeado, el calendario que manden el mes que viene no se va a agendar solo.",
       },
       {
         title: "Agregá un impuesto a mano",

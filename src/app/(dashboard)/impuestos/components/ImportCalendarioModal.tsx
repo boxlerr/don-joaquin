@@ -15,6 +15,9 @@ import {
   confirmarCalendarioAction,
 } from "../import-calendario/actions";
 import type { EstadoFila, FilaPreview, PreviewCalendario, ResultadoImport } from "../import-calendario/tipos";
+// El mismo catálogo que usa el ABM de /impuestos: dos listas separadas se
+// terminaban contradiciendo en el texto de la opción.
+import { COLUMNAS_AVISO } from "@/domain/impuestos/entidades";
 
 /**
  * Subir el calendario del estudio contable y que las fechas queden agendadas.
@@ -29,11 +32,6 @@ import type { EstadoFila, FilaPreview, PreviewCalendario, ResultadoImport } from
  */
 
 type Paso = "elegir" | "revisar" | "listo";
-
-const COLUMNAS_AVISO = [
-  { id: "impuestos", label: "Impuestos — le llega a todo el equipo" },
-  { id: "impuestos_personales", label: "Impuestos personales — reservado" },
-];
 
 const ETIQUETA_ESTADO: Record<EstadoFila, { label: string; tone: "success" | "warning" | "neutral" }> = {
   nuevo: { label: "Se agenda", tone: "success" },
@@ -298,7 +296,7 @@ export default function ImportCalendarioModal({
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">¿A quién le avisa?</Label>
                   <Combobox
-                    options={COLUMNAS_AVISO}
+                    options={COLUMNAS_AVISO.map((c) => ({ id: c.id, label: c.label }))}
                     value={altaColumna}
                     onValueChange={setAltaColumna}
                     aria-label="A quién le avisa"
