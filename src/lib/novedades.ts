@@ -90,6 +90,42 @@ export const VENTANA_NOVEDADES_DIAS = 30;
 /** Las más nuevas arriba. Al agregar una, va al principio de la lista. */
 export const NOVEDADES: Novedad[] = [
   {
+    id: "agrega-corregi-o-elimina-contribuyentes",
+    fecha: "2026-09-06",
+    tipo: "nuevo",
+    ver: "impuestos",
+    titulo: "Agregá, corregí o eliminá contribuyentes desde el mismo desplegable",
+    detalle: "Abajo de la lista está \"Administrar contribuyentes\": ahí se suma uno nuevo, se le corrige el nombre o el CUIT, y se elige si sus avisos los ve todo el equipo o quedan reservados. Antes la única forma de sumar uno era subir un PDF a nombre de alguien que el sistema todavía no conocía.",
+    href: "/impuestos",
+  },
+  {
+    id: "subi-el-excel-de-la-nomina-y-se-carga-solo",
+    fecha: "2026-09-06",
+    tipo: "nuevo",
+    ver: "sueldos_admin",
+    titulo: "Subí el Excel de la nómina y se carga solo, con el banco por el que salió cada pago",
+    detalle: "La pestaña Nómina muestra cuánto sale de cada banco y la lista persona por persona, con los embargos aparte. Importar Excel ahora reconoce el archivo solo: antes había que elegir cuál era de una lista, y equivocarse cargaba esos importes como si fueran sueldos base.",
+    href: "/choferes/sueldos",
+  },
+  {
+    id: "carga-todos-los-bancos-donde-cobra-una",
+    fecha: "2026-09-06",
+    tipo: "nuevo",
+    ver: "choferes",
+    titulo: "Cargá todos los bancos donde cobra una persona, y no uno solo",
+    detalle: "Están en la solapa Información del legajo: quien cobra una parte en un banco y otra en otro los muestra los dos, cada uno con su CBU o alias.",
+    href: "/choferes",
+  },
+  {
+    id: "la-solapa-sueldos-del-legajo-muestra-lo",
+    fecha: "2026-09-06",
+    tipo: "mejora",
+    ver: "sueldos",
+    titulo: "La solapa Sueldos del legajo muestra lo transferido y la planilla por separado",
+    detalle: "Son dos números distintos que antes no se veían juntos: lo que se le transfirió a la persona en el mes, banco por banco, y la planilla de administración y taller.",
+    href: "/choferes",
+  },
+  {
     id: "el-resumen-del-dia-ya-no-te-muestra-siempre",
     fecha: "2026-09-02",
     tipo: "arreglo",
